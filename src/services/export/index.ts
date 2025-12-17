@@ -53,13 +53,13 @@ export class ExportService {
   }
 
   async generateFilename(
-    projectName: string,
+    documentName: string = 'document',
     format: string,
     timestamp: Date = new Date()
   ): Promise<string> {
     const dateStr = timestamp.toISOString().split('T')[0]
     const timeStr = timestamp.toTimeString().split(' ')[0].replace(/:/g, '-')
-    const sanitizedName = projectName.replace(/[^a-zA-Z0-9]/g, '_')
+    const sanitizedName = documentName.replace(/[^a-zA-Z0-9]/g, '_')
 
     return `${sanitizedName}_${dateStr}_${timeStr}.${format}`
   }

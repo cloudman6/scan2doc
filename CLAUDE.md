@@ -83,19 +83,20 @@ src/
 ├─ main.ts
 ├─ App.vue
 ├─ stores/
-│  ├─ project.ts
 │  ├─ pages.ts
 ├─ db/
 │  └─ index.ts
 ├─ components/
-│  ├─ layout/
 │  ├─ page-list/
+│  ├─ page-viewer/
 │  ├─ preview/
-│  ├─ inspector/
+│  ├─ ...
 ├─ services/
+│  ├─ add/
 │  ├─ pdf/
 │  ├─ ocr/
 │  ├─ export/
+│  ├─ ...
 ├─ workers/
 │  └─ pdf.worker.ts
 └─ types/

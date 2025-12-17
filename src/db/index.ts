@@ -1,25 +1,16 @@
-import Dexie, { Table } from 'dexie'
-import type { Page, PageProcessingLog, PageOutput } from '@/stores/pages'
-import type { ProjectSettings } from '@/stores/project'
-
-// Database interfaces for IndexedDB
-export interface DBProject {
-  id?: string
-  name: string
-  createdAt: Date
-  updatedAt: Date
-  settings: ProjectSettings
-}
+import Dexie, { type Table } from 'dexie'
+import type { PageProcessingLog, PageOutput } from '@/stores/pages'
 
 export interface DBPage {
   id?: string
-  projectId: string
-  pageNumber: number
-  originalFileName: string
+  fileName: string
+  fileSize: number
+  fileType: string
   status: 'idle' | 'processing' | 'completed' | 'error'
   progress: number
-  imageUrl?: string
-  thumbnailUrl?: string
+  order: number  // Sort order for drag and drop
+  imageData?: string  // base64 image data
+  thumbnailData?: string  // base64 thumbnail data
   width?: number
   height?: number
   ocrText?: string
@@ -39,7 +30,6 @@ export interface DBProcessingQueue {
 }
 
 export class Scan2DocDB extends Dexie {
-  projects!: Table<DBProject>
   pages!: Table<DBPage>
   processingQueue!: Table<DBProcessingQueue>
 
@@ -48,35 +38,20 @@ export class Scan2DocDB extends Dexie {
 
     // Define schema
     this.version(1).stores({
-      projects: '++id, name, createdAt, updatedAt',
-      pages: '++id, projectId, pageNumber, originalFileName, status, progress, createdAt, updatedAt, processedAt',
+      pages: '++id, fileName, fileSize, fileType, status, progress, createdAt, updatedAt, processedAt',
       processingQueue: '++id, pageId, priority, addedAt'
     })
-  }
 
-  // Project methods
-  async saveProject(project: DBProject): Promise<string> {
-    if (project.id) {
-      await this.projects.put(project)
-      return project.id
-    } else {
-      return await this.projects.add(project)
-    }
-  }
-
-  async getProject(id: string): Promise<DBProject | undefined> {
-    return await this.projects.get(id)
-  }
-
-  async getAllProjects(): Promise<DBProject[]> {
-    return await this.projects.orderBy('updatedAt').reverse().toArray()
-  }
-
-  async deleteProject(id: string): Promise<void> {
-    await this.transaction('rw', [this.projects, this.pages, this.processingQueue], async () => {
-      await this.projects.delete(id)
-      await this.pages.where('projectId').equals(id).delete()
-      await this.processingQueue.delete()
+    // Version 2: Add order field for drag and drop sorting
+    this.version(2).stores({
+      pages: '++id, fileName, fileSize, fileType, status, progress, order, createdAt, updatedAt, processedAt',
+      processingQueue: '++id, pageId, priority, addedAt'
+    }).upgrade(tx => {
+      // Add order field to existing pages based on creation time
+      return tx.table('pages').toCollection().modify((page, index) => {
+        // Set order based on creation time, maintaining existing order
+        page.order = index
+      })
     })
   }
 
@@ -94,11 +69,9 @@ export class Scan2DocDB extends Dexie {
     return await this.pages.get(id)
   }
 
-  async getPagesByProject(projectId: string): Promise<DBPage[]> {
+  async getAllPages(): Promise<DBPage[]> {
     return await this.pages
-      .where('projectId')
-      .equals(projectId)
-      .orderBy('pageNumber')
+      .orderBy('order')
       .toArray()
   }
 
@@ -114,12 +87,12 @@ export class Scan2DocDB extends Dexie {
     await this.processingQueue.where('pageId').equals(id).delete()
   }
 
-  async deletePagesByProject(projectId: string): Promise<void> {
+  async deleteAllPages(): Promise<void> {
     await this.transaction('rw', [this.pages, this.processingQueue], async () => {
-      const pages = await this.pages.where('projectId').equals(projectId).toArray()
+      const pages = await this.pages.toArray()
       const pageIds = pages.map(p => p.id!).filter(Boolean)
 
-      await this.pages.where('projectId').equals(projectId).delete()
+      await this.pages.clear()
       if (pageIds.length > 0) {
         await this.processingQueue.where('pageId').anyOf(pageIds).delete()
       }
@@ -155,10 +128,40 @@ export class Scan2DocDB extends Dexie {
     return await this.processingQueue.count()
   }
 
+  // Page creation from file add
+  async saveAddedPage(pageData: Omit<DBPage, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
+    const dbPage: DBPage = {
+      ...pageData,
+      id: undefined,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }
+    return await this.pages.add(dbPage)
+  }
+
+  // Get all pages for UI display
+  async getAllPagesForDisplay(): Promise<DBPage[]> {
+    return await this.getAllPages()
+  }
+
+  // Update order for multiple pages
+  async updatePagesOrder(pageOrders: { id: string; order: number }[]): Promise<void> {
+    await this.transaction('rw', this.pages, async () => {
+      for (const { id, order } of pageOrders) {
+        await this.pages.update(id, { order, updatedAt: new Date() })
+      }
+    })
+  }
+
+  // Get next order value for new pages
+  async getNextOrder(): Promise<number> {
+    const maxOrder = await this.pages.orderBy('order').last()
+    return maxOrder ? maxOrder.order + 1 : 0
+  }
+
   // Utility methods
   async clearAllData(): Promise<void> {
-    await this.transaction('rw', [this.projects, this.pages, this.processingQueue], async () => {
-      await this.projects.clear()
+    await this.transaction('rw', [this.pages, this.processingQueue], async () => {
       await this.pages.clear()
       await this.processingQueue.clear()
     })
@@ -175,6 +178,3 @@ export class Scan2DocDB extends Dexie {
 
 // Create and export a singleton instance
 export const db = new Scan2DocDB()
-
-// Export types for use in other files
-export type { DBProject, DBPage, DBProcessingQueue }

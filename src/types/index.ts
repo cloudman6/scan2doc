@@ -76,11 +76,6 @@ export interface AppEvent {
   timestamp: Date
 }
 
-// Export types that might be used elsewhere
-export type {
-  ProjectSettings,
-  // Re-export from stores for convenience
-} from '@/stores/project'
 
 export type {
   Page,
