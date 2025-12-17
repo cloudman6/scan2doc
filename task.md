@@ -5,7 +5,7 @@ Your task is NOT to implement this yet, but to fully understand and prepare.
 Here is exactly what I need implemented:
 
 ```
-实现page 删除功能：
+目前已经实现单个 page 删除功能，现在需要实现批量删除功能。
 1. 用户鼠标移到page-item 上，显示删除svg按钮
 2. 鼠标移到删除按钮上，删除按钮变成红色
 3. 用户点击删除按钮，删除该page-item

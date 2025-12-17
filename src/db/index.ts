@@ -36,22 +36,10 @@ export class Scan2DocDB extends Dexie {
   constructor() {
     super('Scan2DocDatabase')
 
-    // Define schema
+    // Define schema with order field included from the start
     this.version(1).stores({
-      pages: '++id, fileName, fileSize, fileType, status, progress, createdAt, updatedAt, processedAt',
-      processingQueue: '++id, pageId, priority, addedAt'
-    })
-
-    // Version 2: Add order field for drag and drop sorting
-    this.version(2).stores({
       pages: '++id, fileName, fileSize, fileType, status, progress, order, createdAt, updatedAt, processedAt',
       processingQueue: '++id, pageId, priority, addedAt'
-    }).upgrade(tx => {
-      // Add order field to existing pages based on creation time
-      return tx.table('pages').toCollection().modify((page, index) => {
-        // Set order based on creation time, maintaining existing order
-        page.order = index
-      })
     })
   }
 

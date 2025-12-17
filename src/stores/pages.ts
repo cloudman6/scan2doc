@@ -176,9 +176,11 @@ export const usePagesStore = defineStore('pages', () => {
       if (result.success && result.pages.length > 0) {
         // Add pages to store
         for (const page of result.pages) {
-          addPage(page)
+          // Remove order to let addPage assign the correct nextOrder
+          const { order: _order, ...pageWithoutOrder } = page
+          const newPage = await addPage(pageWithoutOrder)
           // Save to database
-          await savePageToDB(page)
+          await savePageToDB(newPage)
         }
       }
 
