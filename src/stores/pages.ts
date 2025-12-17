@@ -359,7 +359,7 @@ export const usePagesStore = defineStore('pages', () => {
           timestamp: Date.now(),
           timeoutId: setTimeout(() => {
             clearUndoCache()
-          }, 10000) as unknown as number // 10 seconds
+          }, 7000) as unknown as number // 7 seconds
         }
       }
 
@@ -393,6 +393,9 @@ export const usePagesStore = defineStore('pages', () => {
 
       // Insert the page back into store (with blob URLs for display)
       pages.value.splice(insertIndex, 0, page)
+
+      // Ensure pages are sorted by order to maintain consistency
+      pages.value.sort((a, b) => a.order - b.order)
 
       // Save to database (savePageToDB will automatically clean blob URLs)
       savePageToDB(page).catch(error => {

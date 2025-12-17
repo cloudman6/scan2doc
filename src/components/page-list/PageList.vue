@@ -12,6 +12,7 @@
           :page="page"
           :is-active="page.id === currentPage?.id"
           @click="selectPage"
+          @delete="handlePageDeleted"
         />
       </template>
     </draggable>
@@ -31,6 +32,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   pageSelected: [page: Page]
+  pageDeleted: [page: Page]
 }>()
 
 const pagesStore = usePagesStore()
@@ -41,7 +43,10 @@ const localPages = ref<Page[]>([...props.pages])
 
 // Watch for changes in props.pages and update local copy
 watch(() => props.pages, (newPages) => {
-  localPages.value = [...newPages]
+  // Only update if the arrays are actually different (prevents unnecessary updates)
+  if (JSON.stringify(localPages.value.map(p => p.id)) !== JSON.stringify(newPages.map(p => p.id))) {
+    localPages.value = [...newPages]
+  }
   // Update current page if it's no longer in the list
   if (currentPage.value && !newPages.find(p => p.id === currentPage.value?.id)) {
     currentPage.value = newPages[0] || null
@@ -51,6 +56,10 @@ watch(() => props.pages, (newPages) => {
 function selectPage(page: Page) {
   currentPage.value = page
   emit('pageSelected', page)
+}
+
+function handlePageDeleted(page: Page) {
+  emit('pageDeleted', page)
 }
 
 async function handleDragEnd(event: any) {

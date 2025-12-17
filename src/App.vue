@@ -48,7 +48,7 @@ const currentPage = ref<Page | null>(null)
 const pageListRef = ref()
 
 // Simple toast notification replacement
-let undoTimeoutId: number | null = null
+let undoTimeoutId: ReturnType<typeof setTimeout> | null = null
 let currentUndoCallback: (() => void) | null = null
 
 function handlePageSelected(page: Page) {
@@ -57,6 +57,8 @@ function handlePageSelected(page: Page) {
 
 // Simple toast notification function
 function showToast(message: string, type: 'info' | 'success' | 'error' = 'info', undoCallback?: () => void) {
+  console.log('showToast called:', { message, type, hasUndoCallback: !!undoCallback })
+
   // Clear any existing toast and timeout first
   const existingToast = document.getElementById('toast-notification')
   if (existingToast) {
@@ -64,6 +66,7 @@ function showToast(message: string, type: 'info' | 'success' | 'error' = 'info',
   }
 
   if (undoTimeoutId) {
+    console.log('Clearing existing timeout:', undoTimeoutId)
     clearTimeout(undoTimeoutId)
     undoTimeoutId = null
   }
@@ -91,8 +94,9 @@ function showToast(message: string, type: 'info' | 'success' | 'error' = 'info',
     max-width: 400px;
   `
 
-  // Set duration based on type - success messages show for 2 seconds, others for 10 seconds
-  const duration = type === 'success' ? 2000 : 10000
+  // Set duration based on type - success messages show for 2 seconds, others for 7 seconds
+  const duration = type === 'success' ? 2000 : 7000
+  console.log('Setting timeout duration:', duration, 'for type:', type)
 
   const messageText = document.createElement('span')
   messageText.textContent = message
@@ -113,14 +117,23 @@ function showToast(message: string, type: 'info' | 'success' | 'error' = 'info',
       font-size: 12px;
     `
     undoBtn.onclick = () => {
+      console.log('Undo button clicked, currentUndoCallback:', !!currentUndoCallback)
       if (currentUndoCallback) {
+        console.log('Calling undo callback...')
         currentUndoCallback()
+        console.log('Undo callback executed, removing toast...')
+
+        // Clear the timeout using the stored ID
+        const storedTimeoutId = toast.getAttribute('data-timeout-id')
+        if (storedTimeoutId) {
+          const timeoutId = parseInt(storedTimeoutId)
+          console.log('Clearing timeout with stored ID:', timeoutId)
+          clearTimeout(timeoutId)
+        }
+
         toast.remove()
         currentUndoCallback = null
-        if (undoTimeoutId) {
-          clearTimeout(undoTimeoutId)
-          undoTimeoutId = null
-        }
+        undoTimeoutId = null
       }
     }
     toast.appendChild(undoBtn)
@@ -129,11 +142,25 @@ function showToast(message: string, type: 'info' | 'success' | 'error' = 'info',
   document.body.appendChild(toast)
 
   // Auto dismiss after calculated duration
-  undoTimeoutId = setTimeout(() => {
-    toast.remove()
+  console.log('Setting timeout for duration:', duration)
+
+  // Store timeout ID in a data attribute on the toast element itself
+  const timeoutId = setTimeout(() => {
+    console.log('Timeout executed, removing toast:', message)
+    if (toast && toast.parentNode) {
+      toast.remove()
+    }
     currentUndoCallback = null
-    undoTimeoutId = null
-  }, duration) as unknown as number
+    // Clear the global timeout ID if it matches
+    if (undoTimeoutId === timeoutId) {
+      undoTimeoutId = null
+    }
+  }, duration)
+
+  // Store timeout ID on the toast element and in the global variable
+  toast.setAttribute('data-timeout-id', timeoutId.toString())
+  undoTimeoutId = timeoutId
+  console.log('Timeout set with ID:', timeoutId)
 }
 
 // Handle page deletion

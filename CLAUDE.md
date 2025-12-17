@@ -83,20 +83,20 @@ src/
 ├─ main.ts
 ├─ App.vue
 ├─ stores/
-│  ├─ pages.ts
+│  └─ pages.ts
 ├─ db/
 │  └─ index.ts
 ├─ components/
 │  ├─ page-list/
 │  ├─ page-viewer/
 │  ├─ preview/
-│  ├─ ...
+│  └─ ...
 ├─ services/
 │  ├─ add/
 │  ├─ pdf/
 │  ├─ ocr/
 │  ├─ export/
-│  ├─ ...
+│  └─ ...
 ├─ workers/
 │  └─ pdf.worker.ts
 └─ types/
@@ -117,6 +117,24 @@ src/
 
 ---
 
+## UI Component Guidelines
+
+- **Use existing UI components and avoid reinventing the wheel**
+- Use Naive UI components whenever possible for common UI patterns
+- Leverage existing Naive UI message/notification system instead of custom implementations
+- Only create custom components when Naive UI doesn't provide the needed functionality
+
+---
+
+## Testing Requirements
+
+- **Always use Playwright MCP server to verify code functionality after making changes**
+- If a service is already running on http://localhost:5173/, use it directly instead of starting a new one
+- Use Playwright MCP server for debugging and testing new features
+- Test thoroughly to ensure all functionality works as expected
+
+---
+
 ## What Claude Should Do
 
 - Generate production-quality code
@@ -132,4 +150,3 @@ src/
 - Do NOT assume server APIs except OCR
 - Do NOT use deprecated Vue APIs
 - Do NOT use frameworks outside this stack
-

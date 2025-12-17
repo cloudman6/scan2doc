@@ -5,13 +5,11 @@ Your task is NOT to implement this yet, but to fully understand and prepare.
 Here is exactly what I need implemented:
 
 ```
-实现文件添加功能：
-1. 用户点击 "Add File" 按钮，触发文件选择对话框。
-2. 可选的文件类型包括 PDF、图片，支持多选
-3. 点击确认后，将文件保存到 indexeddb 数据库中
-4. 在page-list 组件中显示添加的图片文件的缩图
-5. 用户可以点击图片，在 page-viewer 组件中预览图片。
-6. 先不处理PDF文件，只处理图片文件
+实现page 删除功能：
+1. 用户鼠标移到page-item 上，显示删除svg按钮
+2. 鼠标移到删除按钮上，删除按钮变成红色
+3. 用户点击删除按钮，删除该page-item
+4. 显示一个消息框，用户可以撤销删除操作，10秒内有效
 ```
 
 ---
