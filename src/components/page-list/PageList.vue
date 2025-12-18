@@ -170,7 +170,7 @@ defineExpose({
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 8px 8px 19px; /* Align with page checkboxes: drag-handle(8px) + checkbox margin-left(8px) */
+  padding: 8px 8px 8px 18px; /* Align with page checkboxes: drag-handle(8px) + checkbox margin-left(8px) */
   border-bottom: 1px solid #f0f0f0;
   min-height: 40px;
 }

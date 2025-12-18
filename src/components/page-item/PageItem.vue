@@ -150,6 +150,7 @@ function getStatusType(status: Page['status']): 'success' | 'info' | 'warning' |
   margin-right: 13px;
   user-select: none; /* Prevent text selection during drag */
   position: relative;
+  align-items: center;
 }
 
 .page-item:hover {
@@ -236,6 +237,8 @@ function getStatusType(status: Page['status']): 'success' | 'info' | 'warning' |
   margin: 0;
   display: flex;
   align-items: center;
+  width: 15px;
+  height: 15px;
 }
 
 .page-item.selected {
