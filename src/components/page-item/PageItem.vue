@@ -41,9 +41,9 @@
         {{ formatFileSize(page.fileSize) }}
       </div>
       <div class="status-row">
-        <div :class="['status', getStatusClass(page.status)]">
+        <n-tag :type="getStatusType(page.status)" size="small">
           OCR
-        </div>
+        </n-tag>
       </div>
     </div>
   </div>
@@ -51,7 +51,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { NButton } from 'naive-ui'
+import { NButton, NTag } from 'naive-ui'
 import type { Page } from '@/stores/pages'
 
 interface Props {
@@ -102,6 +102,19 @@ function getStatusClass(status: Page['status']): string {
       return 'error'
     default:
       return 'pending'
+  }
+}
+
+function getStatusType(status: Page['status']): 'success' | 'info' | 'warning' | 'error' | 'default' {
+  switch (status) {
+    case 'completed':
+      return 'success'
+    case 'processing':
+      return 'info'
+    case 'error':
+      return 'error'
+    default:
+      return 'warning'
   }
 }
 </script>
@@ -197,36 +210,7 @@ function getStatusClass(status: Page['status']): string {
 .status-row {
   display: flex;
   gap: 4px;
-}
-
-.status {
-  display: inline-block;
-  padding: 2px 6px;
-  border-radius: 4px;
   margin-top: 2px;
-  font-size: 11px;
-  font-weight: 500;
-  width: fit-content;
-}
-
-.done {
-  background: #dcfce7;
-  color: #166534;
-}
-
-.pending {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.processing {
-  background: #dbeafe;
-  color: #1e40af;
-}
-
-.error {
-  background: #fee2e2;
-  color: #b91c1c;
 }
 
 </style>

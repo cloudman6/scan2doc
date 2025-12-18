@@ -1,5 +1,5 @@
 <template>
-  <div class="page-list">
+  <n-scrollbar class="page-list">
     <draggable
       v-model="localPages"
       item-key="id"
@@ -16,7 +16,20 @@
         />
       </template>
     </draggable>
-  </div>
+
+    <!-- Empty state when no pages -->
+    <n-empty v-if="localPages.length === 0" description="No pages added" class="empty-state">
+      <template #icon>
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="12" y1="18" x2="12" y2="12"/>
+          <line x1="9" y1="15" x2="12" y2="12"/>
+          <line x1="15" y1="15" x2="12" y2="12"/>
+        </svg>
+      </template>
+    </n-empty>
+  </n-scrollbar>
 </template>
 
 <script setup lang="ts">
@@ -25,6 +38,7 @@ import draggable from 'vuedraggable'
 import { usePagesStore } from '@/stores/pages'
 import PageItem from '@/components/page-item/PageItem.vue'
 import type { Page } from '@/stores/pages'
+import { NScrollbar, NEmpty } from 'naive-ui'
 
 const props = defineProps<{
   pages: Page[]
@@ -87,17 +101,27 @@ defineExpose({
 .page-list {
   display: flex;
   flex-direction: column;
+  height: 100%;
   gap: 8px;
+  padding: 8px;
 }
 
 /* Draggable ghost class for vuedraggable */
 .ghost {
   opacity: 0.5;
-  background: #e5e7eb;
+  background: var(--n-pressed-color);
 }
 
 /* Draggable chosen class for vuedraggable */
 .chosen {
   cursor: grabbing;
+}
+
+.empty-state {
+  padding: 32px 16px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 </style>

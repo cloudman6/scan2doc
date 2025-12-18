@@ -1,29 +1,25 @@
 <template>
   <div class="page-viewer">
     <!-- Header with page info and controls -->
-    <div class="viewer-header">
-      <h3 class="page-title">
-        Page {{ currentPage?.id?.toString().padStart(3, '0') || '---' }}
-      </h3>
-      <div class="viewer-controls">
-        <button
-          class="zoom-btn"
-          @click="zoomOut"
-          :disabled="zoomLevel <= 0.25"
-        >
-          −
-        </button>
-        <span class="zoom-level">{{ Math.round(zoomLevel * 100) }}%</span>
-        <button
-          class="zoom-btn"
-          @click="zoomIn"
-          :disabled="zoomLevel >= 3"
-        >
-          +
-        </button>
-        <button class="zoom-btn" @click="fitToScreen">Fit</button>
-      </div>
-    </div>
+    <n-card class="viewer-header" size="small" :bordered="false">
+      <n-space justify="space-between" align="center">
+        <h3 class="page-title">
+          Page {{ currentPage?.id?.toString().padStart(3, '0') || '---' }}
+        </h3>
+        <n-space align="center" size="small">
+          <n-button-group size="small">
+            <n-button @click="zoomOut" :disabled="zoomLevel <= 0.25">
+              <template #icon>−</template>
+            </n-button>
+            <n-button disabled>{{ Math.round(zoomLevel * 100) }}%</n-button>
+            <n-button @click="zoomIn" :disabled="zoomLevel >= 3">
+              <template #icon>+</template>
+            </n-button>
+          </n-button-group>
+          <n-button size="small" @click="fitToScreen">Fit</n-button>
+        </n-space>
+      </n-space>
+    </n-card>
 
     <!-- Main image display area -->
     <div class="image-container" ref="imageContainer">
@@ -38,29 +34,31 @@
           @load="onImageLoad"
           @error="onImageError"
         />
-        <div v-else class="placeholder-image">
-          <div class="placeholder-content">
+        <n-empty v-else description="No image available">
+          <template #icon>
             <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
               <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
               <circle cx="8.5" cy="8.5" r="1.5"/>
               <polyline points="21 15 16 10 5 21"/>
             </svg>
-            <p>No image available</p>
-          </div>
-        </div>
+          </template>
+        </n-empty>
 
         <!-- Loading overlay -->
-        <div v-if="imageLoading" class="loading-overlay">
-          <div class="loading-spinner">Loading...</div>
-        </div>
+        <n-spin v-if="imageLoading" size="large" class="loading-overlay">
+          <template #description>Loading image...</template>
+        </n-spin>
 
         <!-- Error overlay -->
-        <div v-if="imageError" class="error-overlay">
-          <div class="error-message">{{ imageError }}</div>
-        </div>
+        <n-result
+          v-if="imageError"
+          status="error"
+          :title="imageError"
+          class="error-overlay"
+        />
       </div>
-      <div v-else class="placeholder-select">
-        <div class="placeholder-content">
+      <n-empty v-else description="Select a page to view" class="placeholder-select">
+        <template #icon>
           <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
             <polyline points="14 2 14 8 20 8"/>
@@ -68,38 +66,41 @@
             <line x1="16" y1="17" x2="8" y2="17"/>
             <polyline points="10 9 9 9 8 9"/>
           </svg>
-          <p>Select a page to view</p>
-        </div>
-      </div>
+        </template>
+      </n-empty>
     </div>
 
     <!-- Bottom toolbar -->
-    <div class="viewer-toolbar">
-      <div class="status-info">
-        <span class="status-item">
-          Status: <strong :class="statusClass">{{ statusText }}</strong>
-        </span>
-        <span class="status-item" v-if="imageSize">
-          Size: <strong>{{ imageSize }}</strong>
-        </span>
-        <span class="status-item" v-if="currentPage?.fileSize">
-          File: <strong>{{ formatFileSize(currentPage.fileSize) }}</strong>
-        </span>
-      </div>
-      <button
-        class="ocr-btn"
-        :class="{ processing: status === 'processing' }"
-        @click="runOCR"
-        :disabled="!currentPage || status === 'processing'"
-      >
-        {{ status === 'processing' ? 'Processing OCR...' : 'Run OCR' }}
-      </button>
-    </div>
+    <n-card class="viewer-toolbar" size="small" :bordered="false">
+      <n-space justify="space-between" align="center">
+        <n-space size="medium">
+          <n-text depth="3">
+            Status: <n-text :type="getStatusType()" depth="1">{{ statusText }}</n-text>
+          </n-text>
+          <n-text v-if="imageSize" depth="3">
+            Size: <n-text depth="1">{{ imageSize }}</n-text>
+          </n-text>
+          <n-text v-if="currentPage?.fileSize" depth="3">
+            File: <n-text depth="1">{{ formatFileSize(currentPage.fileSize) }}</n-text>
+          </n-text>
+        </n-space>
+        <n-button
+          :type="status === 'processing' ? 'info' : 'primary'"
+          :loading="status === 'processing'"
+          :disabled="!currentPage || status === 'processing'"
+          @click="runOCR"
+          size="small"
+        >
+          {{ status === 'processing' ? 'Processing OCR...' : 'Run OCR' }}
+        </n-button>
+      </n-space>
+    </n-card>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { NCard, NSpace, NButton, NButtonGroup, NSpin, NEmpty, NResult, NText } from 'naive-ui'
 
 interface Page {
   id: string
@@ -151,6 +152,15 @@ const statusClass = computed(() => {
     default: return 'status-idle'
   }
 })
+
+function getStatusType(): 'success' | 'info' | 'warning' | 'error' | 'default' {
+  switch (status.value) {
+    case 'completed': return 'success'
+    case 'processing': return 'info'
+    case 'error': return 'error'
+    default: return 'default'
+  }
+}
 
 function zoomIn() {
   if (zoomLevel.value < 3) {
@@ -212,54 +222,14 @@ function runOCR() {
 }
 
 .viewer-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--n-border-color);
 }
 
 .page-title {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
-  color: #111;
-}
-
-.viewer-controls {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.zoom-btn {
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid #e5e7eb;
-  border-radius: 4px;
-  background: white;
-  cursor: pointer;
-  font-size: 16px;
-  color: #374151;
-}
-
-.zoom-btn:hover:not(:disabled) {
-  background: #f3f4f6;
-}
-
-.zoom-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.zoom-level {
-  font-size: 12px;
-  color: #6b7280;
-  min-width: 42px;
-  text-align: center;
+  color: var(--n-text-color);
 }
 
 .image-container {
@@ -278,6 +248,7 @@ function runOCR() {
   justify-content: center;
   min-height: 100%;
   padding: 20px;
+  position: relative;
 }
 
 .page-image {
@@ -290,107 +261,12 @@ function runOCR() {
   transform-origin: center;
 }
 
-.placeholder-image,
 .placeholder-select {
   display: flex;
   align-items: center;
   justify-content: center;
   height: 100%;
   width: 100%;
-}
-
-.placeholder-content {
-  text-align: center;
-  color: #9ca3af;
-}
-
-.placeholder-content svg {
-  margin: 0 auto 16px;
-  opacity: 0.5;
-}
-
-.placeholder-content p {
-  margin: 0;
-  font-size: 14px;
-}
-
-.viewer-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
-  border-top: 1px solid #e5e7eb;
-  background: #fafafa;
-}
-
-.status-info {
-  display: flex;
-  gap: 16px;
-  font-size: 12px;
-}
-
-.status-item {
-  color: #6b7280;
-}
-
-.status-item strong {
-  color: #111;
-  font-weight: 600;
-}
-
-.status-done {
-  color: #16a34a;
-}
-
-.status-pending {
-  color: #d97706;
-}
-
-.status-idle {
-  color: #d97706;
-}
-
-.status-processing {
-  color: #2563eb;
-}
-
-.status-error {
-  color: #dc2626;
-}
-
-.ocr-btn {
-  padding: 6px 12px;
-  border-radius: 6px;
-  border: 1px solid #e5e7eb;
-  background: white;
-  cursor: pointer;
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.ocr-btn:hover:not(:disabled) {
-  background: #f3f4f6;
-}
-
-.ocr-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.ocr-btn.processing {
-  background: #3b82f6;
-  color: white;
-  border-color: #3b82f6;
-}
-
-/* Loading and error overlays */
-.image-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 100%;
 }
 
 .loading-overlay,
@@ -405,23 +281,11 @@ function runOCR() {
   justify-content: center;
   background: rgba(255, 255, 255, 0.9);
   border-radius: 4px;
+  z-index: 10;
 }
 
-.loading-spinner {
-  padding: 16px;
-  background: #3b82f6;
-  color: white;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.error-message {
-  padding: 16px;
-  background: #dc2626;
-  color: white;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
+.viewer-toolbar {
+  border-top: 1px solid var(--n-border-color);
+  background: #fafafa;
 }
 </style>

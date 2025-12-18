@@ -1,30 +1,32 @@
 <template>
   <div class="preview">
-    <div class="preview-tabs">
-      <button
+    <n-tabs
+      v-model:value="currentView"
+      type="segment"
+      animated
+    >
+      <n-tab-pane
         v-for="view in views"
         :key="view.key"
-        :class="{ active: currentView === view.key }"
-        @click="switchView(view.key)"
+        :name="view.key"
+        :tab="view.label"
       >
-        {{ view.label }}
-      </button>
-    </div>
-    <div class="preview-content">
-      <div v-if="currentView === 'image'" class="image-preview">
-        <div class="placeholder">Image Preview</div>
-      </div>
-      <pre v-else-if="currentView === 'md'" class="markdown-preview">{{ currentPageContent?.md || 'No markdown content available' }}</pre>
-      <div v-else-if="currentView === 'html'" class="html-preview" v-html="currentPageContent?.html || '<p>No HTML content available</p>'"></div>
-      <div v-else class="placeholder">
-        Select a page to preview
-      </div>
-    </div>
+        <div class="preview-content">
+          <div v-if="currentView === 'image'" class="image-preview">
+            <n-empty description="Image Preview" />
+          </div>
+          <pre v-else-if="currentView === 'md'" class="markdown-preview">{{ currentPageContent?.md || 'No markdown content available' }}</pre>
+          <div v-else-if="currentView === 'html'" class="html-preview" v-html="currentPageContent?.html || '<p>No HTML content available</p>'"></div>
+          <n-empty v-else description="Select a page to preview" />
+        </div>
+      </n-tab-pane>
+    </n-tabs>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watchEffect } from 'vue'
+import { NTabs, NTabPane, NEmpty } from 'naive-ui'
 
 interface Page {
   id: number
@@ -74,38 +76,11 @@ watchEffect(() => {
   height: 100%;
 }
 
-.preview-tabs {
-  background: white;
-  padding: 8px;
-  border-bottom: 1px solid #e5e7eb;
-  display: flex;
-  gap: 6px;
-}
-
-.preview-tabs button {
-  padding: 6px 12px;
-  border-radius: 6px;
-  border: 1px solid #e5e7eb;
-  background: #fff;
-  cursor: pointer;
-  font-family: inherit;
-  font-size: 14px;
-}
-
-.preview-tabs button.active {
-  background: #f3f4f6;
-  border-color: #d1d5db;
-}
-
-.preview-tabs button:hover {
-  background: #f9fafb;
-}
-
 .preview-content {
   flex: 1;
   padding: 16px;
   overflow: auto;
-  background: white;
+  height: 100%;
 }
 
 .image-preview {
@@ -113,18 +88,6 @@ watchEffect(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.placeholder {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  background: #f9fafb;
-  border: 2px dashed #e5e7eb;
-  border-radius: 8px;
-  color: #6b7280;
-  font-size: 14px;
 }
 
 .markdown-preview {

@@ -1,36 +1,51 @@
 <template>
-  <div
-    class="app-container"
-    @drop="handleDrop"
-    @dragover="handleDragOver"
-  >
+  <n-layout class="app-container" @drop="handleDrop" @dragover="handleDragOver">
     <!-- Header -->
-    <header class="app-header">
-      <button class="add-btn" @click="handleFileAdd">Add File</button>
-      <strong class="filename">{{ currentFileName }}</strong>
-      <span class="save-status" style="color:#16a34a;">✔ Saved locally</span>
-      <div class="spacer"></div>
-      <button class="export-btn primary">Export Markdown</button>
-    </header>
+    <n-layout-header class="app-header" bordered>
+      <n-space align="center" size="medium">
+        <n-button @click="handleFileAdd">Add File</n-button>
+        <n-text strong>{{ currentFileName }}</n-text>
+        <n-text type="success">✔ Saved locally</n-text>
+      </n-space>
+      <n-space align="center" size="medium">
+        <n-button type="primary">Export Markdown</n-button>
+      </n-space>
+    </n-layout-header>
 
     <!-- Main Content -->
-    <main class="app-main">
+    <n-layout has-sider class="app-main">
       <!-- Page List -->
-      <aside class="page-list-container">
-        <PageList ref="pageListRef" :pages="pagesStore.pages" @page-selected="handlePageSelected" @page-deleted="handlePageDeleted" />
-      </aside>
+      <n-layout-sider
+        :width="260"
+        :collapsed-width="0"
+        show-trigger="bar"
+        collapse-mode="width"
+        bordered
+      >
+        <div class="page-list-container">
+          <PageList ref="pageListRef" :pages="pagesStore.pages" @page-selected="handlePageSelected" @page-deleted="handlePageDeleted" />
+        </div>
+      </n-layout-sider>
 
       <!-- Page Viewer (formerly Inspector) -->
-      <section class="page-viewer-container">
+      <n-layout-content class="page-viewer-container">
         <PageViewer :current-page="currentPage" />
-      </section>
+      </n-layout-content>
 
       <!-- Preview -->
-      <aside class="preview-container">
-        <Preview :current-page="currentPage" />
-      </aside>
-    </main>
-  </div>
+      <n-layout-sider
+        :width="320"
+        :collapsed-width="0"
+        show-trigger="bar"
+        collapse-mode="width"
+        bordered
+      >
+        <div class="preview-container">
+          <Preview :current-page="currentPage" />
+        </div>
+      </n-layout-sider>
+    </n-layout>
+  </n-layout>
 </template>
 
 <script setup lang="ts">
@@ -40,6 +55,7 @@ import type { Page } from './stores/pages'
 import PageList from './components/page-list/PageList.vue'
 import Preview from './components/preview/Preview.vue'
 import PageViewer from './components/page-viewer/PageViewer.vue'
+import { NLayout, NLayoutHeader, NLayoutSider, NLayoutContent, NSpace, NButton, NText } from 'naive-ui'
 
 const pagesStore = usePagesStore()
 
@@ -298,76 +314,34 @@ body {
 /* ====== Layout ====== */
 .app-container {
   height: 100vh;
-  display: flex;
-  flex-direction: column;
 }
 
 .app-header {
   height: 56px;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   padding: 0 16px;
-  background: white;
-  border-bottom: 1px solid #e5e7eb;
-  gap: 12px;
-}
-
-.app-header .spacer {
-  flex: 1;
 }
 
 .app-main {
-  display: grid;
-  grid-template-columns: 260px 1fr 320px;
   height: calc(100vh - 56px);
 }
 
 .page-list-container {
   padding: 8px;
-  overflow-y: auto;
-  border-right: 1px solid #e5e7eb;
-  background: white;
-}
-
-.page-viewer-container {
-  display: flex;
-  flex-direction: column;
-  background: white;
-  border-right: 1px solid #e5e7eb;
+  height: 100%;
 }
 
 .preview-container {
   padding: 16px;
-  border-left: 1px solid #e5e7eb;
-  background: #fafafa;
+  height: 100%;
 }
 
-/* ====== Buttons ====== */
-button {
-  padding: 6px 12px;
-  border-radius: 6px;
-  border: 1px solid #e5e7eb;
-  background: #fff;
-  cursor: pointer;
-  font-family: inherit;
-}
-
-button.primary {
-  background: #6366f1;
-  color: white;
-  border: none;
-}
-
-.add-btn, .export-btn {
-  font-size: 14px;
-}
-
-.filename {
-  font-size: 14px;
-}
-
-.save-status {
-  font-size: 14px;
+.page-viewer-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 </style>
 
