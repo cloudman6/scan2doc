@@ -6,16 +6,10 @@ Here is exactly what I need implemented:
 
 ```
 支持PDF文件。
-1. Add file按钮支持添加PDF文件，可多选。对于PDF文件，单个文件大小不超过100M。图片不超过10M。
-2. page list中每个page前面加一个checkbox，用户可以选中多个page，用 Native UI的checkbox 实现
-2. page list 的顶端加一个tool bar，tool bar 中不需要任何文字信息。有一个checkbox 用来选中/取消选中所有page，用 Native UI的checkbox 实现，位置与page-item中的checkbox对齐
-3. tool bar 中的checkbox要能够区分部分选中和全选中
-4. tool bar 中加一个删除按钮，只有当有page的checkbox 选中时才会显示
-5. 该删除按钮与当前page-item中的删除按钮在外观和style上保持一致。鼠标放到删除按钮上，删除按钮变成红色
-6. 用户点击删除按钮，删除该选中的page
-7. 显示一个消息框，用户可以撤销删除操作
-8. 消息框显示和消失的逻辑沿用当前逻辑，支持批量和单个删除
-9. 重构当前的删除逻辑，使它能够单个或批量删除和恢复选中的page
+1. Add file按钮支持添加PDF文件，可多选。对于PDF文件，单个文件大小不超过100M。对于图片文件，单个文件大小不超过10M。
+2. 通过 pdfjs-dist 将PDF每一页转换为图片，每张图片的命名为 <PDF文件名>_<page number>.png , 例如 test.pdf_1.png, test.pdf_2.png 等。
+3. 用现有逻辑保持和显示将这些图片。
+4. 考虑如果PDF文件页数很多，或者添加的PDF文件很多，或者在处理的时候用户还在不断添加文件，是否会对性能造成影响。如果会，考虑如何优化。
 ```
 
 ---

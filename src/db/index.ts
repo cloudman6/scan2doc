@@ -6,7 +6,7 @@ export interface DBPage {
   fileName: string
   fileSize: number
   fileType: string
-  status: 'idle' | 'processing' | 'completed' | 'error'
+  status: 'idle' | 'queued' | 'rendering' | 'done' | 'error'
   progress: number
   order: number  // Sort order for drag and drop
   imageData?: string  // base64 image data
