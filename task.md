@@ -5,8 +5,9 @@ Your task is NOT to implement this yet, but to fully understand and prepare.
 Here is exactly what I need implemented:
 
 ```
-目前已经实现单个 page 删除功能，现在需要实现批量删除功能。
-1. page list中每个page前面加一个checkbox，用户可以选中多个page，用 Native UI的checkbox 实现
+支持PDF文件。
+1. Add file按钮支持添加PDF文件，可多选。对于PDF文件，单个文件大小不超过100M。图片不超过10M。
+2. page list中每个page前面加一个checkbox，用户可以选中多个page，用 Native UI的checkbox 实现
 2. page list 的顶端加一个tool bar，tool bar 中不需要任何文字信息。有一个checkbox 用来选中/取消选中所有page，用 Native UI的checkbox 实现，位置与page-item中的checkbox对齐
 3. tool bar 中的checkbox要能够区分部分选中和全选中
 4. tool bar 中加一个删除按钮，只有当有page的checkbox 选中时才会显示

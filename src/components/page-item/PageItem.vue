@@ -141,11 +141,11 @@ function getStatusType(status: Page['status']): 'success' | 'info' | 'warning' |
 .page-item {
   display: flex;
   gap: 8px;
-  padding: 8px;
+  padding: 8px 8px 8px 0;
   background: white;
   border-radius: 8px;
   cursor: pointer;
-  border: 2px solid transparent;
+  border: 0px solid transparent;
   transition: all 0.2s ease;
   margin-right: 13px;
   user-select: none; /* Prevent text selection during drag */
@@ -153,12 +153,11 @@ function getStatusType(status: Page['status']): 'success' | 'info' | 'warning' |
 }
 
 .page-item:hover {
-  background: #f8f9fa;
+  background: #F5F5F5;
 }
 
 .page-item.active {
-  border-color: #6366f1;
-  background: #f0f1ff;
+  background: #D3E4F8;
 }
 
 .page-item.dragging {
@@ -175,7 +174,7 @@ function getStatusType(status: Page['status']): 'success' | 'info' | 'warning' |
   color: #9ca3af;
   font-size: 12px;
   cursor: grab;
-  padding: 0 4px;
+  padding: 0;
   user-select: none;
 }
 
@@ -234,12 +233,14 @@ function getStatusType(status: Page['status']): 'success' | 'info' | 'warning' |
 
 .page-checkbox {
   flex-shrink: 0;
-  margin: 0 4px 0 8px;
+  margin: 0;
+  display: flex;
+  align-items: center;
 }
 
 .page-item.selected {
   border-color: #6366f1;
-  background: #f0f1ff;
+  background: #D3E4F8;
 }
 
 </style>
