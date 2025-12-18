@@ -2,17 +2,35 @@
   <div
     :class="['page-item', { active: isActive, dragging: isDragging }]"
     @click="handleClick"
+    @mouseenter="isPageHovered = true"
+    @mouseleave="isPageHovered = false"
   >
     <div class="drag-handle">⋮⋮</div>
-    <button
-      class="delete-btn"
+    <NButton
+      text
+      size="tiny"
+      circle
+      :style="{
+        position: 'absolute',
+        top: '50%',
+        right: '4px',
+        transform: isDeleteHovered ? 'translateY(-50%) scale(1.1)' : 'translateY(-50%)',
+        opacity: isPageHovered || isDeleteHovered ? 1 : 0,
+        transition: 'all 0.2s ease'
+      }"
       @click.stop="handleDelete"
       @mouseenter="isDeleteHovered = true"
       @mouseleave="isDeleteHovered = false"
       title="Delete page"
     >
-      <img :src="isDeleteHovered ? '/src/assets/delete_red.svg' : '/src/assets/delete.svg'" alt="Delete" class="delete-icon" />
-    </button>
+      <template #icon>
+        <img
+          :src="isDeleteHovered ? '/src/assets/delete_red.svg' : '/src/assets/delete.svg'"
+          alt="Delete"
+          style="width: 16px; height: 16px; transition: all 0.2s ease;"
+        />
+      </template>
+    </NButton>
     <div class="page-thumbnail">
       <img v-if="page.thumbnailData" :src="page.thumbnailData" alt="" />
       <div v-else class="placeholder-image"></div>
@@ -33,6 +51,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { NButton } from 'naive-ui'
 import type { Page } from '@/stores/pages'
 
 interface Props {
@@ -53,8 +72,9 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<Emits>()
 
-// Reactive state for delete icon
+// Reactive state for delete icon and page hover
 const isDeleteHovered = ref(false)
+const isPageHovered = ref(false)
 
 function handleClick() {
   emit('click', props.page)
@@ -209,38 +229,4 @@ function getStatusClass(status: Page['status']): string {
   color: #b91c1c;
 }
 
-/* Delete button styling */
-.delete-btn {
-  position: absolute;
-  top: 50%;
-  right: 4px;
-  transform: translateY(-50%);
-  width: 24px;
-  height: 24px;
-  border: none;
-  background: transparent;
-  border-radius: 4px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0;
-  transition: all 0.2s ease;
-  padding: 0;
-}
-
-.delete-btn .delete-icon {
-  width: 16px;
-  height: 16px;
-  transition: all 0.2s ease;
-}
-
-.delete-btn:hover {
-  background: transparent;
-  transform: translateY(-50%) scale(1.1);
-}
-
-.page-item:hover .delete-btn {
-  opacity: 1;
-}
 </style>
