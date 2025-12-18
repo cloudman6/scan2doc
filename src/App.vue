@@ -75,6 +75,18 @@ let undoTimeoutId: ReturnType<typeof setTimeout> | null = null
 let currentUndoCallback: (() => void) | null = null
 
 function handlePageSelected(page: Page) {
+  // Get current selection state
+  const wasSelected = pagesStore.selectedPageIds.includes(page.id)
+
+  // Clear all other page selections, but keep the clicked page's selection if it was already selected
+  if (wasSelected) {
+    // If the clicked page was already selected, keep only this page selected
+    pagesStore.selectedPageIds = [page.id]
+  } else {
+    // If the clicked page was not selected, clear all selections
+    pagesStore.clearSelection()
+  }
+
   currentPage.value = page
 }
 
