@@ -15,10 +15,14 @@ export interface FileProcessingOptions {
 
 class FileAddService {
   private readonly defaultOptions: FileProcessingOptions = {
-    maxFileSize: 10 * 1024 * 1024, // 10MB
-    allowedTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/bmp'],
+    maxFileSize: 10 * 1024 * 1024, // 10MB for images
+    allowedTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/bmp', 'application/pdf'],
     generateThumbnails: true,
     thumbnailSize: { width: 200, height: 300 }
+  }
+
+  private readonly pdfOptions = {
+    maxFileSize: 100 * 1024 * 1024 // 100MB for PDFs
   }
 
   /**
@@ -52,10 +56,15 @@ class FileAddService {
    * Validate file against options
    */
   private validateFile(file: File, options: FileProcessingOptions): { valid: boolean; error?: string } {
-    if (file.size > (options.maxFileSize || this.defaultOptions.maxFileSize!)) {
+    // Use appropriate size limit based on file type
+    const maxFileSize = file.type === 'application/pdf'
+      ? this.pdfOptions.maxFileSize
+      : (options.maxFileSize || this.defaultOptions.maxFileSize!)
+
+    if (file.size > maxFileSize) {
       return {
         valid: false,
-        error: `File "${file.name}" is too large. Maximum size is ${Math.round((options.maxFileSize || this.defaultOptions.maxFileSize!) / 1024 / 1024)}MB`
+        error: `File "${file.name}" is too large. Maximum size is ${Math.round(maxFileSize / 1024 / 1024)}MB`
       }
     }
 
@@ -202,6 +211,41 @@ class FileAddService {
   }
 
   /**
+   * Process PDF file into multiple Page objects
+   */
+  private async processPDFFile(file: File, options: FileProcessingOptions): Promise<Page[]> {
+    try {
+      // Import PDF service dynamically to avoid circular dependencies
+      const { pdfService } = await import('@/services/pdf')
+
+      // Validate PDF file
+      const validation = pdfService.validatePDF(file)
+      if (!validation.valid) {
+        throw new Error(validation.error)
+      }
+
+      // Get PDF metadata (page count, etc.)
+      const metadata = await pdfService.getPDFMetadata(file)
+      const pageCount = metadata.pageCount || 0
+
+      if (pageCount === 0) {
+        throw new Error('PDF file appears to be empty or corrupted')
+      }
+
+      // Process the PDF and queue all pages for rendering
+      await pdfService.processPDF(file)
+
+      // Return empty array for now - pages will be created by the PDF processing queue
+      // The pages store will be updated via events as pages are processed
+      return []
+
+    } catch (error) {
+      console.error('Error processing PDF file:', error)
+      throw error
+    }
+  }
+
+  /**
    * Process multiple files
    */
   async processFiles(files: File[], options: Partial<FileProcessingOptions> = {}): Promise<FileAddResult> {
@@ -217,7 +261,6 @@ class FileAddService {
         continue
       }
 
-      // Only process image files for now (PDF support will be added later)
       if (file.type.startsWith('image/')) {
         try {
           const page = await this.processImageFile(file, mergedOptions)
@@ -225,8 +268,15 @@ class FileAddService {
         } catch (error) {
           errors.push(`Failed to process "${file.name}": ${error instanceof Error ? error.message : 'Unknown error'}`)
         }
+      } else if (file.type === 'application/pdf') {
+        try {
+          const pdfPages = await this.processPDFFile(file, mergedOptions)
+          pages.push(...pdfPages)
+        } catch (error) {
+          errors.push(`Failed to process PDF "${file.name}": ${error instanceof Error ? error.message : 'Unknown error'}`)
+        }
       } else {
-        errors.push(`Skipping non-image file "${file.name}" (PDF support coming soon)`)
+        errors.push(`Skipping unsupported file "${file.name}" (type: ${file.type})`)
       }
     }
 
@@ -243,6 +293,13 @@ class FileAddService {
    */
   private generatePageId(): string {
     return `page_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
+  }
+
+  /**
+   * Generate unique ID
+   */
+  private generateId(): string {
+    return `${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
   }
 }
 

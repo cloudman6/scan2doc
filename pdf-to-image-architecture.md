@@ -217,8 +217,13 @@ Each task must:
 ```
 
 ### Worker Steps
-
 1. Load pdf.js
+```
+import * as pdfjsLib from 'pdfjs-dist';
+import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+```
 2. Load PDF document
 3. Render page to canvas
 4. Convert canvas to base64 string

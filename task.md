@@ -8,8 +8,7 @@ Here is exactly what I need implemented:
 支持PDF文件。
 1. Add file按钮支持添加PDF文件，可多选。对于PDF文件，单个文件大小不超过100M。对于图片文件，单个文件大小不超过10M。
 2. 通过 pdfjs-dist 将PDF每一页转换为图片，每张图片的命名为 <PDF文件名>_<page number>.png , 例如 test.pdf_1.png, test.pdf_2.png 等。
-3. 用现有逻辑保持和显示将这些图片。
-4. 考虑如果PDF文件页数很多，或者添加的PDF文件很多，或者在处理的时候用户还在不断添加文件，是否会对性能造成影响。如果会，考虑如何优化。
+3. 阅读 pdf-to-image-architecture.md ，了解PDF转换为图片的架构和具体的工作任务。
 ```
 
 ---

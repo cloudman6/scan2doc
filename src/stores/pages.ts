@@ -1,8 +1,9 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { db } from '@/db/index'
 import type { DBPage } from '@/db/index'
 import fileAddService from '@/services/add'
+import { pdfEvents } from '@/services/pdf/events'
 
 export interface PageProcessingLog {
   id: string
@@ -63,6 +64,18 @@ export const usePagesStore = defineStore('pages', () => {
     timestamp: number
     timeoutId?: number
   } | null>(null)
+
+  // PDF processing state
+  const pdfProcessing = ref<{
+    active: boolean
+    total: number
+    completed: number
+    currentFile?: string
+  }>({
+    active: false,
+    total: 0,
+    completed: 0
+  })
 
   // Getters
   const pagesByStatus = computed(() => {
@@ -489,6 +502,86 @@ export const usePagesStore = defineStore('pages', () => {
     processingQueue.value = []
   }
 
+  // Setup PDF event listeners
+  function setupPDFEventListeners() {
+    // Handle page rendering started
+    pdfEvents.on('pdf:page:rendering', ({ pageId }) => {
+      updatePageStatus(pageId, 'processing')
+      addPageLog(pageId, {
+        level: 'info',
+        message: 'Page rendering started'
+      })
+    })
+
+    // Handle page rendering completed
+    pdfEvents.on('pdf:page:done', async ({ pageId, imageData, width, height }) => {
+      // Update page with image data
+      updatePage(pageId, {
+        status: 'completed',
+        progress: 100,
+        imageData,
+        width,
+        height
+      })
+
+      // Save to database
+      const page = pages.value.find(p => p.id === pageId)
+      if (page) {
+        await savePageToDB(page)
+      }
+
+      addPageLog(pageId, {
+        level: 'success',
+        message: 'Page rendered successfully'
+      })
+    })
+
+    // Handle page rendering error
+    pdfEvents.on('pdf:page:error', ({ pageId, error }) => {
+      updatePageStatus(pageId, 'error')
+      addPageLog(pageId, {
+        level: 'error',
+        message: `Rendering failed: ${error}`
+      })
+    })
+
+    // Handle processing progress
+    pdfEvents.on('pdf:progress', ({ done, total }) => {
+      pdfProcessing.value.completed = done
+      pdfProcessing.value.total = total
+    })
+
+    // Handle PDF processing start
+    pdfEvents.on('pdf:processing-start', ({ file, totalPages }) => {
+      pdfProcessing.value.active = true
+      pdfProcessing.value.total = totalPages
+      pdfProcessing.value.completed = 0
+      pdfProcessing.value.currentFile = file.name
+    })
+
+    // Handle PDF processing complete
+    pdfEvents.on('pdf:processing-complete', () => {
+      pdfProcessing.value.active = false
+      pdfProcessing.value.currentFile = undefined
+    })
+
+    // Handle PDF processing error
+    pdfEvents.on('pdf:processing-error', ({ file, error }) => {
+      console.error(`PDF processing error for ${file.name}:`, error)
+    })
+
+    // Handle PDF logs
+    pdfEvents.on('pdf:log', ({ pageId, message, level }) => {
+      addPageLog(pageId, {
+        level,
+        message
+      })
+    })
+  }
+
+  // Setup event listeners when store is created
+  setupPDFEventListeners()
+
   // Helper
   function generateId(): string {
     return `page_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
@@ -499,6 +592,7 @@ export const usePagesStore = defineStore('pages', () => {
     pages,
     selectedPageIds,
     processingQueue,
+    pdfProcessing,
 
     // Getters
     pagesByStatus,
@@ -540,6 +634,9 @@ export const usePagesStore = defineStore('pages', () => {
     reorderPages,
 
     // File add actions
-    addFiles
+    addFiles,
+
+    // PDF specific actions
+    setupPDFEventListeners
   }
 })

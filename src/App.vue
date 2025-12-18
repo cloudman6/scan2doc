@@ -333,7 +333,7 @@ watchEffect(() => {
   }
 })
 
-// Load pages from database on mount
+// Load pages from database on mount and resume PDF processing
 onMounted(async () => {
   await pagesStore.loadPagesFromDB()
   if (pagesStore.pages.length > 0 && !currentPage.value) {
@@ -344,6 +344,14 @@ onMounted(async () => {
         ? firstPage.fileName
         : `${pagesStore.pages.length} files`
     }
+  }
+
+  // Resume any interrupted PDF processing
+  try {
+    const { pdfService } = await import('./services/pdf')
+    await pdfService.resumeProcessing()
+  } catch (error) {
+    console.error('Error resuming PDF processing:', error)
   }
 })
 </script>
