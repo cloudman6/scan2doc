@@ -55,9 +55,10 @@ import type { Page } from './stores/pages'
 import PageList from './components/page-list/PageList.vue'
 import Preview from './components/preview/Preview.vue'
 import PageViewer from './components/page-viewer/PageViewer.vue'
-import { NLayout, NLayoutHeader, NLayoutSider, NLayoutContent, NSpace, NButton, NText } from 'naive-ui'
+import { NLayout, NLayoutHeader, NLayoutSider, NLayoutContent, NSpace, NButton, NText, createDiscreteApi } from 'naive-ui'
 
 const pagesStore = usePagesStore()
+const { message } = createDiscreteApi(['message'])
 
 const currentFileName = ref('No file added')
 const currentPage = ref<Page | null>(null)
@@ -244,12 +245,18 @@ async function handleFileAdd() {
       }
     } else if (result.error) {
       console.error('Add error:', result.error)
-      // You could show a toast notification here
-      alert(`Add failed: ${result.error}`)
+      // Handle different error cases
+      if (result.error === 'No files selected') {
+        // Silent handling for cancelled file selection - no message needed
+        return
+      } else {
+        // Show Naive UI error message for other errors (like unsupported file types)
+        message.error(result.error)
+      }
     }
   } catch (error) {
     console.error('Add failed:', error)
-    alert('Add failed. Please try again.')
+    message.error('Add failed. Please try again.')
   }
 }
 

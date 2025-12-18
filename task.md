@@ -6,10 +6,15 @@ Here is exactly what I need implemented:
 
 ```
 目前已经实现单个 page 删除功能，现在需要实现批量删除功能。
-1. 用户鼠标移到page-item 上，显示删除svg按钮
-2. 鼠标移到删除按钮上，删除按钮变成红色
-3. 用户点击删除按钮，删除该page-item
-4. 显示一个消息框，用户可以撤销删除操作，10秒内有效
+1. page list中每个page前面加一个checkbox，用户可以选中多个page，用 Native UI的checkbox 实现
+2. page list 的顶端加一个tool bar，有一个checkbox 用来选中/取消选中所有page，用 Native UI的checkbox 实现
+3. tool bar 中的checkbox要能够区分部分选中和全选中
+4. tool bar 中加一个删除按钮，只有当有page的checkbox 选中时才会显示
+5. 该删除按钮与当前page-item中的删除按钮在外观和style上保持一致。鼠标放到删除按钮上，删除按钮变成红色
+6. 用户点击删除按钮，删除该选中的page
+7. 显示一个消息框，用户可以撤销删除操作
+8. 消息框显示和消失的逻辑沿用当前逻辑，支持批量和单个删除
+9. 重构当前的删除逻辑，使它能够单个或批量删除和恢复选中的page
 ```
 
 ---

@@ -129,6 +129,7 @@ function getStatusType(status: Page['status']): 'success' | 'info' | 'warning' |
   cursor: pointer;
   border: 2px solid transparent;
   transition: all 0.2s ease;
+  margin-right: 13px;
   user-select: none; /* Prevent text selection during drag */
   position: relative;
 }

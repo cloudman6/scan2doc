@@ -57,6 +57,11 @@ pids
 .eslintcache
 .stylelintcache
 
+# Playwright test results
+.playwright-mcp/*
+.claude/*
+test*
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

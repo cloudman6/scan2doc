@@ -15,7 +15,7 @@ export interface FileProcessingOptions {
 
 class FileAddService {
   private readonly defaultOptions: FileProcessingOptions = {
-    maxFileSize: 10 * 1024 * 1024, // 10MB
+    maxFileSize: 100 * 1024 * 1024, // 100MB
     allowedTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/bmp'],
     generateThumbnails: true,
     thumbnailSize: { width: 200, height: 300 }
