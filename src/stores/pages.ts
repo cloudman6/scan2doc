@@ -514,26 +514,47 @@ export const usePagesStore = defineStore('pages', () => {
     })
 
     // Handle page rendering completed
-    pdfEvents.on('pdf:page:done', async ({ pageId, imageData, width, height }) => {
-      // Update page with image data
-      updatePage(pageId, {
-        status: 'completed',
-        progress: 100,
-        imageData,
-        width,
-        height
-      })
+    pdfEvents.on('pdf:page:done', async ({ pageId, imageData, thumbnailData, width, height }) => {
+      // Check if page exists in store, if not, load it from database
+      let page = pages.value.find(p => p.id === pageId)
 
-      // Save to database
-      const page = pages.value.find(p => p.id === pageId)
-      if (page) {
-        await savePageToDB(page)
+      if (!page) {
+        // Page not found in store, load from database
+        try {
+          const dbPage = await db.getPage(pageId)
+          if (dbPage) {
+            page = dbPageToPage(dbPage)
+            pages.value.push(page)
+            console.log(`[Pages Store] Loaded new page from DB: ${pageId}`)
+          }
+        } catch (error) {
+          console.error(`[Pages Store] Failed to load page ${pageId} from DB:`, error)
+        }
       }
 
-      addPageLog(pageId, {
-        level: 'success',
-        message: 'Page rendered successfully'
-      })
+      if (page) {
+        // Update page with image data and thumbnail
+        updatePage(pageId, {
+          status: 'completed',
+          progress: 100,
+          imageData,
+          thumbnailData,
+          width,
+          height
+        })
+
+        // Save to database
+        await savePageToDB(page)
+
+        addPageLog(pageId, {
+          level: 'success',
+          message: 'Page rendered successfully'
+        })
+
+        console.log(`[Pages Store] Updated page ${pageId} with image data and thumbnail`)
+      } else {
+        console.error(`[Pages Store] Page ${pageId} not found in store or database`)
+      }
     })
 
     // Handle page rendering error
