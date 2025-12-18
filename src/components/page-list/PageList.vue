@@ -103,7 +103,8 @@ defineExpose({
   flex-direction: column;
   height: 100%;
   gap: 8px;
-  padding: 8px;
+  padding: 8px 8px 8px 8px;
+  padding-right: 12px; /* Extra space to prevent page item borders from overlapping scrollbar */
 }
 
 /* Draggable ghost class for vuedraggable */
