@@ -2,6 +2,7 @@ import PQueue from 'p-queue'
 import { pdfEvents } from './events'
 import { db } from '@/db/index'
 import type { DBPage } from '@/db/index'
+import { enhancedPdfRenderer } from './enhancedPdfRenderer'
 
 // PDF page render task interface
 interface PDFRenderTask {
@@ -9,6 +10,8 @@ interface PDFRenderTask {
   pdfData: ArrayBuffer
   pageNumber: number
   fileName: string
+  pdfBase64?: string  // Base64 backup for reconstruction
+  originalSize?: number  // Original size for validation
 }
 
 // Create singleton queue instance
@@ -318,6 +321,30 @@ async function updateOverallProgress(): Promise<void> {
 }
 
 /**
+ * Convert ArrayBuffer to base64 for safe storage
+ */
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer)
+  let binary = ''
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i])
+  }
+  return btoa(binary)
+}
+
+/**
+ * Convert base64 back to ArrayBuffer
+ */
+function base64ToArrayBuffer(base64: string): ArrayBuffer {
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i)
+  }
+  return bytes.buffer
+}
+
+/**
  * Queue a PDF page for rendering
  */
 export async function queuePDFPageRender(task: PDFRenderTask): Promise<void> {
@@ -330,14 +357,24 @@ export async function queuePDFPageRender(task: PDFRenderTask): Promise<void> {
     return // Skip if already processed or currently rendering
   }
 
+  // Store PDF base64 data for reliable reconstruction
+  const pdfBase64 = arrayBufferToBase64(task.pdfData)
+
+  // Create enhanced task with base64 backup
+  const enhancedTask = {
+    ...task,
+    pdfBase64,
+    originalSize: task.pdfData.byteLength
+  }
+
   // Add task to tracking map BEFORE queuing
-  renderingTasks.set(task.pageId, task)
+  renderingTasks.set(task.pageId, enhancedTask)
   console.log(`[PDF Queue] Added task to tracking map. Current tasks:`, Array.from(renderingTasks.keys()))
 
   // Add to queue
   await pdfRenderQueue.add(async () => {
     console.log(`[PDF Queue] Starting render for pageId: ${task.pageId}`)
-    await renderPDFPage(task)
+    await renderPDFPage(enhancedTask)
   })
 }
 
@@ -386,25 +423,83 @@ async function renderPDFPage(task: PDFRenderTask): Promise<void> {
       throw new Error(`Invalid page number: ${task.pageNumber}`)
     }
 
-    // Get worker and send render request
-    const worker = getWorker()
+    // Create a fresh copy of PDF data for this rendering attempt
+    // This avoids ArrayBuffer detachment issues
+    let pdfDataCopy: ArrayBuffer
 
-    // Create a copy of the ArrayBuffer to avoid detachment issues
-    const pdfDataCopy = task.pdfData.slice(0)
+    try {
+      pdfDataCopy = task.pdfData.slice(0)
+    } catch (sliceError) {
+      console.warn(`[PDF Render] Cannot copy PDF data, reconstructing from base64 backup:`, sliceError)
 
-    console.log(`[PDF Render] Sending render request to worker for pageId: ${task.pageId}`)
-
-    worker.postMessage({
-      type: 'render',
-      payload: {
-        pdfData: pdfDataCopy,
-        pageId: task.pageId,
-        pageNumber: task.pageNumber,
-        scale: 2.0,
-        imageFormat: 'png',
-        quality: 0.9
+      // Fallback: reconstruct from base64 backup
+      if (!task.pdfBase64) {
+        throw new Error('PDF data is detached and no base64 backup is available')
       }
-    }) // Remove Transferable Object - worker now returns base64 directly
+
+      try {
+        pdfDataCopy = base64ToArrayBuffer(task.pdfBase64)
+        console.log(`[PDF Render] Successfully reconstructed PDF data from base64 (${pdfDataCopy.byteLength} bytes)`)
+      } catch (reconstructionError) {
+        console.error(`[PDF Render] Failed to reconstruct PDF data from base64:`, reconstructionError)
+        throw new Error('PDF data reconstruction failed')
+      }
+    }
+
+    // Try enhanced rendering first, fallback to worker if needed
+    try {
+      console.log(`[PDF Render] Attempting enhanced rendering for pageId: ${task.pageId}`)
+
+      // Get optimal fallback font for this PDF
+      const fallbackFont = await enhancedPdfRenderer.getOptimalFallbackFont(pdfDataCopy)
+      console.log(`[PDF Render] Using fallback font: ${fallbackFont} for pageId: ${task.pageId}`)
+
+      // Use enhanced renderer
+      const result = await enhancedPdfRenderer.renderPage(pdfDataCopy, task.pageNumber, {
+        scale: 2.5,
+        imageFormat: 'png',
+        quality: 0.95,
+        useEnhancedFonts: true,
+        fallbackFontFamily: fallbackFont
+      })
+
+      // Handle successful enhanced rendering
+      await handleRenderSuccess(
+        task.pageId,
+        result.imageData,
+        result.width,
+        result.height,
+        task.pageNumber
+      )
+
+      console.log(`[PDF Render] Enhanced rendering successful for pageId: ${task.pageId}`)
+
+    } catch (enhancedError) {
+      console.warn(`[PDF Render] Enhanced rendering failed for ${task.pageId}, falling back to worker:`, enhancedError)
+
+      // Fallback to worker rendering - create another copy if needed
+      let workerPdfData: ArrayBuffer
+      try {
+        workerPdfData = pdfDataCopy.slice(0)
+      } catch (workerSliceError) {
+        console.warn(`[PDF Render] Cannot create worker copy, using original:`, workerSliceError)
+        workerPdfData = pdfDataCopy
+      }
+
+      const worker = getWorker()
+
+      worker.postMessage({
+        type: 'render',
+        payload: {
+          pdfData: workerPdfData,
+          pageId: task.pageId,
+          pageNumber: task.pageNumber,
+          scale: 2.5,
+          imageFormat: 'png',
+          quality: 0.95
+        }
+      })
+    }
 
   } catch (error) {
     console.error(`[PDF Render] Error queueing PDF page render for ${task.pageId}:`, error)

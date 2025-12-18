@@ -49,9 +49,9 @@ self.addEventListener('message', async (event: MessageEvent<WorkerMessage>) => {
       pdfData,
       pageId: inputPageId,
       pageNumber: inputPageNumber,
-      scale = 2.0,  // Higher scale for better quality
+      scale = 2.5,  // Higher scale for better text quality
       imageFormat = 'png',
-      quality = 0.9
+      quality = 0.95  // Higher quality for better text rendering
     } = payload
 
     // Store values for error handling
@@ -69,13 +69,19 @@ self.addEventListener('message', async (event: MessageEvent<WorkerMessage>) => {
       throw new Error('pdfData is empty or invalid')
     }
 
-    // Load PDF document
+    // Load PDF document with enhanced font configuration
     const loadingTask = pdfjsLib.getDocument({
       data: new Uint8Array(pdfData),
-      cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.4.449/cmaps/',
-      cMapPacked: true,
-      standardFontDataUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.4.449/standard_fonts/', 
-      disableWorker: true
+      // Enhanced font configuration for better CJK support
+      disableWorker: true,
+      // Enable font fallback for better text rendering
+      useSystemFonts: true,
+      // Increase font rendering quality
+      fontExtraProperties: true,
+      // Additional font loading options
+      enhanceTextSelection: true,
+      // Enable enhanced font rendering
+      verbosity: 0 // Reduce font loading warnings
     })
 
     const pdfDocument = await loadingTask.promise
@@ -88,13 +94,41 @@ self.addEventListener('message', async (event: MessageEvent<WorkerMessage>) => {
 
     // Create canvas
     const canvas = new OffscreenCanvas(viewport.width, viewport.height)
-    const context = canvas.getContext('2d')!
+    const context = canvas.getContext('2d', {
+      // Enable better text rendering settings
+      alpha: false,  // Disable alpha channel for better text clarity
+      desynchronized: true,  // Improve rendering performance
+      willReadFrequently: false
+    })!
 
-    // Render PDF page to canvas
-    await page.render({
+    // Set rendering context properties for better text quality
+    context.imageSmoothingEnabled = true
+    context.imageSmoothingQuality = 'high'
+    context.textRenderingOptimization = 'optimizeQuality'
+
+    // Enhanced text rendering with font fallback
+    const renderContext = {
       canvasContext: context,
-      viewport: viewport
-    }).promise
+      viewport: viewport,
+      // Enable render for better text quality
+      intent: 'print',  // Use print intent for higher quality rendering
+      // Enhanced text rendering options
+      renderInteractiveForms: true,
+      // Enable better text rendering for CJK characters
+      textLayer: true
+    }
+
+    try {
+      await page.render(renderContext).promise
+    } catch (renderError) {
+      console.warn('Enhanced rendering failed, falling back to standard rendering:', renderError)
+      // Fallback to basic rendering if enhanced fails
+      await page.render({
+        canvasContext: context,
+        viewport: viewport,
+        intent: 'print'
+      }).promise
+    }
 
     // Convert canvas to base64 using convertToBlob (correct method for OffscreenCanvas)
     const mimeType = imageFormat === 'jpeg' ? 'image/jpeg' : 'image/png'

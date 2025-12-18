@@ -20,6 +20,10 @@ export interface DBPage {
   createdAt: Date
   updatedAt: Date
   processedAt?: Date
+  // Store original PDF data for reliable re-rendering
+  originalPdfData?: ArrayBuffer
+  // Store PDF base64 for easier reconstruction
+  pdfBase64?: string
 }
 
 export interface DBProcessingQueue {

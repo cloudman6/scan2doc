@@ -6,6 +6,12 @@ import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 // Configure PDF.js worker (for main thread usage)
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl
 
+// Initialize enhanced PDF renderer
+import { enhancedPdfRenderer } from './enhancedPdfRenderer'
+
+// Initialize enhanced renderer when module loads
+enhancedPdfRenderer.initialize().catch(console.error)
+
 export interface PDFPageInfo {
   pageNumber: number
   width: number
@@ -99,6 +105,10 @@ export class PDFService {
         cMapPacked: true,
         // 省略 standardFontDataUrl（中文场景可移除，减少依赖）
         maxMemory: 1024 * 1024 * 512, // 512MB
+        // Enable font fallback for better text rendering
+        useSystemFonts: true,
+        // Increase font rendering quality
+        fontExtraProperties: true
       })
 
       const pdfDocument = await loadingTask.promise
@@ -215,6 +225,10 @@ export class PDFService {
         data: new Uint8Array(pdfData),
         cMapUrl: `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfJsVersion}/cmaps/`,
         cMapPacked: true,
+        // Enable font fallback for better text rendering
+        useSystemFonts: true,
+        // Increase font rendering quality
+        fontExtraProperties: true
       })
       const pdfDocument = await loadingTask.promise
 
