@@ -212,12 +212,13 @@ function getStatusClass(status: Page['status']): string {
 /* Delete button styling */
 .delete-btn {
   position: absolute;
-  top: 4px;
+  top: 50%;
   right: 4px;
+  transform: translateY(-50%);
   width: 24px;
   height: 24px;
   border: none;
-  background: rgba(0, 0, 0, 0.1);
+  background: transparent;
   border-radius: 4px;
   cursor: pointer;
   display: flex;
@@ -235,8 +236,8 @@ function getStatusClass(status: Page['status']): string {
 }
 
 .delete-btn:hover {
-  background: rgba(0, 0, 0, 0.1);
-  transform: scale(1.1);
+  background: transparent;
+  transform: translateY(-50%) scale(1.1);
 }
 
 .page-item:hover .delete-btn {
