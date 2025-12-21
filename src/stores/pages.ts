@@ -21,6 +21,8 @@ export interface PageOutput {
 
 export interface Page {
   id: string
+  fileId?: string // Reference to source file in DB
+  pageNumber?: number // Page number in the original file
   fileName: string
   fileSize: number
   fileType: string
@@ -104,7 +106,7 @@ export const usePagesStore = defineStore('pages', () => {
   })
 
   // Actions
-  async function addPage(page: Omit<Page, 'id' | 'createdAt' | 'updatedAt'>) {
+  async function addPage(page: Omit<Page, 'id' | 'createdAt' | 'updatedAt' | 'order'> & { order?: number }) {
     const nextOrder = await db.getNextOrder()
     const newPage: Page = {
       ...page,
@@ -243,6 +245,8 @@ export const usePagesStore = defineStore('pages', () => {
       status: page.status,
       progress: page.progress,
       order: page.order,
+      fileId: page.fileId,
+      pageNumber: page.pageNumber,
       imageData: page.imageData,
       thumbnailData: page.thumbnailData,
       width: page.width,
@@ -267,6 +271,8 @@ export const usePagesStore = defineStore('pages', () => {
       status: dbPage.status,
       progress: dbPage.progress,
       order: dbPage.order,
+      fileId: dbPage.fileId,
+      pageNumber: dbPage.pageNumber,
       imageData: dbPage.imageData,
       thumbnailData: dbPage.thumbnailData,
       width: dbPage.width,
@@ -289,6 +295,8 @@ export const usePagesStore = defineStore('pages', () => {
         ...currentPage,
         ...updates,
         id: currentPage.id, // Ensure id is preserved
+        fileId: currentPage.fileId,
+        pageNumber: currentPage.pageNumber,
         fileName: currentPage.fileName, // Ensure required fields are preserved
         fileSize: currentPage.fileSize,
         fileType: currentPage.fileType,

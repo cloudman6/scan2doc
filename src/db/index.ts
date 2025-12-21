@@ -1,8 +1,19 @@
 import Dexie, { type Table } from 'dexie'
 import type { PageProcessingLog, PageOutput } from '@/stores/pages'
 
+export interface DBFile {
+  id?: string
+  name: string
+  content: Blob
+  size: number
+  type: string
+  createdAt: Date
+}
+
 export interface DBPage {
   id?: string
+  fileId?: string // Reference to DBFile
+  pageNumber?: number // Page number in the original file
   fileName: string
   fileSize: number
   fileType: string
@@ -36,29 +47,54 @@ export interface DBProcessingQueue {
 
 export class Scan2DocDB extends Dexie {
   pages!: Table<DBPage>
+  files!: Table<DBFile>
   processingQueue!: Table<DBProcessingQueue>
 
   constructor() {
     super('Scan2DocDatabase')
 
     // Define schema
-    this.version(2).stores({
-      pages: '++id, fileName, fileSize, fileType, origin, status, progress, order, createdAt, updatedAt, processedAt',
+    this.version(3).stores({
+      pages: '++id, fileId, pageNumber, fileName, fileSize, fileType, origin, status, progress, order, createdAt, updatedAt, processedAt',
+      files: '++id, name, size, createdAt',
       processingQueue: '++id, pageId, priority, addedAt'
     }).upgrade(tx => {
-      // Basic migration logic if needed
-      return tx.table('pages').toCollection().modify(page => {
-        if (!page.origin) {
-          page.origin = page.fileName.includes('.pdf_') ? 'pdf_generated' : 'upload';
-        }
-        if (page.status === 'idle') {
-          page.status = page.origin === 'pdf_generated' ? 'pending_render' : 'ready';
-        }
-        if (page.status === 'done') {
-          page.status = 'ready';
-        }
-      });
+      // Migration to version 3
+      // We don't need complex migration for now as this is a new feature
+      // Existing pages will just have undefined fileId/pageNumber and won't be resumable
     })
+  }
+
+  // File methods
+  async saveFile(file: DBFile): Promise<string> {
+    if (file.id) {
+      await this.files.put(file)
+      return file.id
+    } else {
+      // Use put instead of add to handle ID generation correctly with string IDs if needed
+      // But for auto-increment keys (if we used number), add is fine.
+      // Since we defined ++id, it will be a number or string depending on Dexie config.
+      // Let's assume standard behavior.
+      const id = await this.files.add(file)
+      return id.toString()
+    }
+  }
+
+  async getFile(id: string): Promise<DBFile | undefined> {
+    // Try to parse as number if the ID looks like a number, since we used ++id
+    // But we'll try string access first to be generic
+    let file = await this.files.get(id)
+    if (!file && !isNaN(Number(id))) {
+       file = await this.files.get(Number(id))
+    }
+    return file
+  }
+
+  async deleteFile(id: string): Promise<void> {
+    await this.files.delete(id)
+    if (!isNaN(Number(id))) {
+      await this.files.delete(Number(id))
+    }
   }
 
   // Page methods

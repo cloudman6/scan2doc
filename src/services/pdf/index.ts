@@ -1,6 +1,7 @@
 import * as pdfjsLib from 'pdfjs-dist'
 import { queuePDFPages, resumePDFProcessing } from './pdfQueue'
 import { pdfEvents } from './events'
+import { db } from '@/db/index'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
 // Configure PDF.js worker (for main thread usage)
@@ -182,6 +183,21 @@ export class PDFService {
    */
   async processPDF(file: File): Promise<void> {
     try {
+      // Save original file to DB for resume support
+      let fileId: string | undefined
+      try {
+        fileId = await db.saveFile({
+          name: file.name,
+          content: file, // File is a Blob
+          size: file.size,
+          type: file.type,
+          createdAt: new Date()
+        })
+        console.log(`[PDF Service] Saved source file to DB: ${file.name} (id: ${fileId})`)
+      } catch (dbError) {
+        console.warn('[PDF Service] Failed to save source file to DB, resume will not work:', dbError)
+      }
+
       // Load PDF document
       const pdfDocument = await this.loadPDF(file)
 
@@ -196,8 +212,8 @@ export class PDFService {
       // 替代原来的 slice(0) 操作
       const pdfDataCopy = this.base64ToArrayBuffer(pdfDocument.base64Data)
 
-      // Queue all pages for rendering
-      await queuePDFPages(file, pdfDataCopy, pdfDocument.pageCount)
+      // Queue all pages for rendering, passing the fileId
+      await queuePDFPages(file, pdfDataCopy, pdfDocument.pageCount, fileId)
 
     } catch (error) {
       console.error('Error processing PDF:', error)

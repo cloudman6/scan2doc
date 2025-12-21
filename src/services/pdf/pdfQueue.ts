@@ -292,7 +292,7 @@ async function handleRenderError(pageId: string, errorMessage: string): Promise<
 }
 
 /**
- * Update overall PDF processing progress
+ * Update overall PDF processing progress and clean up finished files
  */
 async function updateOverallProgress(): Promise<void> {
   try {
@@ -313,10 +313,30 @@ async function updateOverallProgress(): Promise<void> {
     if (totalPages > 0 && (completedPages + errorPages) === totalPages) {
       if (errorPages === 0) {
         pdfEvents.emit('pdf:processing-complete', {
-          file: new File([], 'completed.pdf'),
+          file: new File([], 'completed.pdf'), // Dummy file object
           totalPages
         })
       }
+    }
+    
+    // Cleanup logic: Delete files from DB if all their pages are processed
+    const fileIds = new Set<string>()
+    pdfPages.forEach(p => {
+       if (p.fileId) fileIds.add(p.fileId)
+    })
+    
+    for (const fileId of fileIds) {
+       const pagesForFile = pdfPages.filter(p => p.fileId === fileId)
+       const allDone = pagesForFile.every(p => p.status === 'ready' || p.status === 'error')
+       
+       if (allDone && pagesForFile.length > 0) {
+          // Verify if file still exists before trying to delete
+          const file = await db.getFile(fileId)
+          if (file) {
+             console.log(`[Cleanup] All pages for file ${fileId} are processed. Deleting source file from DB.`)
+             await db.deleteFile(fileId)
+          }
+       }
     }
 
   } catch (error) {
@@ -518,7 +538,8 @@ async function renderPDFPage(task: PDFRenderTask): Promise<void> {
 export async function queuePDFPages(
   file: File,
   pdfData: ArrayBuffer,
-  pageCount: number
+  pageCount: number,
+  fileId?: string
 ): Promise<void> {
   try {
     // Create pages for each PDF page (if not already created)
@@ -537,6 +558,8 @@ export async function queuePDFPages(
         status: 'pending_render',
         progress: 0,
         order: -1, // Will be set by store
+        fileId, // Link to source file
+        pageNumber: pageNum, // Store explicit page number
         outputs: [],
         logs: [{
           id: Date.now().toString(),
@@ -593,42 +616,124 @@ export async function queuePDFPages(
 }
 
 /**
- * Resume processing of idle PDF pages
+ * Resume processing of interrupted PDF pages
  */
 export async function resumePDFProcessing(): Promise<void> {
   try {
-    // Find all PDF pages with pending_render status
-    const idlePages = await db.getPagesByStatus('pending_render')
-    const pdfPages = idlePages.filter(page => page.origin === 'pdf_generated')
+    // 1. Find all incomplete PDF pages (pending_render OR rendering)
+    const pendingPages = await db.getPagesByStatus('pending_render')
+    const renderingPages = await db.getPagesByStatus('rendering')
+    
+    // Combine and filter for PDF generated pages
+    const incompletePages = [...pendingPages, ...renderingPages]
+      .filter(page => page.origin === 'pdf_generated')
 
-    if (pdfPages.length === 0) {
+    if (incompletePages.length === 0) {
       return
     }
 
-    console.log(`Resuming processing for ${pdfPages.length} PDF pages`)
+    console.log(`[Resume] Found ${incompletePages.length} incomplete PDF pages to resume`)
 
-    // Group pages by original PDF file
-    const pagesByFile = new Map<string, DBPage[]>()
+    // 2. Group pages by fileId
+    const pagesByFileId = new Map<string, DBPage[]>()
+    // For legacy pages without fileId, group by filename (will fail but handled gracefully)
+    const legacyPages: DBPage[] = []
 
-    for (const page of pdfPages) {
-      // Extract original PDF filename from page name
-      const match = page.fileName.match(/^(.+?)_\d+\.png$/)
-      const pdfFileName = match ? `${match[1]}.pdf` : 'unknown.pdf'
-
-      if (!pagesByFile.has(pdfFileName)) {
-        pagesByFile.set(pdfFileName, [])
+    for (const page of incompletePages) {
+      if (page.fileId) {
+        if (!pagesByFileId.has(page.fileId)) {
+          pagesByFileId.set(page.fileId, [])
+        }
+        pagesByFileId.get(page.fileId)!.push(page)
+      } else {
+        legacyPages.push(page)
       }
-      pagesByFile.get(pdfFileName)!.push(page)
     }
 
-    // Note: In a real implementation, we would need to reload the PDF data
-    // For now, we'll emit a log that manual re-upload is needed
-    for (const [pdfFileName, pages] of pagesByFile) {
-      pdfEvents.emit('pdf:log', {
-        pageId: pages[0].id!,
-        message: `PDF "${pdfFileName}" needs to be re-uploaded to resume processing`,
-        level: 'warning'
+    // Handle legacy pages (mark as error or warn)
+    if (legacyPages.length > 0) {
+      console.warn(`[Resume] Found ${legacyPages.length} legacy pages without fileId link`)
+      // Group by filename just to log meaningful warnings
+      const byName = new Map<string, DBPage[]>()
+      legacyPages.forEach(p => {
+        const name = p.fileName.split('_')[0] + '.pdf' // Crude guess
+        if (!byName.has(name)) byName.set(name, [])
+        byName.get(name)!.push(p)
       })
+      
+      for (const [name, pages] of byName) {
+         pdfEvents.emit('pdf:log', {
+            pageId: pages[0].id!,
+            message: `Legacy PDF "${name}" pages cannot be auto-resumed. Please re-upload.`,
+            level: 'warning'
+         })
+         // Update status to error to stop "stuck" state
+         for (const page of pages) {
+           await db.savePage({ ...page, status: 'error' })
+         }
+      }
+    }
+
+    // 3. Process each file group
+    for (const [fileId, pages] of pagesByFileId) {
+      try {
+        // Load file from DB
+        const dbFile = await db.getFile(fileId)
+        
+        if (!dbFile) {
+          console.error(`[Resume] Source file not found for fileId: ${fileId}`)
+          // Mark all pages as error
+          for (const page of pages) {
+             pdfEvents.emit('pdf:log', {
+                pageId: page.id!,
+                message: `Source PDF file missing. Cannot resume processing.`,
+                level: 'error'
+             })
+             await db.savePage({ ...page, status: 'error' })
+          }
+          continue
+        }
+
+        console.log(`[Resume] Loaded source file "${dbFile.name}" (${dbFile.size} bytes)`)
+        
+        // Convert Blob to ArrayBuffer
+        const pdfData = await dbFile.content.arrayBuffer()
+        
+        // Re-queue pages
+        for (const page of pages) {
+          // Determine page number
+          let pageNumber = page.pageNumber
+          if (!pageNumber) {
+             // Fallback: extract from filename (e.g. "foo_1.png")
+             const match = page.fileName.match(/_(\d+)\.png$/)
+             if (match && match[1]) pageNumber = parseInt(match[1])
+          }
+          
+          if (!pageNumber) {
+            console.error(`[Resume] Could not determine page number for page ${page.id}`)
+             await db.savePage({ ...page, status: 'error' })
+            continue
+          }
+
+          // Reset status to pending if it was rendering
+          if (page.status === 'rendering') {
+             await db.savePage({ ...page, status: 'pending_render', progress: 0 })
+          }
+
+          // Queue render task
+          await queuePDFPageRender({
+            pageId: page.id!,
+            pdfData, // Pass the ArrayBuffer (queuePDFPageRender handles copying)
+            pageNumber,
+            fileName: dbFile.name
+          })
+        }
+        
+        console.log(`[Resume] Successfully re-queued ${pages.length} pages for "${dbFile.name}"`)
+
+      } catch (error) {
+        console.error(`[Resume] Failed to resume file ${fileId}:`, error)
+      }
     }
 
   } catch (error) {
