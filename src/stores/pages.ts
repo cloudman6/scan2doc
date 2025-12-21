@@ -555,8 +555,12 @@ export const usePagesStore = defineStore('pages', () => {
           fileSize
         })
 
-        // Save to database
-        await savePageToDB(page)
+        // Fetch the updated page from store before saving to DB
+        // This is crucial because 'page' variable holds the stale reference
+        const updatedPage = pages.value.find(p => p.id === pageId)
+        if (updatedPage) {
+          await savePageToDB(updatedPage)
+        }
 
         addPageLog(pageId, {
           level: 'success',
