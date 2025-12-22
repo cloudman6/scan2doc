@@ -45,23 +45,53 @@ export interface DBProcessingQueue {
   addedAt: Date
 }
 
+export interface PageImage {
+  pageId: string
+  blob: Blob
+}
+
 export class Scan2DocDB extends Dexie {
   pages!: Table<DBPage>
   files!: Table<DBFile>
   processingQueue!: Table<DBProcessingQueue>
+  pageImages!: Table<PageImage>
 
   constructor() {
     super('Scan2DocDatabase')
 
     // Define schema
-    this.version(3).stores({
-      pages: '++id, fileId, pageNumber, fileName, fileSize, fileType, origin, status, progress, order, createdAt, updatedAt, processedAt',
+    this.version(4).stores({
+      pages: 'id, fileId, pageNumber, fileName, fileSize, fileType, origin, status, progress, order, createdAt, updatedAt, processedAt',
       files: '++id, name, size, createdAt',
-      processingQueue: '++id, pageId, priority, addedAt'
-    }).upgrade(tx => {
-      // Migration to version 3
-      // We don't need complex migration for now as this is a new feature
-      // Existing pages will just have undefined fileId/pageNumber and won't be resumable
+      processingQueue: '++id, pageId, priority, addedAt',
+      pageImages: 'pageId' // pageId is primary key
+    }).upgrade(async tx => {
+      // Migration to version 4: Move imageData from pages table to pageImages table
+      const pagesTable = tx.table('pages')
+      const pageImagesTable = tx.table('pageImages')
+      
+      const pages = await pagesTable.toArray()
+      for (const page of pages) {
+        if (page.id && page.imageData && page.imageData.startsWith('data:')) {
+          try {
+            // Convert Base64 to Blob
+            const response = await fetch(page.imageData)
+            const blob = await response.blob()
+            
+            // Save to new table
+            await pageImagesTable.put({
+              pageId: page.id,
+              blob
+            })
+            
+            // Remove from old table (update strictly the imageData field)
+            // Note: We're doing this in the upgrade transaction
+            await pagesTable.update(page.id, { imageData: undefined })
+          } catch (error) {
+            console.error('Failed to migrate image for page', page.id, error)
+          }
+        }
+      }
     })
   }
 
@@ -97,6 +127,16 @@ export class Scan2DocDB extends Dexie {
     }
   }
 
+  // Page Image methods (Blob storage)
+  async savePageImage(pageId: string, blob: Blob): Promise<void> {
+    await this.pageImages.put({ pageId, blob })
+  }
+
+  async getPageImage(pageId: string): Promise<Blob | undefined> {
+    const record = await this.pageImages.get(pageId)
+    return record?.blob
+  }
+
   // Page methods
   async savePage(page: DBPage): Promise<string> {
     if (page.id) {
@@ -126,15 +166,17 @@ export class Scan2DocDB extends Dexie {
 
   async deletePage(id: string): Promise<void> {
     await this.pages.delete(id)
+    await this.pageImages.delete(id)
     await this.processingQueue.where('pageId').equals(id).delete()
   }
 
   async deleteAllPages(): Promise<void> {
-    await this.transaction('rw', [this.pages, this.processingQueue], async () => {
+    await this.transaction('rw', [this.pages, this.processingQueue, this.pageImages], async () => {
       const pages = await this.pages.toArray()
       const pageIds = pages.map(p => p.id!).filter(Boolean)
 
       await this.pages.clear()
+      await this.pageImages.clear()
       if (pageIds.length > 0) {
         await this.processingQueue.where('pageId').anyOf(pageIds).delete()
       }
@@ -203,9 +245,10 @@ export class Scan2DocDB extends Dexie {
 
   // Utility methods
   async clearAllData(): Promise<void> {
-    await this.transaction('rw', [this.pages, this.processingQueue], async () => {
+    await this.transaction('rw', [this.pages, this.processingQueue, this.pageImages], async () => {
       await this.pages.clear()
       await this.processingQueue.clear()
+      await this.pageImages.clear()
     })
   }
 
@@ -220,3 +263,10 @@ export class Scan2DocDB extends Dexie {
 
 // Create and export a singleton instance
 export const db = new Scan2DocDB()
+
+/**
+ * Generate a unique page ID
+ */
+export function generatePageId(): string {
+  return `page_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
+}

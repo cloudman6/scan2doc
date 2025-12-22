@@ -175,9 +175,9 @@ class FileAddService {
   private async processImageFile(file: File, options: FileProcessingOptions): Promise<Page> {
     const imageDimensions = await this.getImageDimensions(file)
 
-    // Convert image to base64 for persistent storage
-    const imageData = await this.fileToBase64(file)
-
+    // Convert image to base64 for persistent storage (deprecated for pages table, but used for pageImages)
+    // Actually, we can use the file (Blob) directly for pageImages table
+    
     let thumbnailData: string | undefined
 
     if (options.generateThumbnails) {
@@ -185,15 +185,25 @@ class FileAddService {
         thumbnailData = await this.generateThumbnail(file, options.thumbnailSize!)
       } catch (error) {
         addLogger.warn('Failed to generate thumbnail for', file.name, error)
-        // Fall back to using the original image as thumbnail
-        thumbnailData = imageData
+        // Fall back to base64 for thumbnail if generation fails
+        thumbnailData = await this.fileToBase64(file)
       }
     } else {
-      thumbnailData = imageData
+      thumbnailData = await this.fileToBase64(file)
+    }
+
+    const { db, generatePageId } = await import('@/db/index')
+    const pageId = generatePageId()
+
+    // Save full image to separate table as Blob
+    try {
+      await db.savePageImage(pageId, file)
+    } catch (error) {
+      addLogger.error('Failed to save full image to DB:', error)
     }
 
     return {
-      id: this.generatePageId(),
+      id: pageId,
       fileName: file.name,
       fileSize: file.size,
       fileType: file.type,
@@ -201,7 +211,7 @@ class FileAddService {
       status: 'ready',
       progress: 100,
       order: -1, // Will be set by store
-      imageData,
+      imageData: undefined, // Don't include in store object to save memory
       thumbnailData,
       width: imageDimensions.width,
       height: imageDimensions.height,
@@ -287,21 +297,6 @@ class FileAddService {
       pages,
       error: errors.length > 0 ? errors.join('; ') : undefined
     }
-  }
-
-  
-  /**
-   * Generate unique page ID
-   */
-  private generatePageId(): string {
-    return `page_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
-  }
-
-  /**
-   * Generate unique ID
-   */
-  private generateId(): string {
-    return `${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
   }
 }
 

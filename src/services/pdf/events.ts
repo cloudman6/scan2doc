@@ -3,7 +3,7 @@ import mitt from 'mitt'
 type PDFEvents = {
   'pdf:page:queued': { pageId: string }
   'pdf:page:rendering': { pageId: string }
-  'pdf:page:done': { pageId: string; imageData: string; thumbnailData?: string; width: number; height: number; fileSize: number }
+  'pdf:page:done': { pageId: string; thumbnailData?: string; width: number; height: number; fileSize: number }
   'pdf:page:error': { pageId: string; error: string }
   'pdf:progress': { done: number; total: number }
   'pdf:log': { pageId: string; message: string; level: 'info' | 'warning' | 'error' }

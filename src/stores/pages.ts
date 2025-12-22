@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { db } from '@/db/index'
+import { db, generatePageId } from '@/db/index'
 import type { DBPage } from '@/db/index'
 import fileAddService from '@/services/add'
 import { pdfEvents } from '@/services/pdf/events'
@@ -35,7 +35,7 @@ export interface Page {
   order: number  // Sort order for drag and drop
 
   // Image data
-  imageData?: string  // base64 image data for persistence (can be used directly as img src)
+  imageData?: string  // DEPRECATED: Full image data is now stored as Blob in pageImages table
   thumbnailData?: string  // base64 thumbnail data for persistence (can be used directly as img src)
   width?: number
   height?: number
@@ -107,11 +107,11 @@ export const usePagesStore = defineStore('pages', () => {
   })
 
   // Actions
-  async function addPage(page: Omit<Page, 'id' | 'createdAt' | 'updatedAt' | 'order'> & { order?: number }) {
+  async function addPage(page: Omit<Page, 'id' | 'createdAt' | 'updatedAt' | 'order'> & { id?: string; order?: number }) {
     const nextOrder = await db.getNextOrder()
     const newPage: Page = {
       ...page,
-      id: generateId(),
+      id: page.id || generatePageId(),
       order: page.order !== undefined ? page.order : nextOrder,
       createdAt: new Date(),
       updatedAt: new Date()
@@ -547,7 +547,7 @@ export const usePagesStore = defineStore('pages', () => {
     })
 
     // Handle page rendering completed
-    pdfEvents.on('pdf:page:done', async ({ pageId, imageData, thumbnailData, width, height, fileSize }) => {
+    pdfEvents.on('pdf:page:done', async ({ pageId, thumbnailData, width, height, fileSize }) => {
       // Check if page exists in store, if not, load it from database
       let page = pages.value.find(p => p.id === pageId)
 
@@ -568,11 +568,10 @@ export const usePagesStore = defineStore('pages', () => {
       }
 
       if (page) {
-        // Update page with image data, thumbnail and size
+        // Update page with thumbnail and size
         updatePage(pageId, {
           status: 'ready',
           progress: 100,
-          imageData,
           thumbnailData,
           width,
           height,
@@ -584,7 +583,7 @@ export const usePagesStore = defineStore('pages', () => {
           message: 'Page rendered successfully'
         })
 
-        storeLogger.info(`[Pages Store] Updated page ${pageId} with image data and thumbnail`)
+        storeLogger.info(`[Pages Store] Updated page ${pageId} with thumbnail`)
       } else {
         storeLogger.error(`[Pages Store] Page ${pageId} not found in store or database`)
       }

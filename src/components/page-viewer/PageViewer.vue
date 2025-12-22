@@ -25,16 +25,15 @@
     <div class="image-container" ref="imageContainer">
       <div v-if="currentPage" class="image-wrapper">
         <img
-          v-if="currentPage.imageData"
-          :src="currentPage.imageData"
+          v-if="fullImageUrl"
+          :src="fullImageUrl"
           :style="{ transform: `scale(${zoomLevel})` }"
           class="page-image"
           alt=""
-          @loadstart="onImageStartLoad"
           @load="onImageLoad"
           @error="onImageError"
         />
-        <n-empty v-else description="No image available">
+        <n-empty v-else-if="!imageLoading" description="No image available">
           <template #icon>
             <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
               <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
@@ -99,11 +98,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, watch, onUnmounted } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import { uiLogger } from '@/services/logger'
-import { 
-  ArrowBack,
 import { NCard, NSpace, NButton, NButtonGroup, NSpin, NEmpty, NResult, NText } from 'naive-ui'
+import { db } from '@/db'
 
 interface Page {
   id: string
@@ -113,8 +111,8 @@ interface Page {
   origin: 'upload' | 'pdf_generated'
   status: 'pending_render' | 'rendering' | 'ready' | 'recognizing' | 'completed' | 'error'
   progress: number
-  imageData?: string  // base64 image data that can be used directly as img src
-  thumbnailData?: string  // base64 thumbnail data that can be used directly as img src
+  imageData?: string
+  thumbnailData?: string
   width?: number
   height?: number
   ocrText?: string
@@ -135,8 +133,46 @@ const imageContainer = ref<HTMLElement>()
 const imageSize = ref<string>('')
 const imageLoading = ref(false)
 const imageError = ref<string>('')
+const fullImageUrl = ref<string>('')
 
 const status = computed(() => props.currentPage?.status || 'ready')
+
+// Watch for page change to load full image
+watch(() => props.currentPage?.id, async (newPageId) => {
+  // Clear previous URL and error
+  if (fullImageUrl.value) {
+    URL.revokeObjectURL(fullImageUrl.value)
+    fullImageUrl.value = ''
+  }
+  imageError.value = ''
+  imageSize.value = ''
+
+  if (!newPageId || props.currentPage?.status === 'pending_render' || props.currentPage?.status === 'rendering') {
+    return
+  }
+
+  imageLoading.value = true
+  try {
+    const blob = await db.getPageImage(newPageId)
+    if (blob) {
+      fullImageUrl.value = URL.createObjectURL(blob)
+    } else {
+      imageError.value = 'Full image not found in storage'
+    }
+  } catch (error) {
+    uiLogger.error('Failed to load full image', error)
+    imageError.value = 'Failed to load image from storage'
+  } finally {
+    imageLoading.value = false
+  }
+}, { immediate: true })
+
+// Cleanup on unmount
+onUnmounted(() => {
+  if (fullImageUrl.value) {
+    URL.revokeObjectURL(fullImageUrl.value)
+  }
+})
 
 const statusText = computed(() => {
   switch (status.value) {
@@ -147,17 +183,6 @@ const statusText = computed(() => {
     case 'completed': return 'Completed'
     case 'error': return 'Error'
     default: return 'Unknown'
-  }
-})
-
-const statusClass = computed(() => {
-  switch (status.value) {
-    case 'completed': return 'status-done'
-    case 'ready': return 'status-ready'
-    case 'rendering':
-    case 'recognizing': return 'status-processing'
-    case 'error': return 'status-error'
-    default: return 'status-idle'
   }
 })
 
@@ -186,7 +211,6 @@ function zoomOut() {
 
 function fitToScreen() {
   zoomLevel.value = 1
-  // Add logic to calculate optimal fit if needed
 }
 
 function onImageLoad(event: Event) {
@@ -202,11 +226,6 @@ function onImageError() {
   imageError.value = 'Failed to load image'
 }
 
-function onImageStartLoad() {
-  imageLoading.value = true
-  imageError.value = ''
-}
-
 function formatFileSize(bytes: number): string {
   if (bytes === 0) return '0 B'
   const k = 1024
@@ -217,8 +236,6 @@ function formatFileSize(bytes: number): string {
 
 function runOCR() {
   if (!props.currentPage || status.value === 'processing') return
-
-  // This would integrate with your OCR service
   uiLogger.info('Running OCR for page', props.currentPage.id)
 }
 </script>

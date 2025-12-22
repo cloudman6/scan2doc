@@ -1,6 +1,6 @@
 import PQueue from 'p-queue'
 import { pdfEvents } from './events'
-import { db } from '@/db/index'
+import { db, generatePageId } from '@/db/index'
 import type { DBPage } from '@/db/index'
 import { enhancedPdfRenderer } from './enhancedPdfRenderer'
 import { queueLogger } from '@/services/logger'
@@ -145,6 +145,19 @@ function calculateThumbnailDimensions(
 }
 
 /**
+ * Convert base64 to Blob
+ */
+function base64ToBlob(base64: string, type: string = 'image/png'): Blob {
+  const byteString = atob(base64.split(',')[1]!)
+  const ab = new ArrayBuffer(byteString.length)
+  const ia = new Uint8Array(ab)
+  for (let i = 0; i < byteString.length; i++) {
+    ia[i] = byteString.charCodeAt(i)
+  }
+  return new Blob([ab], { type })
+}
+
+/**
  * Handle successful page rendering
  */
 async function handleRenderSuccess(
@@ -189,10 +202,14 @@ async function handleRenderSuccess(
       thumbnailData = imageData
     }
 
-    // Update page with rendered image data, thumbnail and size
+    // Save full image to separate table as Blob
+    const imageBlob = base64ToBlob(imageData)
+    await db.savePageImage(pageId, imageBlob)
+
+    // Update page with thumbnail and size, BUT WITHOUT full imageData
     const updatedPage: DBPage = {
       ...page,
-      imageData,
+      imageData: undefined, // Clear from main page record
       thumbnailData,
       width,
       height,
@@ -206,17 +223,18 @@ async function handleRenderSuccess(
     // Save to database
     await db.savePage(updatedPage)
 
-    // Emit success event
+    // Emit success event - Note: we still pass imageData for immediate display if needed, 
+    // but the store should be careful about memory. 
+    // Better yet: we pass everything BUT imageData and let the viewer load it.
     pdfEvents.emit('pdf:page:done', {
       pageId,
-      imageData,
       thumbnailData,
       width,
       height,
       fileSize
     })
 
-    queueLogger.info(`[PDF Success] Successfully updated page ${pageId} with image data and thumbnail`)
+    queueLogger.info(`[PDF Success] Successfully updated page ${pageId} and saved full image to blob storage`)
 
     // Clean up
     renderingTasks.delete(pageId)
@@ -544,7 +562,7 @@ export async function queuePDFPages(
 ): Promise<void> {
   try {
     // Create pages for each PDF page (if not already created)
-    const pages: Omit<DBPage, 'id' | 'createdAt' | 'updatedAt'>[] = []
+    const pages: DBPage[] = []
     const startOrder = await db.getNextOrder()
 
     for (let pageNum = 1; pageNum <= pageCount; pageNum++) {
@@ -553,6 +571,7 @@ export async function queuePDFPages(
       const pageFileName = `${baseName}_${pageNum}.png`
 
       pages.push({
+        id: generatePageId(),
         fileName: pageFileName,
         fileSize: 0, // Will be updated after rendering
         fileType: 'image/png', // Rendered as PNG
@@ -568,14 +587,16 @@ export async function queuePDFPages(
           timestamp: new Date(),
           level: 'info',
           message: `Page ${pageNum} of ${file.name} ready for rendering`
-        }]
+        }],
+        createdAt: new Date(),
+        updatedAt: new Date()
       })
     }
 
     // Save pages to database
     const savedPageIds: string[] = []
     for (const pageData of pages) {
-      const pageId = await db.saveAddedPage(pageData)
+      const pageId = await db.savePage(pageData)
       if (!pageId) {
         throw new Error('Failed to save page to database - no ID returned')
       }
