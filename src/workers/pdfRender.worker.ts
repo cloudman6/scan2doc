@@ -23,7 +23,7 @@ interface PDFRenderMessage {
 
 interface PDFRenderResult {
   pageId: string
-  imageData: string  // base64 image data
+  imageBlob: Blob // Directly return binary data
   width: number
   height: number
   pageNumber: number
@@ -144,18 +144,11 @@ self.addEventListener('message', async (event: MessageEvent<WorkerMessage>) => {
       quality: imageFormat === 'jpeg' ? quality : undefined
     })
 
-    // Convert blob to base64
-    const imageData = await new Promise<string>((resolve) => {
-      const reader = new FileReader()
-      reader.onload = () => resolve(reader.result as string)
-      reader.readAsDataURL(blob)
-    })
-
-    // Send result back to main thread - ensure pageId is properly set
+    // Send result back to main thread
     const response: PDFRenderResult = {
-      pageId: pageId!, // We validated this above
-      imageData, // base64 string
-      pageNumber: pageNumber!, // We validated this above
+      pageId: pageId!,
+      imageBlob: blob, // Send Blob directly
+      pageNumber: pageNumber!,
       width: viewport.width,
       height: viewport.height,
       fileSize: blob.size

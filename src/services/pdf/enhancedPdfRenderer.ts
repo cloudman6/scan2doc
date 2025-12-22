@@ -45,7 +45,7 @@ export class EnhancedPdfRenderer {
     pdfData: ArrayBuffer,
     pageNumber: number,
     options: EnhancedRenderOptions = {}
-  ): Promise<{ imageData: string; width: number; height: number; fileSize: number }> {
+  ): Promise<{ imageBlob: Blob; width: number; height: number; fileSize: number }> {
     const {
       scale = 2.5,
       imageFormat = 'png',
@@ -104,23 +104,21 @@ export class EnhancedPdfRenderer {
 
       await page.render(renderContext).promise
 
-      // Convert to image
+      // Convert to image Blob
       const mimeType = imageFormat === 'jpeg' ? 'image/jpeg' : 'image/png'
-      const blob = await canvas.convertToBlob({
+      const imageBlob = await canvas.convertToBlob({
         type: mimeType,
         quality: imageFormat === 'jpeg' ? quality : undefined
       })
-
-      const imageData = await this.blobToBase64(blob)
 
       // Clean up
       page.cleanup()
 
       return {
-        imageData,
+        imageBlob,
         width: viewport.width,
         height: viewport.height,
-        fileSize: blob.size
+        fileSize: imageBlob.size
       }
 
     } catch (error) {

@@ -47,8 +47,8 @@ function getWorker(): Worker {
           return
         }
 
-        if (!response.imageData) {
-          queueLogger.warn('[PDF Queue] Received worker response without imageData:', response)
+        if (!response.imageBlob) {
+          queueLogger.warn('[PDF Queue] Received worker response without imageBlob:', response)
           return
         }
 
@@ -58,10 +58,10 @@ function getWorker(): Worker {
           return
         }
 
-        // Worker now returns base64 directly
+        // Worker now returns Blob directly
         handleRenderSuccess(
           response.pageId,
-          response.imageData,
+          response.imageBlob,
           response.width,
           response.height,
           response.pageNumber,
@@ -84,77 +84,40 @@ function getWorker(): Worker {
 }
 
 
+
+
 /**
- * Generate thumbnail from full-size image data
+ * Generate thumbnail from Blob
  */
-async function generateThumbnail(
-  imageData: string,
+async function generateThumbnailFromBlob(
+  blob: Blob,
   maxSize: number = 200
 ): Promise<string> {
   return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(blob)
     const img = new Image()
     img.onload = () => {
       try {
         const canvas = document.createElement('canvas')
         const ctx = canvas.getContext('2d')!
-
-        // Calculate thumbnail dimensions maintaining aspect ratio
-        const { width, height } = calculateThumbnailDimensions(
-          img.width,
-          img.height,
-          maxSize,
-          maxSize
-        )
-
+        const { width, height } = calculateThumbnailDimensions(img.width, img.height, maxSize, maxSize)
         canvas.width = width
         canvas.height = height
-
-        // Draw and resize image
         ctx.drawImage(img, 0, 0, width, height)
-
-        // Convert to base64
         const thumbnailData = canvas.toDataURL('image/jpeg', 0.8)
+        URL.revokeObjectURL(url)
         resolve(thumbnailData)
       } catch (error) {
+        URL.revokeObjectURL(url)
         reject(error)
       }
     }
-
-    img.onerror = () => reject(new Error('Failed to load image for thumbnail generation'))
-    img.src = imageData
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new Error('Failed to load image for thumbnail generation'))
+    }
+    img.src = url
   })
-}
-
-/**
- * Calculate thumbnail dimensions maintaining aspect ratio
- */
-function calculateThumbnailDimensions(
-  originalWidth: number,
-  originalHeight: number,
-  maxWidth: number,
-  maxHeight: number
-): { width: number; height: number } {
-  const widthRatio = maxWidth / originalWidth
-  const heightRatio = maxHeight / originalHeight
-  const ratio = Math.min(widthRatio, heightRatio, 1) // Don't upscale
-
-  return {
-    width: Math.round(originalWidth * ratio),
-    height: Math.round(originalHeight * ratio)
-  }
-}
-
-/**
- * Convert base64 to Blob
- */
-function base64ToBlob(base64: string, type: string = 'image/png'): Blob {
-  const byteString = atob(base64.split(',')[1]!)
-  const ab = new ArrayBuffer(byteString.length)
-  const ia = new Uint8Array(ab)
-  for (let i = 0; i < byteString.length; i++) {
-    ia[i] = byteString.charCodeAt(i)
-  }
-  return new Blob([ab], { type })
 }
 
 /**
@@ -162,7 +125,7 @@ function base64ToBlob(base64: string, type: string = 'image/png'): Blob {
  */
 async function handleRenderSuccess(
   pageId: string,
-  imageData: string,
+  imageBlob: Blob,
   width: number,
   height: number,
   _pageNumber: number,
@@ -173,7 +136,7 @@ async function handleRenderSuccess(
   try {
     const task = renderingTasks.get(pageId)
     if (!task) {
-      queueLogger.error(`[PDF Error] No task found for pageId: ${pageId}. Available tasks:`, Array.from(renderingTasks.keys()))
+      queueLogger.error(`[PDF Error] No task found for pageId: ${pageId}`)
       return
     }
 
@@ -184,32 +147,24 @@ async function handleRenderSuccess(
       return
     }
 
-    // Validate image data
-    if (!imageData || !imageData.startsWith('data:')) {
-      queueLogger.error(`[PDF Error] Invalid image data for pageId: ${pageId}`)
-      handleRenderError(pageId, 'Invalid image data returned from worker')
-      return
-    }
-
-    // Generate thumbnail
+    // Generate thumbnail from Blob
     let thumbnailData: string
     try {
-      thumbnailData = await generateThumbnail(imageData, 200)
-      queueLogger.info(`[PDF Success] Generated thumbnail for pageId: ${pageId}`)
+      thumbnailData = await generateThumbnailFromBlob(imageBlob, 200)
     } catch (thumbError) {
       queueLogger.warn(`[PDF Warning] Failed to generate thumbnail for ${pageId}:`, thumbError)
-      // Fall back to using the original image as thumbnail
-      thumbnailData = imageData
+      // If thumbnail fails, we don't have a good fallback here without Base64
+      // We'll leave it undefined, the UI should handle it
+      thumbnailData = ''
     }
 
-    // Save full image to separate table as Blob
-    const imageBlob = base64ToBlob(imageData)
+    // Save full image Blob directly to separate table
     await db.savePageImage(pageId, imageBlob)
 
-    // Update page with thumbnail and size, BUT WITHOUT full imageData
+    // Update page metadata
     const updatedPage: DBPage = {
       ...page,
-      imageData: undefined, // Clear from main page record
+      imageData: undefined,
       thumbnailData,
       width,
       height,
@@ -220,12 +175,9 @@ async function handleRenderSuccess(
       processedAt: new Date()
     }
 
-    // Save to database
     await db.savePage(updatedPage)
 
-    // Emit success event - Note: we still pass imageData for immediate display if needed, 
-    // but the store should be careful about memory. 
-    // Better yet: we pass everything BUT imageData and let the viewer load it.
+    // Emit success event
     pdfEvents.emit('pdf:page:done', {
       pageId,
       thumbnailData,
@@ -234,13 +186,7 @@ async function handleRenderSuccess(
       fileSize
     })
 
-    queueLogger.info(`[PDF Success] Successfully updated page ${pageId} and saved full image to blob storage`)
-
-    // Clean up
     renderingTasks.delete(pageId)
-    queueLogger.info(`[PDF Success] Removed task for pageId: ${pageId}. Remaining tasks:`, Array.from(renderingTasks.keys()))
-
-    // Update overall progress
     await updateOverallProgress()
 
   } catch (error) {
@@ -307,6 +253,25 @@ async function handleRenderError(pageId: string, errorMessage: string): Promise<
 
   } catch (error) {
     queueLogger.error(`[PDF Error] Error handling render error for ${pageId}:`, error)
+  }
+}
+
+/**
+ * Calculate thumbnail dimensions maintaining aspect ratio
+ */
+function calculateThumbnailDimensions(
+  originalWidth: number,
+  originalHeight: number,
+  maxWidth: number,
+  maxHeight: number
+): { width: number; height: number } {
+  const widthRatio = maxWidth / originalWidth
+  const heightRatio = maxHeight / originalHeight
+  const ratio = Math.min(widthRatio, heightRatio, 1) // Don't upscale
+
+  return {
+    width: Math.round(originalWidth * ratio),
+    height: Math.round(originalHeight * ratio)
   }
 }
 
@@ -509,7 +474,7 @@ async function renderPDFPage(task: PDFRenderTask): Promise<void> {
       // Handle successful enhanced rendering
       await handleRenderSuccess(
         task.pageId,
-        result.imageData,
+        result.imageBlob,
         result.width,
         result.height,
         task.pageNumber,
