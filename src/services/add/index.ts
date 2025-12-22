@@ -1,4 +1,5 @@
 import type { Page } from '@/stores/pages'
+import { addLogger } from '@/services/logger'
 
 export interface FileAddResult {
   success: boolean
@@ -183,7 +184,7 @@ class FileAddService {
       try {
         thumbnailData = await this.generateThumbnail(file, options.thumbnailSize!)
       } catch (error) {
-        console.warn('Failed to generate thumbnail for', file.name, error)
+        addLogger.warn('Failed to generate thumbnail for', file.name, error)
         // Fall back to using the original image as thumbnail
         thumbnailData = imageData
       }
@@ -241,7 +242,7 @@ class FileAddService {
       return []
 
     } catch (error) {
-      console.error('Error processing PDF file:', error)
+      addLogger.error('Error processing PDF file:', error)
       throw error
     }
   }

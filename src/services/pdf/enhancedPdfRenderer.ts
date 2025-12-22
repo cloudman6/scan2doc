@@ -5,6 +5,7 @@
 
 import * as pdfjsLib from 'pdfjs-dist'
 import { fontLoader } from '../font/fontLoader'
+import { pdfLogger } from '@/services/logger'
 
 export interface EnhancedRenderOptions {
   scale?: number
@@ -31,9 +32,9 @@ export class EnhancedPdfRenderer {
     try {
       // Preload common fonts
       await fontLoader.preloadCommonFonts()
-      console.log('[Enhanced PDF Renderer] Font initialization completed')
+      pdfLogger.info('[Enhanced PDF Renderer] Font initialization completed')
     } catch (error) {
-      console.warn('[Enhanced PDF Renderer] Font initialization failed:', error)
+      pdfLogger.warn('[Enhanced PDF Renderer] Font initialization failed:', error)
     }
   }
 
@@ -123,7 +124,7 @@ export class EnhancedPdfRenderer {
       }
 
     } catch (error) {
-      console.error('[Enhanced PDF Renderer] Render failed:', error)
+      pdfLogger.error('[Enhanced PDF Renderer] Render failed:', error)
       throw error
     }
   }
@@ -159,14 +160,14 @@ export class EnhancedPdfRenderer {
 
           page.cleanup()
         } catch (pageError) {
-          console.warn(`Failed to analyze page ${pageNum}:`, pageError)
+          pdfLogger.warn(`Failed to analyze page ${pageNum}:`, pageError)
         }
       }
 
       return [...new Set(fontNames)] // Remove duplicates
 
     } catch (error) {
-      console.error('[Enhanced PDF Renderer] Font analysis failed:', error)
+      pdfLogger.error('[Enhanced PDF Renderer] Font analysis failed:', error)
       return []
     }
   }
@@ -181,7 +182,7 @@ export class EnhancedPdfRenderer {
       const textContent = await this.extractTextContent(pdfDataCopy)
       return fontLoader.getBestFont(textContent)
     } catch (error) {
-      console.warn('[Enhanced PDF Renderer] Could not determine optimal font:', error)
+      pdfLogger.warn('[Enhanced PDF Renderer] Could not determine optimal font:', error)
       return 'sans-serif'
     }
   }
@@ -216,14 +217,14 @@ export class EnhancedPdfRenderer {
 
           page.cleanup()
         } catch (pageError) {
-          console.warn(`Failed to extract text from page ${pageNum}:`, pageError)
+          pdfLogger.warn(`Failed to extract text from page ${pageNum}:`, pageError)
         }
       }
 
       return allText
 
     } catch (error) {
-      console.error('[Enhanced PDF Renderer] Text extraction failed:', error)
+      pdfLogger.error('[Enhanced PDF Renderer] Text extraction failed:', error)
       return ''
     }
   }

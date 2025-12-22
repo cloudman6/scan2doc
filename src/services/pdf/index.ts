@@ -2,6 +2,7 @@ import * as pdfjsLib from 'pdfjs-dist'
 import { queuePDFPages, resumePDFProcessing } from './pdfQueue'
 import { pdfEvents } from './events'
 import { db } from '@/db/index'
+import { pdfLogger } from '@/services/logger'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
 // Configure PDF.js worker (for main thread usage)
@@ -11,7 +12,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl
 import { enhancedPdfRenderer } from './enhancedPdfRenderer'
 
 // Initialize enhanced renderer when module loads
-enhancedPdfRenderer.initialize().catch(console.error)
+enhancedPdfRenderer.initialize().catch(err => pdfLogger.error(err))
 
 export interface PDFPageInfo {
   pageNumber: number
@@ -159,7 +160,7 @@ export class PDFService {
       return pdfDoc
 
     } catch (error) {
-      console.error('Error loading PDF:', error)
+      pdfLogger.error('Error loading PDF:', error)
       throw new Error(`Failed to load PDF "${file.name}": ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
@@ -193,9 +194,9 @@ export class PDFService {
           type: file.type,
           createdAt: new Date()
         })
-        console.log(`[PDF Service] Saved source file to DB: ${file.name} (id: ${fileId})`)
+        pdfLogger.info(`Saved source file to DB: ${file.name} (id: ${fileId})`)
       } catch (dbError) {
-        console.warn('[PDF Service] Failed to save source file to DB, resume will not work:', dbError)
+        pdfLogger.warn('Failed to save source file to DB, resume will not work:', dbError)
       }
 
       // Load PDF document
@@ -216,7 +217,7 @@ export class PDFService {
       await queuePDFPages(file, pdfDataCopy, pdfDocument.pageCount, fileId)
 
     } catch (error) {
-      console.error('Error processing PDF:', error)
+      pdfLogger.error('Error processing PDF:', error)
 
       // Emit error event
       pdfEvents.emit('pdf:processing-error', {
@@ -274,7 +275,7 @@ export class PDFService {
       return canvas.toDataURL('image/jpeg', 0.8)
 
     } catch (error) {
-      console.error('Error generating thumbnail:', error)
+      pdfLogger.error('Error generating thumbnail:', error)
       throw error
     }
   }
@@ -355,7 +356,7 @@ export class PDFService {
       }
 
     } catch (error) {
-      console.error('Error getting PDF metadata:', error)
+      pdfLogger.error('Error getting PDF metadata:', error)
       return {}
     }
   }

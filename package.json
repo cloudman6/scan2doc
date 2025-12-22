@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "consola": "^3.4.2",
     "dexie": "^4.2.1",
     "markdown-it": "^14.1.0",
     "mitt": "^3.0.1",

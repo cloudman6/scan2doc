@@ -4,6 +4,7 @@ import { db } from '@/db/index'
 import type { DBPage } from '@/db/index'
 import fileAddService from '@/services/add'
 import { pdfEvents } from '@/services/pdf/events'
+import { storeLogger } from '@/services/logger'
 
 export interface PageProcessingLog {
   id: string
@@ -125,7 +126,7 @@ export const usePagesStore = defineStore('pages', () => {
       const dbPages = await db.getAllPagesForDisplay()
       pages.value = dbPages.map(dbPageToPage)
     } catch (error) {
-      console.error('Failed to load pages from database:', error)
+      storeLogger.error('Failed to load pages from database:', error)
     }
   }
 
@@ -134,10 +135,10 @@ export const usePagesStore = defineStore('pages', () => {
       const dbPage = { ...pageToDBPage(page), id: page.id }
       await db.savePage(dbPage)
     } catch (error) {
-      console.error('Failed to save page to database:', error)
+      storeLogger.error('Failed to save page to database:', error)
       // Provide more detailed error information
       if (error instanceof Error) {
-        console.error('Error details:', {
+        storeLogger.error('Error details:', {
           name: error.name,
           message: error.message,
           pageId: page.id,
@@ -152,7 +153,7 @@ export const usePagesStore = defineStore('pages', () => {
     try {
       await db.deletePage(pageId)
     } catch (error) {
-      console.error('Failed to delete page from database:', error)
+      storeLogger.error('Failed to delete page from database:', error)
     }
   }
 
@@ -162,7 +163,7 @@ export const usePagesStore = defineStore('pages', () => {
       const deletePromises = pageIds.map(pageId => db.deletePage(pageId))
       await Promise.all(deletePromises)
     } catch (error) {
-      console.error('Failed to delete pages from database:', error)
+      storeLogger.error('Failed to delete pages from database:', error)
     }
   }
 
@@ -184,7 +185,7 @@ export const usePagesStore = defineStore('pages', () => {
       // Sort pages array by order
       pages.value.sort((a, b) => a.order - b.order)
     } catch (error) {
-      console.error('Failed to reorder pages:', error)
+      storeLogger.error('Failed to reorder pages:', error)
     }
   }
 
@@ -212,7 +213,7 @@ export const usePagesStore = defineStore('pages', () => {
 
       return result
     } catch (error) {
-      console.error('File add failed:', error)
+      storeLogger.error('File add failed:', error)
       return {
         success: false,
         pages: [],
@@ -465,12 +466,12 @@ export const usePagesStore = defineStore('pages', () => {
       // Save all restored pages to database
       const savePromises = deletedPages.map(page =>
         savePageToDB(page).catch(error => {
-          console.error('Failed to save restored page to database:', error)
+          storeLogger.error('Failed to save restored page to database:', error)
         })
       )
 
       Promise.all(savePromises).catch(error => {
-        console.error('Failed to save some restored pages to database:', error)
+        storeLogger.error('Failed to save some restored pages to database:', error)
       })
 
       // Clear undo cache
@@ -536,10 +537,10 @@ export const usePagesStore = defineStore('pages', () => {
           if (dbPage) {
             page = dbPageToPage(dbPage)
             pages.value.push(page)
-            console.log(`[Pages Store] Loaded new page from DB: ${pageId}`)
+            storeLogger.info(`[Pages Store] Loaded new page from DB: ${pageId}`)
           }
         } catch (error) {
-          console.error(`[Pages Store] Failed to load page ${pageId} from DB:`, error)
+          storeLogger.error(`[Pages Store] Failed to load page ${pageId} from DB:`, error)
         }
       }
 
@@ -560,9 +561,9 @@ export const usePagesStore = defineStore('pages', () => {
           message: 'Page rendered successfully'
         })
 
-        console.log(`[Pages Store] Updated page ${pageId} with image data and thumbnail`)
+        storeLogger.info(`[Pages Store] Updated page ${pageId} with image data and thumbnail`)
       } else {
-        console.error(`[Pages Store] Page ${pageId} not found in store or database`)
+        storeLogger.error(`[Pages Store] Page ${pageId} not found in store or database`)
       }
     })
 
@@ -597,7 +598,7 @@ export const usePagesStore = defineStore('pages', () => {
 
     // Handle PDF processing error
     pdfEvents.on('pdf:processing-error', ({ file, error }) => {
-      console.error(`PDF processing error for ${file.name}:`, error)
+      storeLogger.error(`PDF processing error for ${file.name}:`, error)
     })
 
     // Handle PDF logs

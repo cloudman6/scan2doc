@@ -3,6 +3,8 @@
  * Handles font loading, fallback, and caching for PDF rendering
  */
 
+import { pdfLogger } from '@/services/logger'
+
 export interface FontConfig {
   family: string
   source?: string
@@ -82,7 +84,7 @@ export class FontLoaderService {
         return true
       }
     } catch (error) {
-      console.warn(`Failed to load font ${config.family}:`, error)
+      pdfLogger.warn(`Failed to load font ${config.family}:`, error)
     }
 
     return false
@@ -120,7 +122,7 @@ export class FontLoaderService {
 
       return width1 !== width2
     } catch (error) {
-      console.warn(`Font availability check failed for ${fontFamily}:`, error)
+      pdfLogger.warn(`Font availability check failed for ${fontFamily}:`, error)
       // Assume font is not available if check fails
       return false
     }
