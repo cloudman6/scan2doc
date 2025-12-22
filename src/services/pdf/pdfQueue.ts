@@ -152,7 +152,7 @@ async function handleRenderSuccess(
   imageData: string,
   width: number,
   height: number,
-  pageNumber: number,
+  _pageNumber: number,
   fileSize: number
 ): Promise<void> {
   queueLogger.info(`[PDF Success] Render success for pageId: ${pageId}`)
@@ -352,7 +352,7 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer)
   let binary = ''
   for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i])
+    binary += String.fromCharCode(bytes[i]!)
   }
   return btoa(binary)
 }
@@ -580,6 +580,9 @@ export async function queuePDFPages(
         throw new Error('Failed to save page to database - no ID returned')
       }
       savedPageIds.push(pageId)
+      
+      // Emit queued event so store can load the page immediately
+      pdfEvents.emit('pdf:page:queued', { pageId })
     }
 
     // Queue each page for rendering
@@ -664,15 +667,18 @@ export async function resumePDFProcessing(): Promise<void> {
       })
       
       for (const [name, pages] of byName) {
-         pdfEvents.emit('pdf:log', {
-            pageId: pages[0].id!,
+        const firstPage = pages[0]
+        if (firstPage && firstPage.id) {
+          pdfEvents.emit('pdf:log', {
+            pageId: firstPage.id,
             message: `Legacy PDF "${name}" pages cannot be auto-resumed. Please re-upload.`,
             level: 'warning'
-         })
-         // Update status to error to stop "stuck" state
-         for (const page of pages) {
-           await db.savePage({ ...page, status: 'error' })
-         }
+          })
+        }
+        // Update status to error to stop "stuck" state
+        for (const page of pages) {
+          await db.savePage({ ...page, status: 'error' })
+        }
       }
     }
 

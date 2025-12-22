@@ -11,5 +11,7 @@ export const queueLogger = logger.withTag('Queue')
 export const dbLogger = logger.withTag('DB')
 export const storeLogger = logger.withTag('Store')
 export const addLogger = logger.withTag('Add')
+export const uiLogger = logger.withTag('UI')
+export const workerLogger = logger.withTag('Worker')
 
 export default logger

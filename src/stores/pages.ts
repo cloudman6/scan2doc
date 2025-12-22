@@ -117,6 +117,8 @@ export const usePagesStore = defineStore('pages', () => {
       updatedAt: new Date()
     }
     pages.value.push(newPage)
+    // Sort pages array by order to maintain correct sequence
+    pages.value.sort((a, b) => a.order - b.order)
     return newPage
   }
 
@@ -516,6 +518,25 @@ export const usePagesStore = defineStore('pages', () => {
 
   // Setup PDF event listeners
   function setupPDFEventListeners() {
+    // Handle page queued (created in DB but not yet rendered)
+    pdfEvents.on('pdf:page:queued', async ({ pageId }) => {
+      // Check if page already exists in store
+      if (pages.value.some(p => p.id === pageId)) return
+
+      try {
+        const dbPage = await db.getPage(pageId)
+        if (dbPage) {
+          const page = dbPageToPage(dbPage)
+          pages.value.push(page)
+          // Sort pages array by order
+          pages.value.sort((a, b) => a.order - b.order)
+          storeLogger.info(`[Pages Store] Loaded queued page from DB: ${pageId}`)
+        }
+      } catch (error) {
+        storeLogger.error(`[Pages Store] Failed to load queued page ${pageId} from DB:`, error)
+      }
+    })
+
     // Handle page rendering started
     pdfEvents.on('pdf:page:rendering', ({ pageId }) => {
       updatePageStatus(pageId, 'rendering')
@@ -537,7 +558,9 @@ export const usePagesStore = defineStore('pages', () => {
           if (dbPage) {
             page = dbPageToPage(dbPage)
             pages.value.push(page)
-            storeLogger.info(`[Pages Store] Loaded new page from DB: ${pageId}`)
+            // Sort pages array by order to maintain correct sequence
+            pages.value.sort((a, b) => a.order - b.order)
+            storeLogger.info(`[Pages Store] Loaded new page from DB: ${pageId} and sorted`)
           }
         } catch (error) {
           storeLogger.error(`[Pages Store] Failed to load page ${pageId} from DB:`, error)

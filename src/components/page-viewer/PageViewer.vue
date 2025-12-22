@@ -99,7 +99,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, onMounted, computed, watch, onUnmounted } from 'vue'
+import { uiLogger } from '@/services/logger'
+import { 
+  ArrowBack,
 import { NCard, NSpace, NButton, NButtonGroup, NSpin, NEmpty, NResult, NText } from 'naive-ui'
 
 interface Page {
@@ -216,7 +219,7 @@ function runOCR() {
   if (!props.currentPage || status.value === 'processing') return
 
   // This would integrate with your OCR service
-  console.log('Running OCR for page', props.currentPage.id)
+  uiLogger.info('Running OCR for page', props.currentPage.id)
 }
 </script>
 

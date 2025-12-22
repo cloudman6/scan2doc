@@ -1,4 +1,8 @@
-import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs'
+import * as pdfjsLib from 'pdfjs-dist'
+import { enhancedPdfRenderer } from '@/services/pdf/enhancedPdfRenderer'
+import { workerLogger } from '@/services/logger'
+
+// Configure PDF.js worker
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/legacy/build/pdf.worker.mjs',
@@ -122,7 +126,7 @@ self.addEventListener('message', async (event: MessageEvent<WorkerMessage>) => {
     try {
       await page.render(renderContext).promise
     } catch (renderError) {
-      console.warn('Enhanced rendering failed, falling back to standard rendering:', renderError)
+      workerLogger.warn('Enhanced rendering failed, falling back to standard rendering:', renderError)
       // Fallback to basic rendering if enhanced fails
       await page.render({
         canvasContext: context,
@@ -160,7 +164,7 @@ self.addEventListener('message', async (event: MessageEvent<WorkerMessage>) => {
     self.postMessage(response)
 
   } catch (error) {
-    console.error('PDF rendering error:', error)
+    workerLogger.error('PDF rendering error:', error)
 
     // Ensure we have pageId for error response
     const errorPageId = pageId || payload?.pageId || 'unknown'

@@ -58,6 +58,7 @@
 import { ref, watchEffect, onMounted } from 'vue'
 import { usePagesStore } from './stores/pages'
 import type { Page } from './stores/pages'
+import { uiLogger } from '@/services/logger'
 import PageList from './components/page-list/PageList.vue'
 import Preview from './components/preview/Preview.vue'
 import PageViewer from './components/page-viewer/PageViewer.vue'
@@ -92,7 +93,7 @@ function handlePageSelected(page: Page) {
 
 // Simple toast notification function
 function showToast(message: string, type: 'info' | 'success' | 'error' = 'info', undoCallback?: () => void) {
-  console.log('showToast called:', { message, type, hasUndoCallback: !!undoCallback })
+  uiLogger.info('showToast called:', { message, type, hasUndoCallback: !!undoCallback })
 
   // Clear any existing toast and timeout first
   const existingToast = document.getElementById('toast-notification')
@@ -101,7 +102,7 @@ function showToast(message: string, type: 'info' | 'success' | 'error' = 'info',
   }
 
   if (undoTimeoutId) {
-    console.log('Clearing existing timeout:', undoTimeoutId)
+    uiLogger.info('Clearing existing timeout:', undoTimeoutId)
     clearTimeout(undoTimeoutId)
     undoTimeoutId = null
   }
@@ -131,7 +132,7 @@ function showToast(message: string, type: 'info' | 'success' | 'error' = 'info',
 
   // Set duration based on type - success messages show for 2 seconds, others for 7 seconds
   const duration = type === 'success' ? 2000 : 7000
-  console.log('Setting timeout duration:', duration, 'for type:', type)
+  uiLogger.info('Setting timeout duration:', duration, 'for type:', type)
 
   const messageText = document.createElement('span')
   messageText.textContent = message
@@ -152,17 +153,17 @@ function showToast(message: string, type: 'info' | 'success' | 'error' = 'info',
       font-size: 12px;
     `
     undoBtn.onclick = () => {
-      console.log('Undo button clicked, currentUndoCallback:', !!currentUndoCallback)
+      uiLogger.info('Undo button clicked, currentUndoCallback:', !!currentUndoCallback)
       if (currentUndoCallback) {
-        console.log('Calling undo callback...')
+        uiLogger.info('Calling undo callback...')
         currentUndoCallback()
-        console.log('Undo callback executed, removing toast...')
+        uiLogger.info('Undo callback executed, removing toast...')
 
         // Clear the timeout using the stored ID
         const storedTimeoutId = toast.getAttribute('data-timeout-id')
         if (storedTimeoutId) {
           const timeoutId = parseInt(storedTimeoutId)
-          console.log('Clearing timeout with stored ID:', timeoutId)
+          uiLogger.info('Clearing timeout with stored ID:', timeoutId)
           clearTimeout(timeoutId)
         }
 
@@ -177,11 +178,11 @@ function showToast(message: string, type: 'info' | 'success' | 'error' = 'info',
   document.body.appendChild(toast)
 
   // Auto dismiss after calculated duration
-  console.log('Setting timeout for duration:', duration)
+  uiLogger.info('Setting timeout for duration:', duration)
 
   // Store timeout ID in a data attribute on the toast element itself
   const timeoutId = setTimeout(() => {
-    console.log('Timeout executed, removing toast:', message)
+    uiLogger.info('Timeout executed, removing toast:', message)
     if (toast && toast.parentNode) {
       toast.remove()
     }
@@ -195,7 +196,7 @@ function showToast(message: string, type: 'info' | 'success' | 'error' = 'info',
   // Store timeout ID on the toast element and in the global variable
   toast.setAttribute('data-timeout-id', timeoutId.toString())
   undoTimeoutId = timeoutId
-  console.log('Timeout set with ID:', timeoutId)
+  uiLogger.info('Timeout set with ID:', timeoutId)
 }
 
 // Handle page deletion (unified with batch deletion)
@@ -238,7 +239,7 @@ async function handleDeletion(pagesToDelete: Page[]) {
       pagesStore.clearSelection()
     }
   } catch (error) {
-    console.error('Delete failed:', error)
+    uiLogger.error('Delete failed:', error)
     const isSingle = pagesToDelete.length === 1
     showToast(`Failed to delete ${isSingle ? 'page' : 'pages'}`, 'error')
   }
@@ -265,7 +266,7 @@ async function handleUndoDelete() {
       }
     }
   } catch (error) {
-    console.error('Undo failed:', error)
+    uiLogger.error('Undo failed:', error)
     showToast('Failed to restore pages', 'error')
   }
 }
@@ -287,7 +288,7 @@ async function handleFileAdd() {
         handlePageSelected(firstPage)
       }
     } else if (result.error) {
-      console.error('Add error:', result.error)
+      uiLogger.error('Add error:', result.error)
       // Handle different error cases
       if (result.error === 'No files selected') {
         // Silent handling for cancelled file selection - no message needed
@@ -298,7 +299,7 @@ async function handleFileAdd() {
       }
     }
   } catch (error) {
-    console.error('Add failed:', error)
+    uiLogger.error('Add failed:', error)
     message.error('Add failed. Please try again.')
   }
 }
@@ -351,7 +352,7 @@ onMounted(async () => {
     const { pdfService } = await import('./services/pdf')
     await pdfService.resumeProcessing()
   } catch (error) {
-    console.error('Error resuming PDF processing:', error)
+    uiLogger.error('Error resuming PDF processing:', error)
   }
 })
 </script>
