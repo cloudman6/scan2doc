@@ -137,35 +137,48 @@ const fullImageUrl = ref<string>('')
 
 const status = computed(() => props.currentPage?.status || 'ready')
 
-// Watch for page change to load full image
-watch(() => props.currentPage?.id, async (newPageId) => {
-  // Clear previous URL and error
-  if (fullImageUrl.value) {
-    URL.revokeObjectURL(fullImageUrl.value)
-    fullImageUrl.value = ''
-  }
-  imageError.value = ''
-  imageSize.value = ''
+// Watch for page change or status change to load full image
+watch(
+  [() => props.currentPage?.id, () => props.currentPage?.status],
+  async ([newPageId, newStatus], [oldPageId, oldStatus]) => {
+    // If ID changed, or status became 'ready', reload image
+    const idChanged = newPageId !== oldPageId
+    const becameReady = newStatus === 'ready' && oldStatus !== 'ready'
 
-  if (!newPageId || props.currentPage?.status === 'pending_render' || props.currentPage?.status === 'rendering') {
-    return
-  }
-
-  imageLoading.value = true
-  try {
-    const blob = await db.getPageImage(newPageId)
-    if (blob) {
-      fullImageUrl.value = URL.createObjectURL(blob)
-    } else {
-      imageError.value = 'Full image not found in storage'
+    if (!idChanged && !becameReady) {
+      return
     }
-  } catch (error) {
-    uiLogger.error('Failed to load full image', error)
-    imageError.value = 'Failed to load image from storage'
-  } finally {
-    imageLoading.value = false
-  }
-}, { immediate: true })
+
+    // Clear previous URL and error if ID changed
+    if (idChanged && fullImageUrl.value) {
+      URL.revokeObjectURL(fullImageUrl.value)
+      fullImageUrl.value = ''
+    }
+    
+    imageError.value = ''
+    imageSize.value = ''
+
+    if (!newPageId || newStatus === 'pending_render' || newStatus === 'rendering') {
+      return
+    }
+
+    imageLoading.value = true
+    try {
+      const blob = await db.getPageImage(newPageId)
+      if (blob) {
+        fullImageUrl.value = URL.createObjectURL(blob)
+      } else {
+        imageError.value = 'Full image not found in storage'
+      }
+    } catch (error) {
+      uiLogger.error('Failed to load full image', error)
+      imageError.value = 'Failed to load image from storage'
+    } finally {
+      imageLoading.value = false
+    }
+  },
+  { immediate: true }
+)
 
 // Cleanup on unmount
 onUnmounted(() => {

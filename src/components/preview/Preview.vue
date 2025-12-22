@@ -13,7 +13,10 @@
       >
         <div class="preview-content">
           <div v-if="currentView === 'image'" class="image-preview">
-            <n-empty description="Image Preview" />
+            <div v-if="fullImageUrl" class="image-wrapper">
+              <img :src="fullImageUrl" alt="Preview" class="preview-img" />
+            </div>
+            <n-empty v-else :description="currentPage?.status === 'rendering' ? 'Rendering...' : 'No image available'" />
           </div>
           <pre v-else-if="currentView === 'md'" class="markdown-preview">{{ currentPageContent?.md || 'No markdown content available' }}</pre>
           <div v-else-if="currentView === 'html'" class="html-preview" v-html="currentPageContent?.html || '<p>No HTML content available</p>'"></div>
@@ -25,8 +28,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watchEffect } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import { NTabs, NTabPane, NEmpty } from 'naive-ui'
+import { db } from '@/db'
+import { uiLogger } from '@/services/logger'
 
 interface Page {
   id: string
@@ -54,6 +59,7 @@ const props = defineProps<{
 }>()
 
 const currentView = ref<'image' | 'md' | 'html'>('image')
+const fullImageUrl = ref<string>('')
 
 const views = [
   { key: 'image' as const, label: 'Image' },
@@ -63,22 +69,43 @@ const views = [
 
 const currentPageContent = computed(() => props.currentPage)
 
+// Watch for page change or status change to load image
+watch(
+  [() => props.currentPage?.id, () => props.currentPage?.status],
+  async ([newPageId, newStatus], [oldPageId, oldStatus]) => {
+    const idChanged = newPageId !== oldPageId
+    const becameReady = newStatus === 'ready' && oldStatus !== 'ready'
+
+    if (!idChanged && !becameReady) return
+
+    if (idChanged && fullImageUrl.value) {
+      URL.revokeObjectURL(fullImageUrl.value)
+      fullImageUrl.value = ''
+    }
+
+    if (!newPageId || newStatus === 'pending_render' || newStatus === 'rendering') return
+
+    try {
+      const blob = await db.getPageImage(newPageId)
+      if (blob) {
+        fullImageUrl.value = URL.createObjectURL(blob)
+      }
+    } catch (error) {
+      uiLogger.error('Failed to load image for preview', error)
+    }
+  },
+  { immediate: true }
+)
+
+onUnmounted(() => {
+  if (fullImageUrl.value) {
+    URL.revokeObjectURL(fullImageUrl.value)
+  }
+})
+
 function switchView(view: 'image' | 'md' | 'html') {
   currentView.value = view
 }
-
-// Auto-switch to first available content when page changes
-watchEffect(() => {
-  if (props.currentPage) {
-    if (currentView.value === 'image' && !props.currentPage.thumbnail) {
-      if (props.currentPage.md) {
-        currentView.value = 'md'
-      } else if (props.currentPage.html) {
-        currentView.value = 'html'
-      }
-    }
-  }
-})
 </script>
 
 <style scoped>
@@ -100,6 +127,21 @@ watchEffect(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.image-wrapper {
+  max-width: 100%;
+  max-height: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.preview-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
 }
 
 .markdown-preview {
