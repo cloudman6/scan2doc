@@ -144,61 +144,52 @@ async function handleRenderSuccess(
     // Get the page from database
     const page = await db.getPage(pageId)
     if (!page) {
-      queueLogger.error(`[PDF Error] Page not found in database: ${pageId}`)
-      return
+      queueLogger.warn(`[PDF Success] Page ${pageId} no longer in database (deleted?). Skipping remaining success logic but proceeding with cleanup.`)
+      // Still need to perform cleanup below
+    } else {
+      // Generate thumbnail from Blob
+      let thumbnailData: string
+      try {
+        thumbnailData = await generateThumbnailFromBlob(imageBlob, 200)
+      } catch (thumbError) {
+        queueLogger.warn(`[PDF Warning] Failed to generate thumbnail for ${pageId}:`, thumbError)
+        // If thumbnail fails, we don't have a good fallback here without Base64
+        // We'll leave it undefined, the UI should handle it
+        thumbnailData = ''
+      }
+
+      // Save full image Blob directly to separate table
+      await db.savePageImage(pageId, imageBlob)
+
+      // Update page metadata
+      const updatedPage: DBPage = {
+        ...page,
+        imageData: undefined,
+        thumbnailData,
+        width,
+        height,
+        fileSize,
+        status: 'ready',
+        progress: 100,
+        updatedAt: new Date(),
+        processedAt: new Date()
+      }
+
+      await db.savePage(updatedPage)
+
+      // Emit success event
+      pdfEvents.emit('pdf:page:done', {
+        pageId,
+        thumbnailData,
+        width,
+        height,
+        fileSize
+      })
     }
-
-    // Generate thumbnail from Blob
-    let thumbnailData: string
-    try {
-      thumbnailData = await generateThumbnailFromBlob(imageBlob, 200)
-    } catch (thumbError) {
-      queueLogger.warn(`[PDF Warning] Failed to generate thumbnail for ${pageId}:`, thumbError)
-      // If thumbnail fails, we don't have a good fallback here without Base64
-      // We'll leave it undefined, the UI should handle it
-      thumbnailData = ''
-    }
-
-    // Save full image Blob directly to separate table
-    await db.savePageImage(pageId, imageBlob)
-
-    // Update page metadata
-    const updatedPage: DBPage = {
-      ...page,
-      imageData: undefined,
-      thumbnailData,
-      width,
-      height,
-      fileSize,
-      status: 'ready',
-      progress: 100,
-      updatedAt: new Date(),
-      processedAt: new Date()
-    }
-
-    await db.savePage(updatedPage)
-
-    // Emit success event
-    pdfEvents.emit('pdf:page:done', {
-      pageId,
-      thumbnailData,
-      width,
-      height,
-      fileSize
-    })
 
     // Update processed count and clean up cache if needed
     if (task.sourceId) {
-      const source = pdfSourceCache.get(task.sourceId)
-      if (source) {
-        source.processedCount++
-        if (source.processedCount >= source.totalPages) {
-          pdfSourceCache.delete(task.sourceId)
-          // Also destroy the cached PDF.js document handle to free memory
-          enhancedPdfRenderer.destroyDocument(task.sourceId)
-          queueLogger.info(`[Cleanup] All pages for source ${task.sourceId} processed. Cache and document cleared.`)
-        }
-      }
+      cleanupSourceCache(task.sourceId)
     }
 
     renderingTasks.delete(pageId)
@@ -226,52 +217,43 @@ async function handleRenderError(pageId: string, errorMessage: string): Promise<
     // Get the page from database
     const page = await db.getPage(pageId)
     if (!page) {
-      queueLogger.error(`[PDF Error] Page not found in database: ${pageId}`)
-      return
-    }
-
-    // Add error log to page
-    const errorLog = {
-      id: Date.now().toString(),
-      timestamp: new Date(),
-      level: 'error' as const,
-      message: `Rendering failed: ${errorMessage}`,
-      details: {
-        pageNumber: task.pageNumber,
-        fileName: task.fileName,
-        error: errorMessage
+      queueLogger.warn(`[PDF Error] Page ${pageId} no longer in database (deleted?). Cleaning up task.`)
+      // Still need to perform cleanup below
+    } else {
+      // Add error log to page
+      const errorLog = {
+        id: Date.now().toString(),
+        timestamp: new Date(),
+        level: 'error' as const,
+        message: `Rendering failed: ${errorMessage}`,
+        details: {
+          pageNumber: task.pageNumber,
+          fileName: task.fileName,
+          error: errorMessage
+        }
       }
+
+      // Update page with error status
+      const updatedPage: DBPage = {
+        ...page,
+        status: 'error',
+        updatedAt: new Date(),
+        logs: [...page.logs, errorLog]
+      }
+
+      // Save to database
+      await db.savePage(updatedPage)
+
+      // Emit error event
+      pdfEvents.emit('pdf:page:error', {
+        pageId,
+        error: errorMessage
+      })
     }
-
-    // Update page with error status
-    const updatedPage: DBPage = {
-      ...page,
-      status: 'error',
-      updatedAt: new Date(),
-      logs: [...page.logs, errorLog]
-    }
-
-    // Save to database
-    await db.savePage(updatedPage)
-
-    // Emit error event
-    pdfEvents.emit('pdf:page:error', {
-      pageId,
-      error: errorMessage
-    })
 
     // Update processed count and clean up cache if needed
     if (task.sourceId) {
-      const source = pdfSourceCache.get(task.sourceId)
-      if (source) {
-        source.processedCount++
-        if (source.processedCount >= source.totalPages) {
-          pdfSourceCache.delete(task.sourceId)
-          // Also destroy the cached PDF.js document handle to free memory
-          enhancedPdfRenderer.destroyDocument(task.sourceId)
-          queueLogger.info(`[Cleanup] All pages for source ${task.sourceId} processed (with errors). Cache and document cleared.`)
-        }
-      }
+      cleanupSourceCache(task.sourceId)
     }
 
     queueLogger.info(`[PDF Error] Updated page ${pageId} with error status`)
@@ -305,6 +287,22 @@ function calculateThumbnailDimensions(
 }
 
 /**
+ * Helper to clean up source cache and document handle
+ */
+function cleanupSourceCache(sourceId: string): void {
+  const source = pdfSourceCache.get(sourceId)
+  if (source) {
+    source.processedCount++
+    if (source.processedCount >= source.totalPages) {
+      pdfSourceCache.delete(sourceId)
+      // Also destroy the cached PDF.js document handle to free memory
+      enhancedPdfRenderer.destroyDocument(sourceId)
+      queueLogger.info(`[Cleanup] All pages for source ${sourceId} processed. Cache and document cleared.`)
+    }
+  }
+}
+
+/**
  * Update overall PDF processing progress and clean up finished files
  */
 async function updateOverallProgress(): Promise<void> {
@@ -331,25 +329,25 @@ async function updateOverallProgress(): Promise<void> {
         })
       }
     }
-    
+
     // Cleanup logic: Delete files from DB if all their pages are processed
     const fileIds = new Set<string>()
     pdfPages.forEach(p => {
-       if (p.fileId) fileIds.add(p.fileId)
+      if (p.fileId) fileIds.add(p.fileId)
     })
-    
+
     for (const fileId of fileIds) {
-       const pagesForFile = pdfPages.filter(p => p.fileId === fileId)
-       const allDone = pagesForFile.every(p => p.status === 'ready' || p.status === 'error')
-       
-       if (allDone && pagesForFile.length > 0) {
-          // Verify if file still exists before trying to delete
-          const file = await db.getFile(fileId)
-          if (file) {
-             queueLogger.info(`[Cleanup] All pages for file ${fileId} are processed. Deleting source file from DB.`)
-             await db.deleteFile(fileId)
-          }
-       }
+      const pagesForFile = pdfPages.filter(p => p.fileId === fileId)
+      const allDone = pagesForFile.every(p => p.status === 'ready' || p.status === 'error')
+
+      if (allDone && pagesForFile.length > 0) {
+        // Verify if file still exists before trying to delete
+        const file = await db.getFile(fileId)
+        if (file) {
+          queueLogger.info(`[Cleanup] All pages for file ${fileId} are processed. Deleting source file from DB.`)
+          await db.deleteFile(fileId)
+        }
+      }
     }
 
   } catch (error) {
@@ -387,23 +385,21 @@ async function renderPDFPage(task: PDFRenderTask): Promise<void> {
   try {
     queueLogger.info(`[PDF Render] Starting render for pageId: ${task.pageId}, pageNumber: ${task.pageNumber}`)
 
-    // Get PDF data from cache
-    const source = pdfSourceCache.get(task.sourceId)
-    if (!source) {
-      throw new Error(`PDF source data not found in cache for sourceId: ${task.sourceId}`)
+    // Update page status to rendering, but check if it still exists first
+    const page = await db.getPage(task.pageId)
+    if (!page) {
+      queueLogger.warn(`[PDF Render] Page ${task.pageId} no longer in database. Skipping render.`)
+      handleRenderError(task.pageId, 'Page deleted before rendering started')
+      return
     }
 
-    // Update page status to rendering
-    const page = await db.getPage(task.pageId)
-    if (page) {
-      const updatedPage: DBPage = {
-        ...page,
-        status: 'rendering',
-        progress: 50,
-        updatedAt: new Date()
-      }
-      await db.savePage(updatedPage)
+    const updatedPage: DBPage = {
+      ...page,
+      status: 'rendering',
+      progress: 50,
+      updatedAt: new Date()
     }
+    await db.savePage(updatedPage)
 
     // Emit rendering event
     pdfEvents.emit('pdf:page:rendering', { pageId: task.pageId })
@@ -412,6 +408,12 @@ async function renderPDFPage(task: PDFRenderTask): Promise<void> {
       message: `Rendering page ${task.pageNumber}`,
       level: 'info'
     })
+
+    // Get PDF data from cache
+    const source = pdfSourceCache.get(task.sourceId)
+    if (!source) {
+      throw new Error(`PDF source data not found in cache for sourceId: ${task.sourceId}`)
+    }
 
     // Create a fresh copy of PDF data for this rendering attempt to avoid detachment issues
     const pdfDataCopy = source.data.slice(0)
@@ -430,6 +432,14 @@ async function renderPDFPage(task: PDFRenderTask): Promise<void> {
         fallbackFontFamily: fallbackFont,
         sourceId: task.sourceId // Pass sourceId for document caching
       })
+
+      // Double check if page was deleted during rendering
+      const pageStillExists = await db.getPage(task.pageId)
+      if (!pageStillExists) {
+        queueLogger.warn(`[PDF Render] Page ${task.pageId} deleted during rendering. Discarding output.`)
+        handleRenderError(task.pageId, 'Page deleted during rendering')
+        return
+      }
 
       // Handle successful enhanced rendering
       await handleRenderSuccess(
@@ -477,7 +487,7 @@ export async function queuePDFPages(
   try {
     // Generate a source ID for the cache (prefer fileId if available)
     const sourceId = fileId || `src_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
-    
+
     // Cache the PDF data once for all pages of this file
     pdfSourceCache.set(sourceId, {
       data: pdfData,
@@ -520,7 +530,7 @@ export async function queuePDFPages(
     for (let i = 0; i < pages.length; i++) {
       const pageData = pages[i]!
       const pageId = await db.savePage(pageData)
-      
+
       if (pageId) {
         // Emit queued event so store can load the page immediately
         pdfEvents.emit('pdf:page:queued', { pageId })
@@ -558,7 +568,7 @@ export async function resumePDFProcessing(): Promise<void> {
     // 1. Find all incomplete PDF pages (pending_render OR rendering)
     const pendingPages = await db.getPagesByStatus('pending_render')
     const renderingPages = await db.getPagesByStatus('rendering')
-    
+
     // Combine and filter for PDF generated pages, then sort by order to ensure sequential processing
     const incompletePages = [...pendingPages, ...renderingPages]
       .filter(page => page.origin === 'pdf_generated')
@@ -596,7 +606,7 @@ export async function resumePDFProcessing(): Promise<void> {
         if (!byName.has(name)) byName.set(name, [])
         byName.get(name)!.push(p)
       })
-      
+
       for (const [name, pages] of byName) {
         const firstPage = pages[0]
         if (firstPage && firstPage.id) {
@@ -618,29 +628,29 @@ export async function resumePDFProcessing(): Promise<void> {
       try {
         // Load file from DB
         const dbFile = await db.getFile(fileId)
-        
+
         if (!dbFile) {
           queueLogger.error(`[Resume] Source file not found for fileId: ${fileId}`)
           // Mark all pages as error
           for (const page of pages) {
-             pdfEvents.emit('pdf:log', {
-                pageId: page.id!,
-                message: `Source PDF file missing. Cannot resume processing.`,
-                level: 'error'
-             })
-             await db.savePage({ ...page, status: 'error' })
+            pdfEvents.emit('pdf:log', {
+              pageId: page.id!,
+              message: `Source PDF file missing. Cannot resume processing.`,
+              level: 'error'
+            })
+            await db.savePage({ ...page, status: 'error' })
           }
           continue
         }
 
         queueLogger.info(`[Resume] Loaded source file "${dbFile.name}" (${dbFile.size} bytes)`)
-        
+
         // Use fileId as sourceId
         const sourceId = fileId
-        
+
         // Convert Blob to ArrayBuffer
         const pdfData = await dbFile.content.arrayBuffer()
-        
+
         // Populate cache for the resumed file
         // We need to know the total pages to properly clear the cache later
         // For simplicity during resume, we count the pages we are about to re-queue
@@ -649,26 +659,26 @@ export async function resumePDFProcessing(): Promise<void> {
           totalPages: pages.length,
           processedCount: 0
         })
-        
+
         // Re-queue pages
         for (const page of pages) {
           // Determine page number
           let pageNumber = page.pageNumber
           if (!pageNumber) {
-             // Fallback: extract from filename (e.g. "foo_1.png")
-             const match = page.fileName.match(/_(\d+)\.png$/)
-             if (match && match[1]) pageNumber = parseInt(match[1])
+            // Fallback: extract from filename (e.g. "foo_1.png")
+            const match = page.fileName.match(/_(\d+)\.png$/)
+            if (match && match[1]) pageNumber = parseInt(match[1])
           }
-          
+
           if (!pageNumber) {
             queueLogger.error(`[Resume] Could not determine page number for page ${page.id}`)
-             await db.savePage({ ...page, status: 'error' })
+            await db.savePage({ ...page, status: 'error' })
             continue
           }
 
           // Reset status to pending if it was rendering
           if (page.status === 'rendering') {
-             await db.savePage({ ...page, status: 'pending_render', progress: 0 })
+            await db.savePage({ ...page, status: 'pending_render', progress: 0 })
           }
 
           // Queue render task with correctly populated sourceId
@@ -679,7 +689,7 @@ export async function resumePDFProcessing(): Promise<void> {
             sourceId
           })
         }
-        
+
         queueLogger.info(`[Resume] Successfully re-queued ${pages.length} pages for "${dbFile.name}"`)
 
       } catch (error) {

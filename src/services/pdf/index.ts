@@ -10,6 +10,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl
 
 // Initialize enhanced PDF renderer
 import { enhancedPdfRenderer } from './enhancedPdfRenderer'
+import { CMAP_URL, CMAP_PACKED } from './config'
 
 // Initialize enhanced renderer when module loads
 enhancedPdfRenderer.initialize().catch(err => pdfLogger.error(err))
@@ -97,14 +98,11 @@ export class PDFService {
       const arrayBuffer = this.base64ToArrayBuffer(base64Data)
       const uint8Array = new Uint8Array(arrayBuffer)
 
-      // 4. 获取本地 pdfjs-dist 版本，匹配 CDN 地址（避免版本不一致）
-      // 可通过 npm list pdfjs-dist 查看版本，这里示例用 5.4.449，需根据实际版本修改
-      const pdfJsVersion = '5.4.449'
       // 5. 使用 Uint8Array 加载 PDF（配置 CMAP 解决中文显示）
       const loadingTask = pdfjsLib.getDocument({
         data: uint8Array,
-        cMapUrl: `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfJsVersion}/cmaps/`,
-        cMapPacked: true,
+        cMapUrl: CMAP_URL,
+        cMapPacked: CMAP_PACKED,
         // 省略 standardFontDataUrl（中文场景可移除，减少依赖）
         maxMemory: 1024 * 1024 * 512, // 512MB
         // Enable font fallback for better text rendering
@@ -237,11 +235,10 @@ export class PDFService {
   ): Promise<string> {
     try {
       // Load PDF document（添加 CMAP 配置，避免缩略图中文乱码）
-      const pdfJsVersion = '5.4.449'
       const loadingTask = pdfjsLib.getDocument({
         data: new Uint8Array(pdfData),
-        cMapUrl: `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfJsVersion}/cmaps/`,
-        cMapPacked: true,
+        cMapUrl: CMAP_URL,
+        cMapPacked: CMAP_PACKED,
         // Enable font fallback for better text rendering
         useSystemFonts: true,
         // Increase font rendering quality

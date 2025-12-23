@@ -1,10 +1,11 @@
 import * as pdfjsLib from 'pdfjs-dist'
+import { CMAP_URL, CMAP_PACKED } from '../services/pdf/config'
 import { workerLogger } from '@/services/logger'
 
 // Configure PDF.js worker
 import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.mjs?url';
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl
-  
+
 interface PDFRenderMessage {
   type: 'render'
   payload: {
@@ -73,14 +74,12 @@ self.addEventListener('message', async (event: MessageEvent<WorkerMessage>) => {
     // Load PDF document with enhanced font configuration
     const loadingTask = pdfjsLib.getDocument({
       data: new Uint8Array(pdfData),
-      // Enhanced font configuration for better CJK support
-      disableWorker: true,
+      cMapUrl: CMAP_URL,
+      cMapPacked: CMAP_PACKED,
       // Enable font fallback for better text rendering
       useSystemFonts: true,
       // Increase font rendering quality
       fontExtraProperties: true,
-      // Additional font loading options
-      enhanceTextSelection: true,
       // Enable enhanced font rendering
       verbosity: 0 // Reduce font loading warnings
     })
@@ -105,7 +104,6 @@ self.addEventListener('message', async (event: MessageEvent<WorkerMessage>) => {
     // Set rendering context properties for better text quality
     context.imageSmoothingEnabled = true
     context.imageSmoothingQuality = 'high'
-    context.textRenderingOptimization = 'optimizeQuality'
 
     // Enhanced text rendering with font fallback
     const renderContext = {
@@ -120,15 +118,15 @@ self.addEventListener('message', async (event: MessageEvent<WorkerMessage>) => {
     }
 
     try {
-      await page.render(renderContext).promise
+      await (page.render(renderContext as any).promise)
     } catch (renderError) {
       workerLogger.warn('Enhanced rendering failed, falling back to standard rendering:', renderError)
       // Fallback to basic rendering if enhanced fails
-      await page.render({
+      await (page.render({
         canvasContext: context,
         viewport: viewport,
         intent: 'print'
-      }).promise
+      } as any).promise)
     }
 
     // Convert canvas to base64 using convertToBlob (correct method for OffscreenCanvas)

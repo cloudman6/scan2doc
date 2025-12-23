@@ -4,6 +4,7 @@
  */
 
 import * as pdfjsLib from 'pdfjs-dist'
+import { CMAP_URL, CMAP_PACKED } from './config'
 import { fontLoader } from '../font/fontLoader'
 import { pdfLogger } from '@/services/logger'
 
@@ -53,9 +54,10 @@ export class EnhancedPdfRenderer {
     const uint8Array = new Uint8Array(pdfData)
     const loadingTask = pdfjsLib.getDocument({
       data: uint8Array,
+      cMapUrl: CMAP_URL,
+      cMapPacked: CMAP_PACKED,
       useSystemFonts: true,
       fontExtraProperties: true,
-      enhanceTextSelection: true,
       verbosity: 0
     })
 
@@ -166,7 +168,7 @@ export class EnhancedPdfRenderer {
       pdfLogger.error('[Enhanced PDF Renderer] Render failed:', error)
       // Attempt cleanup on error if not using cache
       if (!sourceId && pdfDocument) {
-        try { await pdfDocument.destroy() } catch(e) {}
+        try { await pdfDocument.destroy() } catch (e) { }
       }
       throw error
     }
@@ -180,6 +182,8 @@ export class EnhancedPdfRenderer {
       const uint8Array = new Uint8Array(pdfData)
       const loadingTask = pdfjsLib.getDocument({
         data: uint8Array,
+        cMapUrl: CMAP_URL,
+        cMapPacked: CMAP_PACKED,
         useSystemFonts: true,
         fontExtraProperties: true
       })
@@ -238,6 +242,8 @@ export class EnhancedPdfRenderer {
       const uint8Array = new Uint8Array(pdfData)
       const loadingTask = pdfjsLib.getDocument({
         data: uint8Array,
+        cMapUrl: CMAP_URL,
+        cMapPacked: CMAP_PACKED,
         useSystemFonts: true
       })
 
