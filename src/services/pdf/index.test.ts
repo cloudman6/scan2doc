@@ -1,11 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { PDFService, pdfService } from '@/services/pdf/index'
+import { pdfService } from '@/services/pdf/index'
 import * as pdfjsLib from 'pdfjs-dist'
 import { queuePDFPages, resumePDFProcessing } from '@/services/pdf/pdfQueue'
 import { pdfEvents } from '@/services/pdf/events'
 import { db } from '@/db/index'
 import { pdfLogger } from '@/services/logger'
-import { enhancedPdfRenderer } from '@/services/pdf/enhancedPdfRenderer'
 
 // Mock dependencies
 vi.mock('pdfjs-dist', () => ({
@@ -54,7 +53,7 @@ const originalCreateElement = document.createElement
 describe('PDFService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    
+
     // Mock FileReader
     global.FileReader = class MockFileReader {
       readAsDataURL() {
@@ -144,7 +143,7 @@ describe('PDFService', () => {
       const file = new File(['dummy'], 'test.pdf', { type: 'application/pdf' })
       // Override validatePDF to pass explicitly or rely on default behaviour if mocked file is valid
       // But validatePDF uses file.size, and new File(['dummy']) has size 5.
-      
+
       const result = await pdfService.loadPDF(file)
 
       expect(pdfjsLib.getDocument).toHaveBeenCalled()
@@ -164,7 +163,7 @@ describe('PDFService', () => {
         promise: Promise.reject(new Error('PDF Corrupt'))
       } as any)
       const file = new File(['x'], 'corrupt.pdf', { type: 'application/pdf' })
-      
+
       await expect(pdfService.loadPDF(file)).rejects.toThrow('PDF Corrupt')
       expect(pdfLogger.error).toHaveBeenCalled()
     })
@@ -175,13 +174,13 @@ describe('PDFService', () => {
     const mockDoc = {
       numPages: 5,
       getMetadata: vi.fn().mockResolvedValue({}),
-      getPage: vi.fn().mockResolvedValue({ getViewport: () => ({}), cleanup: () => {} }),
+      getPage: vi.fn().mockResolvedValue({ getViewport: () => ({}), cleanup: () => { } }),
       base64Data: 'Zm9v' // 'foo'
     }
 
     it('should process PDF successfully', async () => {
       vi.mocked(pdfjsLib.getDocument).mockReturnValue({ promise: Promise.resolve(mockDoc) } as any)
-      
+
       await pdfService.processPDF(file)
 
       expect(db.saveFile).toHaveBeenCalledWith(expect.objectContaining({ name: 'test.pdf' }))
@@ -221,16 +220,16 @@ describe('PDFService', () => {
 
     it('should render page to canvas and return data url', async () => {
       vi.mocked(pdfjsLib.getDocument).mockReturnValue({ promise: Promise.resolve(mockDoc) } as any)
-      
+
       const thumb = await pdfService.generateThumbnail(new ArrayBuffer(10), 1)
-      
+
       expect(mockPage.render).toHaveBeenCalled()
       expect(thumb).toBe('data:image/jpeg;base64,thumb')
     })
 
     it('should throw error on failure', async () => {
       vi.mocked(pdfjsLib.getDocument).mockReturnValue({ promise: Promise.reject(new Error('Fail')) } as any)
-      
+
       await expect(pdfService.generateThumbnail(new ArrayBuffer(10), 1)).rejects.toThrow('Fail')
       expect(pdfLogger.error).toHaveBeenCalled()
     })
@@ -245,10 +244,10 @@ describe('PDFService', () => {
 
   describe('cache operations', () => {
     const file = new File(['content'], 'test.pdf', { type: 'application/pdf' })
-    
+
     it('should retrieve cached PDF', async () => {
       // Load first to cache
-      const mockDoc = { numPages: 1, getMetadata: async () => ({}), getPage: async () => ({ getViewport: () => ({}), cleanup: () => {} }) }
+      const mockDoc = { numPages: 1, getMetadata: async () => ({}), getPage: async () => ({ getViewport: () => ({}), cleanup: () => { } }) }
       vi.mocked(pdfjsLib.getDocument).mockReturnValue({ promise: Promise.resolve(mockDoc) } as any)
       await pdfService.loadPDF(file)
 
@@ -263,54 +262,54 @@ describe('PDFService', () => {
       expect(cached).toBeUndefined()
     })
   })
-  
+
   describe('getPDFMetadata', () => {
     const file = new File(['content'], 'test.pdf', { type: 'application/pdf' })
     const mockDoc = {
-        numPages: 10,
-        getMetadata: vi.fn().mockResolvedValue({
-            info: { Title: 'Metadata Title', Author: 'Metadata Author', Subject: 'Test Subject' }
-        }),
-        getPage: vi.fn().mockResolvedValue({ getViewport: () => ({}), cleanup: () => {} })
+      numPages: 10,
+      getMetadata: vi.fn().mockResolvedValue({
+        info: { Title: 'Metadata Title', Author: 'Metadata Author', Subject: 'Test Subject' }
+      }),
+      getPage: vi.fn().mockResolvedValue({ getViewport: () => ({}), cleanup: () => { } })
     }
 
     it('should return extracted metadata', async () => {
-        vi.mocked(pdfjsLib.getDocument).mockReturnValue({ promise: Promise.resolve(mockDoc) } as any)
-        
-        const metadata = await pdfService.getPDFMetadata(file)
-        
-        expect(metadata.pageCount).toBe(10)
-        expect(metadata.title).toBe('Metadata Title')
-        expect(metadata.author).toBe('Metadata Author')
-        expect(metadata.subject).toBe('Test Subject')
+      vi.mocked(pdfjsLib.getDocument).mockReturnValue({ promise: Promise.resolve(mockDoc) } as any)
+
+      const metadata = await pdfService.getPDFMetadata(file)
+
+      expect(metadata.pageCount).toBe(10)
+      expect(metadata.title).toBe('Metadata Title')
+      expect(metadata.author).toBe('Metadata Author')
+      expect(metadata.subject).toBe('Test Subject')
     })
 
     it('should return empty object on error', async () => {
-        vi.mocked(pdfjsLib.getDocument).mockReturnValue({ promise: Promise.reject(new Error('Load failed')) } as any)
-        
-        const metadata = await pdfService.getPDFMetadata(file)
-        
-        expect(metadata).toEqual({})
-        expect(pdfLogger.error).toHaveBeenCalled()
+      vi.mocked(pdfjsLib.getDocument).mockReturnValue({ promise: Promise.reject(new Error('Load failed')) } as any)
+
+      const metadata = await pdfService.getPDFMetadata(file)
+
+      expect(metadata).toEqual({})
+      expect(pdfLogger.error).toHaveBeenCalled()
     })
   })
-  
+
   describe('getPageCount and getPageInfo', () => {
-      const mockPDFDoc = {
-          pageCount: 5,
-          pages: [
-              { pageNumber: 1, width: 100, height: 200 },
-              { pageNumber: 2, width: 100, height: 200 }
-          ]
-      } as any
-      
-      it('should return correct page count', () => {
-          expect(pdfService.getPageCount(mockPDFDoc)).toBe(5)
-      })
-      
-      it('should return correct page info', () => {
-          expect(pdfService.getPageInfo(mockPDFDoc, 1)).toEqual({ pageNumber: 1, width: 100, height: 200 })
-          expect(pdfService.getPageInfo(mockPDFDoc, 99)).toBeUndefined()
-      })
+    const mockPDFDoc = {
+      pageCount: 5,
+      pages: [
+        { pageNumber: 1, width: 100, height: 200 },
+        { pageNumber: 2, width: 100, height: 200 }
+      ]
+    } as any
+
+    it('should return correct page count', () => {
+      expect(pdfService.getPageCount(mockPDFDoc)).toBe(5)
+    })
+
+    it('should return correct page info', () => {
+      expect(pdfService.getPageInfo(mockPDFDoc, 1)).toEqual({ pageNumber: 1, width: 100, height: 200 })
+      expect(pdfService.getPageInfo(mockPDFDoc, 99)).toBeUndefined()
+    })
   })
 })

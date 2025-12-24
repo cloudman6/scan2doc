@@ -125,23 +125,14 @@ function getShortStatusText(status: Page['status']): string {
 }
 
 function formatFileSize(bytes: number): string {
-// ... existing formatFileSize code ...
+  if (bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return (bytes / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i]
 }
 
-function getStatusClass(status: Page['status']): string {
-  switch (status) {
-    case 'completed':
-    case 'ready':
-      return 'done'
-    case 'rendering':
-    case 'recognizing':
-      return 'processing'
-    case 'error':
-      return 'error'
-    default:
-      return 'pending'
-  }
-}
+
 
 function getStatusType(status: Page['status']): 'success' | 'info' | 'warning' | 'error' | 'default' {
   switch (status) {

@@ -79,7 +79,7 @@
           <n-text v-if="imageSize" depth="3">
             Size: <n-text depth="1">{{ imageSize }}</n-text>
           </n-text>
-          <n-text v-if="currentPage?.fileSize" depth="3">
+          <n-text v-if="currentPage?.fileSize !== undefined" depth="3">
             File: <n-text depth="1">{{ formatFileSize(currentPage.fileSize) }}</n-text>
           </n-text>
         </n-space>

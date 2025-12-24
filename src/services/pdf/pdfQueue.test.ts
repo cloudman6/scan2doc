@@ -15,6 +15,7 @@ import { enhancedPdfRenderer } from '@/services/pdf/enhancedPdfRenderer'
 import { queueLogger } from '@/services/logger'
 
 // Mock dependencies
+(globalThis as any).pageIdCounter = 0
 vi.mock('@/db/index', () => ({
   db: {
     getNextOrder: vi.fn().mockResolvedValue(1),
@@ -26,7 +27,7 @@ vi.mock('@/db/index', () => ({
     getFile: vi.fn(),
     deleteFile: vi.fn(),
   },
-  generatePageId: () => 'page-id-' + Math.random().toString(36).substr(2, 5)
+  generatePageId: () => `page-id-${++(globalThis as any).pageIdCounter}`
 }))
 
 vi.mock('@/services/pdf/events', () => ({
@@ -86,14 +87,17 @@ vi.mock('p-queue', () => {
 // Module-level callback
 let mockWorkerResponseCallback: ((worker: any, data: any) => void) | undefined
 let mockWorkerLastMessage: any
+let lastWorkerInstance: any = null
 
 // Mock Worker
 class MockWorker {
   onmessage: any
   onerror: any
+  listeners: Record<string, Function[]> = {}
   
   constructor(scriptURL: string) {
       console.log('MockWorker constructed')
+      lastWorkerInstance = this
   }
 
   postMessage(data: any) {
@@ -108,8 +112,16 @@ class MockWorker {
   }
 
   addEventListener(type: string, listener: Function) {
+    if (!this.listeners[type]) this.listeners[type] = []
+    this.listeners[type].push(listener)
     if (type === 'message') this.onmessage = listener
     if (type === 'error') this.onerror = listener
+  }
+
+  trigger(type: string, data: any) {
+    if (this.listeners[type]) {
+      this.listeners[type].forEach(l => l(data))
+    }
   }
   
   terminate() {}
@@ -123,6 +135,7 @@ const originalImage = global.Image
 describe('pdfQueue', () => {
     beforeEach(() => {
       vi.clearAllMocks()
+      ;(globalThis as any).pageIdCounter = 0
   
       // Reset default mock implementations
       vi.mocked(db.getNextOrder).mockResolvedValue(1)
@@ -168,10 +181,12 @@ describe('pdfQueue', () => {
         width: 0,
         height: 0
       }
+      
+      const originalCreateElement = document.createElement.bind(document)
       // @ts-ignore
       document.createElement = vi.fn((tag) => {
         if (tag === 'canvas') return mockCanvas
-        return document.createElement(tag)
+        return originalCreateElement(tag)
       })
     })
 
@@ -479,6 +494,126 @@ describe('pdfQueue', () => {
         
         expect(addSpy).not.toHaveBeenCalled()
         expect(queueLogger.info).toHaveBeenCalledWith(expect.stringContaining('Skipping page'))
+    })
+
+    it('should skip queuing if page is already rendering', async () => {
+        vi.mocked(db.getPage).mockResolvedValue({ id: 'page-rendering', status: 'rendering' } as any)
+        const addSpy = vi.spyOn(pdfRenderQueue, 'add')
+        
+        await queuePDFPageRender({ pageId: 'page-rendering', pageNumber: 1, fileName: 'f.pdf', sourceId: 's1' })
+        
+        expect(addSpy).not.toHaveBeenCalled()
+    })
+
+    it('should handle global worker error event', async () => {
+        // Trigger worker creation
+        await queuePDFPageRender({ pageId: 'p1', pageNumber: 1, fileName: 'f.pdf', sourceId: 's1' })
+        
+        if (lastWorkerInstance) {
+            lastWorkerInstance.trigger('error', { message: 'Fatal Worker Crash' })
+            expect(queueLogger.error).toHaveBeenCalledWith(expect.stringContaining('PDF Worker error'), expect.anything())
+            expect(pdfEvents.emit).toHaveBeenCalledWith('pdf:processing-error', expect.objectContaining({ error: expect.stringContaining('Fatal Worker Crash') }))
+        }
+    })
+
+    it('should handle worker response for unknown task', async () => {
+        await queuePDFPageRender({ pageId: 'p1', pageNumber: 1, fileName: 'f.pdf', sourceId: 's1' })
+        
+        if (lastWorkerInstance) {
+            lastWorkerInstance.onmessage({ data: { pageId: 'unknown-id', imageBlob: new Blob() } })
+            expect(queueLogger.warn).toHaveBeenCalledWith(expect.stringContaining('unknown task'))
+        }
+    })
+
+    it('should handle worker error for unknown task', async () => {
+        if (lastWorkerInstance) {
+            lastWorkerInstance.onmessage({ data: { type: 'error', payload: { pageId: 'unknown-error-id', error: 'Fail' } } })
+            expect(queueLogger.error).toHaveBeenCalledWith(expect.stringContaining('No task found for pageId: unknown-error-id'), expect.anything())
+        }
+    })
+
+    it('should handle rendering when image does not need upscaling', async () => {
+        const file = new File([], 'test.pdf')
+        const pdfData = new ArrayBuffer(10)
+        
+        // Reset call history to capture clean IDs
+        vi.mocked(db.savePage).mockClear()
+        await queuePDFPages(file, pdfData, 1, 's-upscale')
+        
+        const pageId = vi.mocked(db.savePage).mock.calls[0][0].id
+        vi.mocked(db.getPage).mockResolvedValue({ id: pageId, status: 'pending_render', logs: [] } as any)
+        
+        const OriginalImage = global.Image
+        global.Image = class SmallImage {
+            onload: any; src = ''; width = 50; height = 50;
+            constructor() { setTimeout(() => this.onload(), 0) }
+        } as any
+
+        mockWorkerResponseCallback = (worker, req) => {
+            if (req.payload && req.payload.pageId === pageId) {
+                worker.onmessage({ data: { pageId, imageBlob: new Blob(), width: 50, height: 50, pageNumber: 1, fileSize: 100 } })
+            }
+        }
+
+        await new Promise(res => setTimeout(res, 200))
+        
+        expect(pdfEvents.emit).toHaveBeenCalledWith('pdf:page:done', expect.objectContaining({ width: 50, height: 50 }))
+        global.Image = OriginalImage
+    })
+
+    it('should NOT emit processing-complete if there are error pages', async () => {
+        const file = new File([], 'test.pdf')
+        vi.mocked(db.savePage).mockClear()
+        await queuePDFPages(file, new ArrayBuffer(10), 2, 's-error-check')
+        
+        const pageIds = vi.mocked(db.savePage).mock.calls.map(call => call[0].id)
+        
+        vi.mocked(db.getAllPages).mockResolvedValue([
+            { id: pageIds[0], origin: 'pdf_generated', status: 'ready', fileId: 's-error-check' } as any,
+            { id: pageIds[1], origin: 'pdf_generated', status: 'error', fileId: 's-error-check' } as any
+        ])
+
+        mockWorkerResponseCallback = (worker, req) => {
+            if (req.payload && req.payload.pageId === pageIds[0]) {
+                worker.onmessage({ data: { pageId: pageIds[0], imageBlob: new Blob(), width: 10, height: 10, pageNumber: 1, fileSize: 10 } })
+            }
+        }
+        
+        await new Promise(res => setTimeout(res, 200))
+        
+        expect(pdfEvents.emit).toHaveBeenCalledWith('pdf:progress', expect.anything())
+        expect(pdfEvents.emit).not.toHaveBeenCalledWith('pdf:processing-complete', expect.anything())
+    })
+
+    it('should handle unexpected errors in handleRenderSuccess catch block', async () => {
+        const file = new File([], 'test.pdf')
+        vi.mocked(db.savePage).mockClear()
+        await queuePDFPages(file, new ArrayBuffer(10), 1, 's-success-crash')
+        const pageId = vi.mocked(db.savePage).mock.calls[0][0].id
+
+        vi.mocked(db.getPage).mockResolvedValue({ id: pageId, logs: [] } as any)
+        vi.mocked(db.savePageImage).mockRejectedValue(new Error('Atomic Crash'))
+
+        mockWorkerResponseCallback = (worker, req) => {
+            if (req.payload && req.payload.pageId === pageId) {
+                worker.onmessage({ data: { pageId, imageBlob: new Blob(), width: 10, height: 10, pageNumber: 1, fileSize: 10 } })
+            }
+        }
+
+        await new Promise(res => setTimeout(res, 200))
+        
+        expect(queueLogger.error).toHaveBeenCalledWith(expect.stringContaining('Error handling render success'), expect.anything())
+    })
+
+    it('should handle unexpected errors in renderPDFPage catch block', async () => {
+        // Mock getPage to succeed first for queuePDFPageRender
+        vi.mocked(db.getPage).mockResolvedValue({ id: 'p-crash', status: 'pending_render' } as any)
+
+        // This will throw because sourceId 's-missing' is not in cache
+        await queuePDFPageRender({ pageId: 'p-crash', pageNumber: 1, fileName: 'f.pdf', sourceId: 's-missing' })
+        await new Promise(res => setTimeout(res, 200))
+        
+        expect(queueLogger.error).toHaveBeenCalledWith(expect.stringContaining('Error rendering PDF page'), expect.anything())
     })
   })
 
