@@ -1,7 +1,7 @@
 # AI coder
 CLAUDE.md
 GEMINI.md
-.agent/
+!.agent/
 
 # Logs
 logs

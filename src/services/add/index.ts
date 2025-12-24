@@ -177,7 +177,7 @@ class FileAddService {
 
     // Convert image to base64 for persistent storage (deprecated for pages table, but used for pageImages)
     // Actually, we can use the file (Blob) directly for pageImages table
-    
+
     let thumbnailData: string | undefined
 
     if (options.generateThumbnails) {
@@ -211,7 +211,6 @@ class FileAddService {
       status: 'ready',
       progress: 100,
       order: -1, // Will be set by store
-      imageData: undefined, // Don't include in store object to save memory
       thumbnailData,
       width: imageDimensions.width,
       height: imageDimensions.height,
@@ -225,7 +224,7 @@ class FileAddService {
   /**
    * Process PDF file into multiple Page objects
    */
-  private async processPDFFile(file: File, options: FileProcessingOptions): Promise<Page[]> {
+  private async processPDFFile(file: File, _options: FileProcessingOptions): Promise<Page[]> {
     try {
       // Import PDF service dynamically to avoid circular dependencies
       const { pdfService } = await import('@/services/pdf')
@@ -265,7 +264,10 @@ class FileAddService {
     const pages: Page[] = []
     const errors: string[] = []
 
-    // Validate all files first
+    if (!files || files.length === 0) {
+      return { success: false, pages: [], error: 'No files provided' }
+    }
+
     for (const file of files) {
       const validation = this.validateFile(file, mergedOptions)
       if (!validation.valid) {
@@ -273,14 +275,16 @@ class FileAddService {
         continue
       }
 
-      if (file.type.startsWith('image/')) {
+      const lowerType = (file.type || '').toLowerCase()
+
+      if (lowerType.startsWith('image/')) {
         try {
           const page = await this.processImageFile(file, mergedOptions)
           pages.push(page)
         } catch (error) {
           errors.push(`Failed to process "${file.name}": ${error instanceof Error ? error.message : 'Unknown error'}`)
         }
-      } else if (file.type === 'application/pdf') {
+      } else if (lowerType === 'application/pdf') {
         try {
           const pdfPages = await this.processPDFFile(file, mergedOptions)
           pages.push(...pdfPages)

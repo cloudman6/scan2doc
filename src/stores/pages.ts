@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed } from 'vue'
 import { db, generatePageId } from '@/db/index'
 import type { DBPage } from '@/db/index'
 import fileAddService from '@/services/add'
@@ -20,350 +20,165 @@ export interface PageOutput {
   confidence?: number
 }
 
+export type PageStatus = 'pending_render' | 'rendering' | 'recognizing' | 'ready' | 'completed' | 'error'
+
 export interface Page {
   id: string
-  fileId?: string // Reference to source file in DB
-  pageNumber?: number // Page number in the original file
   fileName: string
   fileSize: number
   fileType: string
-  origin: 'upload' | 'pdf_generated'
-
-  // Processing status
-  status: 'pending_render' | 'rendering' | 'ready' | 'recognizing' | 'completed' | 'error'
+  origin: 'upload' | 'scanner'
+  status: PageStatus
   progress: number
-  order: number  // Sort order for drag and drop
-
-  // Image data
-  imageData?: string  // DEPRECATED: Full image data is now stored as Blob in pageImages table
-  thumbnailData?: string  // base64 thumbnail data for persistence (can be used directly as img src)
-  width?: number
-  height?: number
-
-  // OCR results
   ocrText?: string
   ocrConfidence?: number
-
-  // Outputs
+  thumbnailData?: string
+  width?: number
+  height?: number
   outputs: PageOutput[]
-
-  // Processing logs
   logs: PageProcessingLog[]
-
-  // Timestamps
   createdAt: Date
   updatedAt: Date
   processedAt?: Date
+  order: number
+}
+
+interface RecentlyDeleted {
+  pages: Page[]
+  timestamp: number
+  timeoutId?: number
 }
 
 export const usePagesStore = defineStore('pages', () => {
   // State
   const pages = ref<Page[]>([])
   const selectedPageIds = ref<string[]>([])
+  const recentlyDeleted = ref<RecentlyDeleted | null>(null)
   const processingQueue = ref<string[]>([])
-
-  // Undo support state - unified for single and batch deletions
-  const recentlyDeleted = ref<{
-    pages: Page[]
-    timestamp: number
-    timeoutId?: number
-  } | null>(null)
-
-  // PDF processing state
-  const pdfProcessing = ref<{
-    active: boolean
-    total: number
-    completed: number
-    currentFile?: string
-  }>({
+  const pdfProcessing = ref({
     active: false,
     total: 0,
-    completed: 0
+    completed: 0,
+    currentFile: undefined as string | undefined
   })
 
   // Getters
-  const pagesByStatus = computed(() => {
-    return (status: Page['status']) => pages.value.filter(page => page.status === status)
-  })
+  const pagesByStatus = computed(() => (status: PageStatus) =>
+    pages.value.filter(page => page.status === status)
+  )
 
   const selectedPages = computed(() =>
     pages.value.filter(page => selectedPageIds.value.includes(page.id))
   )
 
-  const processingPages = computed(() =>
-    pages.value.filter(page => page.status === 'processing')
-  )
+  const processingPages = computed(() => {
+    return pages.value.filter(page =>
+      page.status === 'pending_render' ||
+      page.status === 'rendering' ||
+      page.status === 'recognizing'
+    )
+  })
 
   const completedPages = computed(() =>
-    pages.value.filter(page => page.status === 'completed')
+    pages.value.filter(page => page.status === 'completed' || page.status === 'ready')
   )
 
   const totalPages = computed(() => pages.value.length)
 
   const overallProgress = computed(() => {
-    if (totalPages.value === 0) return 0
+    if (pages.value.length === 0) return 0
     const totalProgress = pages.value.reduce((sum, page) => sum + page.progress, 0)
-    return Math.round(totalProgress / totalPages.value)
+    return Math.round(totalProgress / pages.value.length)
   })
 
   // Actions
   async function addPage(page: Omit<Page, 'id' | 'createdAt' | 'updatedAt' | 'order'> & { id?: string; order?: number }) {
-    const nextOrder = await db.getNextOrder()
+    const id = page.id || generatePageId()
+    const order = page.order || (await db.getNextOrder())
+
+    // Create the page object
     const newPage: Page = {
-      ...page,
-      id: page.id || generatePageId(),
-      order: page.order !== undefined ? page.order : nextOrder,
+      ...(page as any),
+      id,
+      order,
       createdAt: new Date(),
-      updatedAt: new Date()
+      updatedAt: new Date(),
+      outputs: page.outputs || [],
+      logs: page.logs || []
     }
+
     pages.value.push(newPage)
-    // Sort pages array by order to maintain correct sequence
+    // Sort pages by order
     pages.value.sort((a, b) => a.order - b.order)
+
     return newPage
   }
 
-  // Database actions
-  async function loadPagesFromDB() {
-    try {
-      const dbPages = await db.getAllPagesForDisplay()
-      pages.value = dbPages.map(dbPageToPage)
-    } catch (error) {
-      storeLogger.error('Failed to load pages from database:', error)
-    }
-  }
-
-  async function savePageToDB(page: Page) {
-    try {
-      const dbPage = { ...pageToDBPage(page), id: page.id }
-      await db.savePage(dbPage)
-    } catch (error) {
-      storeLogger.error('Failed to save page to database:', error)
-      // Provide more detailed error information
-      if (error instanceof Error) {
-        storeLogger.error('Error details:', {
-          name: error.name,
-          message: error.message,
-          pageId: page.id,
-          fileName: page.fileName
-        })
-      }
-      throw error // Re-throw to allow caller to handle
-    }
-  }
-
-  async function deletePageFromDB(pageId: string) {
-    try {
-      await db.deletePage(pageId)
-    } catch (error) {
-      storeLogger.error('Failed to delete page from database:', error)
-    }
-  }
-
-  // Batch database deletion for performance
-  async function deletePagesFromDB(pageIds: string[]) {
-    try {
-      const deletePromises = pageIds.map(pageId => db.deletePage(pageId))
-      await Promise.all(deletePromises)
-    } catch (error) {
-      storeLogger.error('Failed to delete pages from database:', error)
-    }
-  }
-
-  // Reordering actions
-  async function reorderPages(newOrder: { id: string; order: number }[]) {
-    try {
-      // Update database
-      await db.updatePagesOrder(newOrder)
-
-      // Update local store
-      for (const { id, order } of newOrder) {
-        const page = pages.value.find(p => p.id === id)
-        if (page) {
-          page.order = order
-          page.updatedAt = new Date()
-        }
-      }
-
-      // Sort pages array by order
-      pages.value.sort((a, b) => a.order - b.order)
-    } catch (error) {
-      storeLogger.error('Failed to reorder pages:', error)
-    }
-  }
-
-  // File add actions
-  async function addFiles(files?: File[]) {
-    try {
-      const filesToProcess = files || await fileAddService.triggerFileSelect(true)
-
-      if (filesToProcess.length === 0) {
-        return { success: false, pages: [], error: 'No files selected' }
-      }
-
-      const result = await fileAddService.processFiles(filesToProcess)
-
-      if (result.success && result.pages.length > 0) {
-        // Add pages to store
-        for (const page of result.pages) {
-          // Remove order to let addPage assign the correct nextOrder
-          const { order: _order, ...pageWithoutOrder } = page
-          const newPage = await addPage(pageWithoutOrder)
-          // Save to database
-          await savePageToDB(newPage)
-        }
-      }
-
-      return result
-    } catch (error) {
-      storeLogger.error('File add failed:', error)
-      return {
-        success: false,
-        pages: [],
-        error: error instanceof Error ? error.message : 'Unknown add error'
-      }
-    }
-  }
-
-  
-  // Helper function to clean logs for serialization
-  function cleanLogsForSerialization(logs: PageProcessingLog[]): PageProcessingLog[] {
-    return logs.map(log => ({
-      id: log.id,
-      timestamp: new Date(log.timestamp), // Ensure Date objects are serializable
-      level: log.level,
-      message: log.message,
-      details: typeof log.details === 'object' && log.details !== null
-        ? JSON.parse(JSON.stringify(log.details)) // Deep clone to remove circular refs
-        : log.details
-    }))
-  }
-
-  // Helper functions to convert between DBPage and Page
-  function pageToDBPage(page: Page): Omit<DBPage, 'id'> {
-    return {
-      fileName: page.fileName,
-      fileSize: page.fileSize,
-      fileType: page.fileType,
-      origin: page.origin,
-      status: page.status,
-      progress: page.progress,
-      order: page.order,
-      fileId: page.fileId,
-      pageNumber: page.pageNumber,
-      imageData: page.imageData,
-      thumbnailData: page.thumbnailData,
-      width: page.width,
-      height: page.height,
-      ocrText: page.ocrText,
-      ocrConfidence: page.ocrConfidence,
-      outputs: [...page.outputs], // Create a copy of outputs array
-      logs: cleanLogsForSerialization(page.logs), // Clean logs for serialization
-      createdAt: new Date(page.createdAt), // Ensure Date objects are serializable
-      updatedAt: new Date(page.updatedAt), // Ensure Date objects are serializable
-      processedAt: page.processedAt ? new Date(page.processedAt) : undefined
-    }
-  }
-
-  function dbPageToPage(dbPage: DBPage): Page {
-    return {
-      id: dbPage.id!,
-      fileName: dbPage.fileName,
-      fileSize: dbPage.fileSize,
-      fileType: dbPage.fileType,
-      origin: dbPage.origin,
-      status: dbPage.status,
-      progress: dbPage.progress,
-      order: dbPage.order,
-      fileId: dbPage.fileId,
-      pageNumber: dbPage.pageNumber,
-      imageData: dbPage.imageData,
-      thumbnailData: dbPage.thumbnailData,
-      width: dbPage.width,
-      height: dbPage.height,
-      ocrText: dbPage.ocrText,
-      ocrConfidence: dbPage.ocrConfidence,
-      outputs: dbPage.outputs,
-      logs: dbPage.logs,
-      createdAt: dbPage.createdAt,
-      updatedAt: dbPage.updatedAt,
-      processedAt: dbPage.processedAt
-    }
-  }
-
-  function updatePage(pageId: string, updates: Partial<Page>) {
-    const pageIndex = pages.value.findIndex(page => page.id === pageId)
-    if (pageIndex !== -1) {
-      const currentPage = pages.value[pageIndex]!
-      pages.value[pageIndex] = {
-        ...currentPage,
+  function updatePage(id: string, updates: Partial<Page>) {
+    const index = pages.value.findIndex(p => p.id === id)
+    if (index !== -1) {
+      pages.value[index] = {
+        ...pages.value[index]!,
         ...updates,
-        id: currentPage.id, // Ensure id is always preserved
         updatedAt: new Date()
       }
-    }
-  }
 
-  function updatePageProgress(pageId: string, progress: number) {
-    updatePage(pageId, { progress })
-  }
-
-  function updatePageStatus(pageId: string, status: Page['status']) {
-    const updates: Partial<Page> = { status }
-    if (status === 'ready' || status === 'completed') {
-      updates.processedAt = new Date()
-      updates.progress = 100
-    } else if (status === 'rendering' || status === 'recognizing') {
-      updates.progress = 0
-    }
-    updatePage(pageId, updates)
-  }
-
-  function addPageLog(pageId: string, log: Omit<PageProcessingLog, 'id' | 'timestamp'>) {
-    const page = pages.value.find(p => p.id === pageId)
-    if (page) {
-      const newLog: PageProcessingLog = {
-        ...log,
-        id: generateId(),
-        timestamp: new Date()
+      // If status is becoming ready/completed, ensure progress is 100 and set processedAt
+      if (updates.status === 'ready' || updates.status === 'completed') {
+        const p = pages.value[index]!
+        p.progress = 100
+        p.processedAt = new Date()
       }
-      page.logs.push(newLog)
-      page.updatedAt = new Date()
     }
   }
 
-  function setOcrResult(pageId: string, text: string, confidence?: number) {
-    updatePage(pageId, {
-      ocrText: text,
-      ocrConfidence: confidence
-    })
+  function updatePageProgress(id: string, progress: number) {
+    updatePage(id, { progress })
   }
 
-  function addOutput(pageId: string, output: PageOutput) {
-    const page = pages.value.find(p => p.id === pageId)
-    if (page) {
-      page.outputs.push(output)
-      page.updatedAt = new Date()
-    }
+  function updatePageStatus(id: string, status: PageStatus) {
+    updatePage(id, { status })
   }
 
-  function selectPage(pageId: string) {
-    if (!selectedPageIds.value.includes(pageId)) {
-      selectedPageIds.value.push(pageId)
-    }
-  }
-
-  function deselectPage(pageId: string) {
-    const index = selectedPageIds.value.indexOf(pageId)
+  function addPageLog(id: string, log: Omit<PageProcessingLog, 'id' | 'timestamp'>) {
+    const index = pages.value.findIndex(p => p.id === id)
     if (index !== -1) {
-      selectedPageIds.value.splice(index, 1)
+      pages.value[index]!.logs.push({
+        ...log,
+        id: `page_log_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        timestamp: new Date()
+      })
+      pages.value[index]!.updatedAt = new Date()
     }
   }
 
-  function togglePageSelection(pageId: string) {
-    if (selectedPageIds.value.includes(pageId)) {
-      deselectPage(pageId)
+  function setOcrResult(id: string, text: string, confidence?: number) {
+    updatePage(id, { ocrText: text, ocrConfidence: confidence })
+  }
+
+  function addOutput(id: string, output: PageOutput) {
+    const index = pages.value.findIndex(p => p.id === id)
+    if (index !== -1) {
+      pages.value[index]!.outputs.push(output)
+      pages.value[index]!.updatedAt = new Date()
+    }
+  }
+
+  function selectPage(id: string) {
+    if (!selectedPageIds.value.includes(id)) {
+      selectedPageIds.value.push(id)
+    }
+  }
+
+  function deselectPage(id: string) {
+    selectedPageIds.value = selectedPageIds.value.filter(oldId => oldId !== id)
+  }
+
+  function togglePageSelection(id: string) {
+    if (selectedPageIds.value.includes(id)) {
+      deselectPage(id)
     } else {
-      selectPage(pageId)
+      selectPage(id)
     }
   }
 
@@ -411,7 +226,7 @@ export const usePagesStore = defineStore('pages', () => {
     const sortedIndices = pageIds
       .map(pageId => pages.value.findIndex(page => page.id === pageId))
       .filter(index => index !== -1)
-      .sort((a, b) => b - a) // Sort in descending order
+      .sort((a, b) => b - a)
 
     for (const index of sortedIndices) {
       const deletedPage = pages.value[index]
@@ -424,7 +239,6 @@ export const usePagesStore = defineStore('pages', () => {
     return deletedPages.length === 1 ? deletedPages[0] : deletedPages
   }
 
-  // Legacy function for backward compatibility - now uses unified deletion logic
   function deletePage(pageId: string) {
     const result = deletePages([pageId])
     return Array.isArray(result) ? result[0] || null : result
@@ -434,14 +248,11 @@ export const usePagesStore = defineStore('pages', () => {
     if (recentlyDeleted.value) {
       const { pages: deletedPages } = recentlyDeleted.value
 
-      // Clear the timeout since we're undoing
       if (recentlyDeleted.value.timeoutId) {
         clearTimeout(recentlyDeleted.value.timeoutId)
       }
 
-      // Restore all pages in correct order
       for (const deletedPage of deletedPages) {
-        // Find the correct position based on order
         let insertIndex = pages.value.length
         for (let i = 0; i < pages.value.length; i++) {
           const currentPage = pages.value[i]
@@ -450,26 +261,19 @@ export const usePagesStore = defineStore('pages', () => {
             break
           }
         }
-
-        // Insert the page back into store
         pages.value.splice(insertIndex, 0, deletedPage)
       }
 
-      // Ensure pages are sorted by order to maintain consistency
       pages.value.sort((a, b) => a.order - b.order)
 
-      // Save all restored pages to database
       const savePromises = deletedPages.map(page =>
         savePageToDB(page).catch(error => {
           storeLogger.error('Failed to save restored page to database:', error)
         })
       )
 
-      Promise.all(savePromises).catch(error => {
-        storeLogger.error('Failed to save some restored pages to database:', error)
-      })
+      Promise.all(savePromises)
 
-      // Clear undo cache
       clearUndoCache()
 
       return deletedPages.length === 1 ? deletedPages[0] : deletedPages
@@ -509,11 +313,102 @@ export const usePagesStore = defineStore('pages', () => {
     processingQueue.value = []
   }
 
-  // Setup PDF event listeners
+  // Database actions
+  async function loadPagesFromDB() {
+    try {
+      const dbPages = await db.getAllPagesForDisplay()
+      pages.value = dbPages.map(dbPage => dbPageToPage(dbPage))
+    } catch (error) {
+      storeLogger.error('[Pages Store] Failed to load pages from DB:', error)
+    }
+  }
+
+  async function savePageToDB(page: Page) {
+    try {
+      const dbPage = { ...pageToDBPage(page), id: page.id }
+      await db.savePage(dbPage)
+    } catch (error) {
+      storeLogger.error('[Pages Store] Failed to save page to DB:', error)
+      throw error
+    }
+  }
+
+  function deletePageFromDB(id: string) {
+    return db.deletePage(id)
+  }
+
+  async function deletePagesFromDB(ids: string[]) {
+    await Promise.all(ids.map(id => db.deletePage(id)))
+  }
+
+  async function reorderPages(updates: { id: string; order: number }[]) {
+    try {
+      await db.updatePagesOrder(updates)
+      for (const update of updates) {
+        const page = pages.value.find(p => p.id === update.id)
+        if (page) {
+          page.order = update.order
+        }
+      }
+      pages.value.sort((a, b) => a.order - b.order)
+    } catch (error) {
+      storeLogger.error('[Pages Store] Failed to reorder pages in DB:', error)
+    }
+  }
+
+  async function addFiles() {
+    try {
+      const files = await fileAddService.triggerFileSelect()
+      if (!files || files.length === 0) return { success: false, error: 'No files selected' }
+
+      const result = await fileAddService.processFiles(files)
+      if (result.success && result.pages) {
+        for (const pageData of result.pages) {
+          const page = await addPage(pageData)
+          await savePageToDB(page)
+        }
+      }
+      return result
+    } catch (error) {
+      storeLogger.error('[Pages Store] Error adding files:', error)
+      return { success: false, error: 'Failed to add files' }
+    }
+  }
+
+  function pageToDBPage(page: Page): Omit<DBPage, 'id'> {
+    return {
+      fileName: page.fileName,
+      fileSize: page.fileSize,
+      fileType: page.fileType,
+      origin: page.origin,
+      status: page.status,
+      progress: page.progress,
+      ocrText: page.ocrText,
+      ocrConfidence: page.ocrConfidence,
+      thumbnailData: page.thumbnailData,
+      width: page.width,
+      height: page.height,
+      outputs: JSON.parse(JSON.stringify(page.outputs)),
+      logs: JSON.parse(JSON.stringify(page.logs)),
+      createdAt: page.createdAt,
+      updatedAt: page.updatedAt,
+      processedAt: page.processedAt,
+      order: page.order
+    }
+  }
+
+  function dbPageToPage(dbPage: DBPage): Page {
+    return {
+      ...dbPage,
+      createdAt: dbPage.createdAt || new Date(),
+      updatedAt: dbPage.updatedAt || new Date(),
+      outputs: dbPage.outputs || [],
+      logs: dbPage.logs || []
+    }
+  }
+
   function setupPDFEventListeners() {
-    // Handle page queued (created in DB but not yet rendered)
     pdfEvents.on('pdf:page:queued', async ({ pageId }) => {
-      // Check if page already exists in store
       if (pages.value.some(p => p.id === pageId)) return
 
       try {
@@ -521,7 +416,6 @@ export const usePagesStore = defineStore('pages', () => {
         if (dbPage) {
           const page = dbPageToPage(dbPage)
           pages.value.push(page)
-          // Sort pages array by order
           pages.value.sort((a, b) => a.order - b.order)
           storeLogger.info(`[Pages Store] Loaded queued page from DB: ${pageId}`)
         }
@@ -530,7 +424,6 @@ export const usePagesStore = defineStore('pages', () => {
       }
     })
 
-    // Handle page rendering started
     pdfEvents.on('pdf:page:rendering', ({ pageId }) => {
       updatePageStatus(pageId, 'rendering')
       addPageLog(pageId, {
@@ -539,21 +432,16 @@ export const usePagesStore = defineStore('pages', () => {
       })
     })
 
-    // Handle page rendering completed
     pdfEvents.on('pdf:page:done', async ({ pageId, thumbnailData, width, height, fileSize }) => {
-      // Check if page exists in store, if not, load it from database
       let page = pages.value.find(p => p.id === pageId)
 
       if (!page) {
-        // Page not found in store, load from database
         try {
           const dbPage = await db.getPage(pageId)
           if (dbPage) {
             page = dbPageToPage(dbPage)
             pages.value.push(page)
-            // Sort pages array by order to maintain correct sequence
             pages.value.sort((a, b) => a.order - b.order)
-            storeLogger.info(`[Pages Store] Loaded new page from DB: ${pageId} and sorted`)
           }
         } catch (error) {
           storeLogger.error(`[Pages Store] Failed to load page ${pageId} from DB:`, error)
@@ -561,7 +449,6 @@ export const usePagesStore = defineStore('pages', () => {
       }
 
       if (page) {
-        // Update page with thumbnail and size
         updatePage(pageId, {
           status: 'ready',
           progress: 100,
@@ -575,14 +462,11 @@ export const usePagesStore = defineStore('pages', () => {
           level: 'success',
           message: 'Page rendered successfully'
         })
-
-        storeLogger.info(`[Pages Store] Updated page ${pageId} with thumbnail`)
       } else {
         storeLogger.error(`[Pages Store] Page ${pageId} not found in store or database`)
       }
     })
 
-    // Handle page rendering error
     pdfEvents.on('pdf:page:error', ({ pageId, error }) => {
       updatePageStatus(pageId, 'error')
       addPageLog(pageId, {
@@ -591,13 +475,11 @@ export const usePagesStore = defineStore('pages', () => {
       })
     })
 
-    // Handle processing progress
     pdfEvents.on('pdf:progress', ({ done, total }) => {
       pdfProcessing.value.completed = done
       pdfProcessing.value.total = total
     })
 
-    // Handle PDF processing start
     pdfEvents.on('pdf:processing-start', ({ file, totalPages }) => {
       pdfProcessing.value.active = true
       pdfProcessing.value.total = totalPages
@@ -605,50 +487,33 @@ export const usePagesStore = defineStore('pages', () => {
       pdfProcessing.value.currentFile = file.name
     })
 
-    // Handle PDF processing complete
     pdfEvents.on('pdf:processing-complete', () => {
       pdfProcessing.value.active = false
       pdfProcessing.value.currentFile = undefined
     })
 
-    // Handle PDF processing error
-    pdfEvents.on('pdf:processing-error', ({ file, error }) => {
-      storeLogger.error(`PDF processing error for ${file.name}:`, error)
+    pdfEvents.on('pdf:log', ({ pageId, message, level }) => {
+      addPageLog(pageId, { level: level || 'info', message })
     })
 
-    // Handle PDF logs
-    pdfEvents.on('pdf:log', ({ pageId, message, level }) => {
-      addPageLog(pageId, {
-        level,
-        message
-      })
+    pdfEvents.on('pdf:processing-error', ({ file, error }) => {
+      storeLogger.error(`[Pages Store] Global PDF processing error for ${file?.name}:`, error)
     })
   }
 
-  // Setup event listeners when store is created
   setupPDFEventListeners()
 
-  // Helper
-  function generateId(): string {
-    return `page_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
-  }
-
   return {
-    // State
     pages,
     selectedPageIds,
     processingQueue,
     pdfProcessing,
-
-    // Getters
     pagesByStatus,
     selectedPages,
     processingPages,
     completedPages,
     totalPages,
     overallProgress,
-
-    // Actions
     addPage,
     updatePage,
     updatePageProgress,
@@ -669,20 +534,12 @@ export const usePagesStore = defineStore('pages', () => {
     addToProcessingQueue,
     removeFromProcessingQueue,
     reset,
-
-    // Database actions
     loadPagesFromDB,
     savePageToDB,
     deletePageFromDB,
     deletePagesFromDB,
-
-    // Reordering actions
     reorderPages,
-
-    // File add actions
     addFiles,
-
-    // PDF specific actions
     setupPDFEventListeners
   }
 })

@@ -31,7 +31,7 @@ describe('FileAddService', () => {
         vi.mocked(db.savePageImage).mockResolvedValue(undefined as any)
 
         // Reset URL.createObjectURL
-        global.URL.createObjectURL = vi.fn(() => 'mock-url')
+        window.URL.createObjectURL = vi.fn((file: any) => `mock-url-${file?.name || 'unknown'}`)
     })
 
     describe('File validation', () => {
@@ -93,69 +93,151 @@ describe('FileAddService', () => {
     })
 
     describe('Image processing', () => {
-        let spyDimensions: any, spyThumb: any, spyBase64: any
-
         beforeEach(() => {
-            spyDimensions = vi.spyOn(fileAddService as any, 'getImageDimensions')
-                .mockResolvedValue({ width: 1000, height: 500 })
-            spyThumb = vi.spyOn(fileAddService as any, 'generateThumbnail')
-                .mockResolvedValue('data:image/jpeg;base64,mock_thumb')
-            spyBase64 = vi.spyOn(fileAddService as any, 'fileToBase64')
-                .mockResolvedValue('data:image/jpeg;base64,full_data')
+            // Setup global mocks for browser APIs used in private methods
+            (window as any).Image = class {
+                onload: any = null
+                onerror: any = null
+                _src: string = ''
+                width: number = 100
+                height: number = 100
+                set src(s: string) {
+                    this._src = s
+                    setTimeout(() => {
+                        if (s && s.includes('fail')) {
+                            if (this.onerror) this.onerror()
+                        } else {
+                            if (this.onload) this.onload()
+                        }
+                    }, 0)
+                }
+                get src() { return this._src }
+            };
+
+            // Mock FileReader
+            (window as any).FileReader = class {
+                onload: any = null
+                onerror: any = null
+                result: any = null
+                readAsDataURL(file: File) {
+                    setTimeout(() => {
+                        if (file.name === 'fail.png') {
+                            if (this.onerror) this.onerror()
+                        } else {
+                            this.result = `data:${file.type};base64,mocked_base64`
+                            if (this.onload) this.onload()
+                        }
+                    }, 0)
+                }
+            };
+
+            // Mock Canvas
+            const mockCanvas = {
+                getContext: () => ({
+                    drawImage: vi.fn()
+                }),
+                toDataURL: () => 'data:image/jpeg;base64,mock_thumb',
+                width: 0,
+                height: 0
+            }
+            vi.spyOn(document, 'createElement').mockImplementation((tag) => {
+                if (tag === 'canvas') return mockCanvas as any
+                if (tag === 'input') return { type: '', accept: '', multiple: false, click: vi.fn(), onchange: null } as any
+                return {} as any
+            })
         })
 
         afterEach(() => {
-            spyDimensions.mockRestore()
-            spyThumb.mockRestore()
-            spyBase64.mockRestore()
+            vi.restoreAllMocks()
         })
 
-        it('corrupted images should be skipped and throw error', async () => {
-            spyDimensions.mockRejectedValue(new Error('Format error'))
-            const mockImg = new File([''], 'corrupt.jpg', { type: 'image/jpeg' })
-            
-            const result = await fileAddService.processFiles([mockImg])
-
-            expect(result.pages).toHaveLength(0)
-            expect(result.error).toContain('Format error')
-            expect(result.success).toBe(false)
-        })
-
-        it('should process images and generate Page objects', async () => {
+        it('should process images using real implementation of private methods', async () => {
             const mockImg = new File([''], 'photo.jpg', { type: 'image/jpeg' })
             const result = await fileAddService.processFiles([mockImg])
 
             expect(result.pages.length).toBe(1)
-            expect(result.pages[0]?.width).toBe(1000)
             expect(result.pages[0]?.thumbnailData).toBe('data:image/jpeg;base64,mock_thumb')
+            expect(result.pages[0]!.width).toBe(100)
+            expect(result.pages[0]!.height).toBe(100)
         })
 
-        it('if thumbnails are disabled, should use base64 directly', async () => {
+        it('corrupted images should be skipped and throw error', async () => {
+            const mockImg = new File([''], 'fail.jpg', { type: 'image/jpeg' })
+
+            const result = await fileAddService.processFiles([mockImg])
+
+            expect(result.pages).toHaveLength(0)
+            expect(result.error).toContain('Failed to load image')
+            expect(result.success).toBe(false)
+        })
+
+        it('if thumbnails are disabled, should use base64 fallback', async () => {
             const mockImg = new File([''], 'photo.jpg', { type: 'image/jpeg' })
             const result = await fileAddService.processFiles([mockImg], { generateThumbnails: false })
 
-            expect(result.pages[0]?.thumbnailData).toBe('data:image/jpeg;base64,full_data')
-            expect(spyThumb).not.toHaveBeenCalled()
+            expect(result.pages[0]?.thumbnailData).toBe('data:image/jpeg;base64,mocked_base64')
         })
 
         it('if thumbnail generation fails, should fall back to base64', async () => {
-            spyThumb.mockRejectedValue(new Error('Thumb failed'))
+            // Force thumbnail generation failure by making canvas creation fail or image loading for thumb fail
+            // Here we can just mock generateThumbnail once to test the fallback logic in processImageFile
+            const spyThumb = vi.spyOn(fileAddService as any, 'generateThumbnail').mockRejectedValue(new Error('Thumb failed'))
 
             const mockImg = new File([''], 'photo.jpg', { type: 'image/jpeg' })
             const result = await fileAddService.processFiles([mockImg])
 
-            expect(result.pages[0]?.thumbnailData).toBe('data:image/jpeg;base64,full_data')
+            expect(result.pages[0]?.thumbnailData).toBe('data:image/jpeg;base64,mocked_base64')
+            spyThumb.mockRestore()
+        })
+
+        it('fileToBase64 failure branch', async () => {
+            // Mock getImageDimensions to succeed so we can reach fileToBase64
+            vi.spyOn(fileAddService as any, 'getImageDimensions').mockResolvedValue({ width: 100, height: 100 })
+            // Mock fileToBase64 to fail
+            vi.spyOn(fileAddService as any, 'fileToBase64').mockRejectedValue(new Error('Failed to read file'))
+
+            const mockImg = new File(['fake data'], 'fail.png', { type: 'image/png' })
+            const result = await fileAddService.processFiles([mockImg], { generateThumbnails: false })
+
+            expect(result.success).toBe(false)
+            expect(result.error).toMatch(/Failed to read file/)
+        })
+
+        it('fileToBase64 non-string result branch', async () => {
+            // Mock getImageDimensions to succeed
+            vi.spyOn(fileAddService as any, 'getImageDimensions').mockResolvedValue({ width: 100, height: 100 })
+
+            function MockFileReader(this: any) {
+                this.readAsDataURL = function () {
+                    setTimeout(() => {
+                        this.result = new ArrayBuffer(0) // Non-string result
+                        if (this.onload) this.onload()
+                    }, 0)
+                }
+                this.onload = null
+                this.onerror = null
+                this.result = null
+            }
+            vi.stubGlobal('FileReader', MockFileReader)
+
+            const mockImg = new File(['fake data'], 'fail.png', { type: 'image/png' })
+            const result = await fileAddService.processFiles([mockImg], { generateThumbnails: false })
+
+            expect(result.success).toBe(false)
+            expect(result.error).toMatch(/Failed to convert file to base64/)
+
+            vi.unstubAllGlobals()
         })
 
         it('DB save failure should not interrupt the process', async () => {
             const { db } = await import('@/db/index')
             vi.mocked(db.savePageImage).mockRejectedValue(new Error('DB error'))
 
-            const mockImg = new File([''], 'photo.jpg', { type: 'image/jpeg' })
+            const mockImg = new File(['fake data'], 'photo.jpg', { type: 'image/jpeg' })
             const result = await fileAddService.processFiles([mockImg])
 
             expect(result.pages.length).toBe(1)
-            expect(result.pages[0].id).toBe('mock-page-id')
+            expect(result.pages[0]?.id).toBe('mock-page-id')
         })
     })
 
@@ -179,16 +261,16 @@ describe('FileAddService', () => {
             const result = await fileAddService.processFiles([mockFile])
 
             expect(result.success).toBe(false)
-            expect(result.error).toContain('empty or corrupted')
+            expect(result.error).toMatch(/empty or corrupted/)
         })
     })
 
     describe('Mixed processing', () => {
         it('when partially successful and partially failed, success should be false', async () => {
-            // Need to mock canvas logic that might cause timeouts
-            const s1 = vi.spyOn(fileAddService as any, 'getImageDimensions').mockResolvedValue({ width: 100, height: 100 })
-            const s2 = vi.spyOn(fileAddService as any, 'generateThumbnail').mockResolvedValue('data:mock_thumb')
-            const s3 = vi.spyOn(fileAddService as any, 'fileToBase64').mockResolvedValue('data:mock_full')
+            // Mock what's needed for the image to succeed
+            vi.spyOn(fileAddService as any, 'generateThumbnail').mockResolvedValue('data:mock_thumb')
+            vi.spyOn(fileAddService as any, 'fileToBase64').mockResolvedValue('data:mock_full')
+            vi.spyOn(fileAddService as any, 'getImageDimensions').mockResolvedValue({ width: 100, height: 100 })
 
             const validImg = new File([''], 'ok.png', { type: 'image/png' })
             const invalidFile = new File([''], 'bad.txt', { type: 'text/plain' })
@@ -198,10 +280,15 @@ describe('FileAddService', () => {
             expect(result.pages).toHaveLength(1)
             expect(result.success).toBe(false)
             expect(result.error).toBeDefined()
+        })
 
-            s1.mockRestore()
-            s2.mockRestore()
-            s3.mockRestore()
+        it('should hit the unsupported file branch if validation is bypassed or allowedTypes includes it', async () => {
+            const txtFile = new File([''], 'test.txt', { type: 'text/plain' })
+            // Pass allowedTypes to pass validation but it's not handled in the if/else logic
+            const result = await fileAddService.processFiles([txtFile], { allowedTypes: ['text/plain'] })
+
+            expect(result.success).toBe(false)
+            expect(result.error).toMatch(/Skipping unsupported file/)
         })
     })
 
