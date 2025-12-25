@@ -18,7 +18,7 @@ description: E2E test development workflow using Playwright. Use this for creati
 // turbo
 1. **运行所有单元测试**
    ```bash
-   npm run test:unit
+   npm run test:unit -- --run
    ```
    - ❌ 如果测试失败，**报告用户并询问**：是否需要先修复？
 
@@ -32,7 +32,7 @@ description: E2E test development workflow using Playwright. Use this for creati
 // turbo
 3. **验证覆盖率和复杂度**
    ```bash
-   npm run test:unit -- --coverage
+   npm run test:unit -- --run --coverage
    npm run lint:complexity
    ```
    - ❌ 如果阈值未达标，**报告用户并询问**：是否需要先修复？
@@ -123,7 +123,7 @@ description: E2E test development workflow using Playwright. Use this for creati
 // turbo
 2. **运行所有单元测试（确保无回归）**
    ```bash
-   npm run test:unit
+   npm run test:unit -- --run
    ```
    - ❌ 所有测试必须通过
    - 如果单元测试失败 → 切换到 `/dev` 流程修复
@@ -131,7 +131,7 @@ description: E2E test development workflow using Playwright. Use this for creati
 // turbo
 3. **验证覆盖率和复杂度**
    ```bash
-   npm run test:unit -- --coverage
+   npm run test:unit -- --run --coverage
    npm run lint:complexity
    ```
    - 引用 `/dev` 的质量门禁标准

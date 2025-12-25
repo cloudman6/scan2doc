@@ -18,7 +18,7 @@ description: TDD development workflow with pre-check and post-verification gates
 // turbo
 1. **运行所有单元测试**
    ```bash
-   npm run test:unit
+   npm run test:unit -- --run
    ```
    - ❌ 如果测试失败，**报告用户并询问**：是否需要先修复这些失败的测试？用户可以选择：
      - **修复**：先修复失败的测试，再继续新任务
@@ -34,7 +34,7 @@ description: TDD development workflow with pre-check and post-verification gates
 // turbo
 3. **验证覆盖率阈值**
    ```bash
-   npm run test:unit -- --coverage
+   npm run test:unit -- --run --coverage
    ```
    - **覆盖率阈值**（来自 `vitest.config.ts`）：
      - 行覆盖率：>= 90%
@@ -101,7 +101,7 @@ description: TDD development workflow with pre-check and post-verification gates
 2. 使用 `it.only(...)` 或 `describe.only(...)` 聚焦于特定测试
 3. 确认它因预期原因失败：
    ```bash
-   npm run test:unit -- <file-path>
+   npm run test:unit -- --run <file-path>
    ```
 
 ### 绿色阶段：最小实现
@@ -116,7 +116,7 @@ description: TDD development workflow with pre-check and post-verification gates
 2. 如果复杂度过高，将函数拆分为**纯逻辑**和**非纯 I/O**
 3. 运行本地覆盖率检查：
    ```bash
-   npm run test:unit -- <file-path> --coverage
+   npm run test:unit -- --run <file-path> --coverage
    ```
 
 **重复 TDD 循环直到功能/修复完成。**
@@ -134,7 +134,7 @@ description: TDD development workflow with pre-check and post-verification gates
 // turbo
 2. **运行所有单元测试**
    ```bash
-   npm run test:unit
+   npm run test:unit -- --run
    ```
    - ❌ 所有测试必须通过。零回归策略。
 
@@ -148,7 +148,7 @@ description: TDD development workflow with pre-check and post-verification gates
 // turbo
 4. **验证覆盖率阈值**
    ```bash
-   npm run test:unit -- --coverage
+   npm run test:unit -- --run --coverage
    ```
    - **覆盖率阈值**：
      - 行：>= 90%
@@ -262,12 +262,12 @@ it('循环测试', () => {
 
 | 阶段 | 命令 | 通过标准 |
 |------|------|----------|
-| 飞行前 | `npm run test:unit` | 全部通过（或用户选择继续） |
+| 飞行前 | `npm run test:unit -- --run` | 全部通过（或用户选择继续） |
 | 飞行前 | `npm run test:e2e` | 全部通过（或用户选择继续） |
-| 飞行前 | `npm run test:unit -- --coverage` | 覆盖率达标（或用户选择继续） |
+| 飞行前 | `npm run test:unit -- --run --coverage` | 覆盖率达标（或用户选择继续） |
 | 飞行前 | `npm run lint:complexity` | 复杂度达标（或用户选择继续） |
-| TDD | `npm run test:unit -- <file>` | 目标测试通过 |
-| 工作后 | `npm run test:unit` | 全部通过 |
+| TDD | `npm run test:unit -- --run <file>` | 目标测试通过 |
+| 工作后 | `npm run test:unit -- --run` | 全部通过 |
 | 工作后 | `npm run test:e2e` | 全部通过 |
-| 工作后 | `npm run test:unit -- --coverage` | 覆盖率达标 |
+| 工作后 | `npm run test:unit -- --run --coverage` | 覆盖率达标 |
 | 工作后 | `npm run lint:complexity` | 复杂度达标 |
