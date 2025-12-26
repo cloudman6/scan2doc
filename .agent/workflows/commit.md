@@ -17,7 +17,7 @@ description: Pipeline for validating quality gates before committing and pushing
 // turbo
 1. **运行所有单元测试**
    ```bash
-   npm run test:unit
+   npm run test:unit -- --run
    ```
    - ❌ 如果测试失败，**报告用户并询问**：是否需要先修复？用户可以选择是（开始修复流程）或否（继续，不推荐）。
 
@@ -31,7 +31,7 @@ description: Pipeline for validating quality gates before committing and pushing
 // turbo
 3. **验证覆盖率阈值**
    ```bash
-   npm run test:unit -- --coverage
+   npm run test:unit -- --run --coverage
    ```
    - **质量门禁标准**：
      - 行覆盖率：>= 90%
@@ -139,8 +139,8 @@ description: Pipeline for validating quality gates before committing and pushing
 
 | 阶段 | 命令 | 用途 |
 |------|------|------|
-| 质量检查 | `npm run test:unit` | 验证单元测试 |
-| 覆盖率检查 | `npm run test:unit -- --coverage` | 验证覆盖率门禁 |
+| 质量检查 | `npm run test:unit -- --run` | 验证单元测试 |
+| 覆盖率检查 | `npm run test:unit -- --run --coverage` | 验证覆盖率门禁 |
 | 复杂度检查 | `npm run lint:complexity` | 验证代码质量门禁 |
 | 同步代码 | `git pull origin <branch>` | 防止推送冲突 |
 | 提交推送 | `git commit && git push` | 同步到远程仓库 |
