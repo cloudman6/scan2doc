@@ -77,7 +77,12 @@ import EmptyState from './components/common/EmptyState.vue'
 import { NLayout, NLayoutSider, NLayoutContent, createDiscreteApi } from 'naive-ui'
 
 const pagesStore = usePagesStore()
-const { message } = createDiscreteApi(['message'])
+const { message, dialog } = createDiscreteApi(['message', 'dialog'], {
+  configProviderProps: {},
+  messageProviderProps: {
+    placement: 'bottom-left'
+  }
+})
 
 
 
@@ -87,10 +92,6 @@ const currentPage = computed(() =>
   pagesStore.pages.find(p => p.id === selectedPageId.value) || null
 )
 const pageListRef = ref()
-
-// Simple toast notification replacement
-let undoTimeoutId: ReturnType<typeof setTimeout> | null = null
-let currentUndoCallback: (() => void) | null = null
 
 function handlePageSelected(page: Page) {
   // Get current selection state
@@ -108,119 +109,6 @@ function handlePageSelected(page: Page) {
   selectedPageId.value = page.id
 }
 
-// Simple toast notification function
-function showToast(message: string, type: 'info' | 'success' | 'error' = 'info', undoCallback?: () => void) {
-  uiLogger.info('showToast called:', { message, type, hasUndoCallback: !!undoCallback })
-
-  // Clear any existing toast and timeout first
-  const existingToast = document.getElementById('toast-notification')
-  if (existingToast) {
-    existingToast.remove()
-  }
-
-  if (undoTimeoutId) {
-    uiLogger.info('Clearing existing timeout:', undoTimeoutId)
-    clearTimeout(undoTimeoutId)
-    undoTimeoutId = null
-  }
-
-  // Clear any existing undo callback
-  currentUndoCallback = null
-
-  // Create toast element - position below page list on left side
-  const toast = document.createElement('div')
-  toast.id = 'toast-notification'
-  const colors: Record<string, string> = {
-    error: '#ef4444',
-    success: '#10b981',
-    info: '#3b82f6'
-  }
-  const bgColor = colors[type] || colors.info
-  toast.style.cssText = `
-    position: fixed;
-    bottom: 20px;
-    left: 10px; /* Position below page list (260px width + margin) */
-    background: ${bgColor};
-    color: white;
-    padding: 12px 16px;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    z-index: 1000;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    font-size: 14px;
-    max-width: 400px;
-  `
-
-  // Set duration based on type - success messages show for 2 seconds, others for 7 seconds
-  const duration = type === 'success' ? 2000 : 7000
-  uiLogger.info('Setting timeout duration:', duration, 'for type:', type)
-
-  const messageText = document.createElement('span')
-  messageText.textContent = message
-  toast.appendChild(messageText)
-
-  // Add undo button if callback provided
-  if (undoCallback) {
-    currentUndoCallback = undoCallback
-    const undoBtn = document.createElement('button')
-    undoBtn.textContent = 'Undo'
-    undoBtn.style.cssText = `
-      background: rgba(255, 255, 255, 0.2);
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      color: white;
-      padding: 4px 8px;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 12px;
-    `
-    undoBtn.onclick = () => {
-      uiLogger.info('Undo button clicked, currentUndoCallback:', !!currentUndoCallback)
-      if (currentUndoCallback) {
-        uiLogger.info('Calling undo callback...')
-        currentUndoCallback()
-        uiLogger.info('Undo callback executed, removing toast...')
-
-        // Clear the timeout using the stored ID
-        const storedTimeoutId = toast.getAttribute('data-timeout-id')
-        if (storedTimeoutId) {
-          const timeoutId = parseInt(storedTimeoutId)
-          uiLogger.info('Clearing timeout with stored ID:', timeoutId)
-          clearTimeout(timeoutId)
-        }
-
-        toast.remove()
-        currentUndoCallback = null
-        undoTimeoutId = null
-      }
-    }
-    toast.appendChild(undoBtn)
-  }
-
-  document.body.appendChild(toast)
-
-  // Auto dismiss after calculated duration
-  uiLogger.info('Setting timeout for duration:', duration)
-
-  // Store timeout ID in a data attribute on the toast element itself
-  const timeoutId = setTimeout(() => {
-    uiLogger.info('Timeout executed, removing toast:', message)
-    if (toast && toast.parentNode) {
-      toast.remove()
-    }
-    currentUndoCallback = null
-    // Clear the global timeout ID if it matches
-    if (undoTimeoutId === timeoutId) {
-      undoTimeoutId = null
-    }
-  }, duration)
-
-  // Store timeout ID on the toast element and in the global variable
-  toast.setAttribute('data-timeout-id', timeoutId.toString())
-  undoTimeoutId = timeoutId
-  uiLogger.info('Timeout set with ID:', timeoutId)
-}
 
 // Handle page deletion (unified with batch deletion)
 async function handlePageDeleted(page: Page) {
@@ -234,65 +122,51 @@ async function handleBatchDeleted(pages: Page[]) {
 
 // Unified deletion handler for both single and batch operations
 async function handleDeletion(pagesToDelete: Page[]) {
-  try {
-    const pageIds = pagesToDelete.map(page => page.id)
+  const isSingle = pagesToDelete.length === 1
+  const content = isSingle 
+    ? `Are you sure you want to delete "${pagesToDelete[0]!.fileName}"?`
+    : `Are you sure you want to delete ${pagesToDelete.length} selected pages?`
 
-    // Delete pages from store (this also stores them for undo)
-    const deletedResult = pagesStore.deletePages(pageIds)
+  dialog.warning({
+    title: 'Confirm Deletion',
+    content,
+    positiveText: 'Confirm',
+    negativeText: 'Cancel',
+    onPositiveClick: async () => {
+      try {
+        const pageIds = pagesToDelete.map(page => page.id)
 
-    if (deletedResult) {
-      // Delete from database using batch operation
-      await pagesStore.deletePagesFromDB(pageIds)
+        // Delete pages from store
+        const deletedResult = pagesStore.deletePages(pageIds)
 
-      // Create appropriate message
-      const isSingle = pagesToDelete.length === 1
-      const message = isSingle
-        ? `Page "${pagesToDelete[0]!.fileName}" deleted`
-        : `${pagesToDelete.length} pages deleted`
+        if (deletedResult) {
+          // Delete from database using batch operation
+          await pagesStore.deletePagesFromDB(pageIds)
 
-      // Show undo message using simple toast
-      showToast(message, 'info', handleUndoDelete)
+          // Create appropriate message
+          const successMsg = isSingle
+            ? `Page "${pagesToDelete[0]!.fileName}" deleted`
+            : `${pagesToDelete.length} pages deleted`
 
-      // Update current page if it was deleted
-      if (currentPage.value && pageIds.includes(currentPage.value.id)) {
-        selectedPageId.value = pagesStore.pages[0]?.id || null
-      }
+          // Show success message using Naive UI message
+          message.success(successMsg)
 
-      // Clear selection after deletion
-      pagesStore.clearSelection()
-    }
-  } catch (error) {
-    uiLogger.error('Delete failed:', error)
-    const isSingle = pagesToDelete.length === 1
-    showToast(`Failed to delete ${isSingle ? 'page' : 'pages'}`, 'error')
-  }
-}
+          // Update current page if it was deleted
+          if (currentPage.value && pageIds.includes(currentPage.value.id)) {
+            selectedPageId.value = pagesStore.pages[0]?.id || null
+          }
 
-// Handle undo delete (unified for both single and batch operations)
-async function handleUndoDelete() {
-  try {
-    const restoredResult = pagesStore.undoDelete()
-
-    if (restoredResult) {
-      const isSingle = !Array.isArray(restoredResult)
-      const restoredPages = isSingle ? [restoredResult] : restoredResult
-
-      const message = isSingle
-        ? `Page "${restoredResult.fileName}" restored`
-        : `${restoredPages.length} pages restored`
-
-      showToast(message, 'success')
-
-      // Update current page to the first restored page if no page is selected
-      if (!currentPage.value && restoredPages.length > 0) {
-        selectedPageId.value = restoredPages[0]!.id
+          // Clear selection after deletion
+          pagesStore.clearSelection()
+        }
+      } catch (error) {
+        uiLogger.error('Delete failed:', error)
+        message.error(`Failed to delete ${isSingle ? 'page' : 'pages'}`)
       }
     }
-  } catch (error) {
-    uiLogger.error('Undo failed:', error)
-    showToast('Failed to restore pages', 'error')
-  }
+  })
 }
+
 
 // Handle file add
 async function handleFileAdd() {

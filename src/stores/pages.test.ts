@@ -193,16 +193,8 @@ describe('Pages Store', () => {
             await store.deletePageFromDB('touch-id')
             expect(db.deletePage).toHaveBeenCalledWith('touch-id')
 
-            // Undo Save Reject context
-            const store2 = usePagesStore() // Fresh store
-            const id3 = 'id3'
-            await store2.addPage({ id: id3, fileName: 'f', fileSize: 0, fileType: '', origin: 'upload', status: 'ready', progress: 100, outputs: [], logs: [], order: 1 })
-            store2.deletePage(id3)
-            vi.mocked(db.savePage).mockRejectedValueOnce(new Error('Persistent Undo Fail'))
-            store2.undoDelete() // Trigger catch
-
-            store2.reset()
-            expect(store2.pages.length).toBe(0)
+            store.reset()
+            expect(store.pages.length).toBe(0)
         })
 
         it('loadPagesFromDB should handle errors', async () => {
@@ -233,15 +225,6 @@ describe('Pages Store', () => {
             expect(store.deletePages(['non-existent'])).toBeNull()
         })
 
-        it('undoDelete should handle save failures', async () => {
-            const store = usePagesStore()
-            await store.addPage({ id: '1', fileName: 'f1', fileSize: 0, fileType: '', origin: 'upload', status: 'ready', progress: 0, outputs: [], logs: [], order: 1 })
-            store.deletePage('1')
-
-            vi.mocked(db.savePage).mockRejectedValue(new Error('Undo Save Fail'))
-            store.undoDelete() // Promise in undoDelete isn't awaited but we hit the catch logic
-            expect(store.pages).toHaveLength(1)
-        })
 
         it('reset should clear all state', async () => {
             const store = usePagesStore()
@@ -250,46 +233,15 @@ describe('Pages Store', () => {
             expect(store.pages).toHaveLength(0)
         })
 
-        it('deletePage should move page to recentlyDeleted and set timeout', async () => {
+        it('deletePage should remove page from store', async () => {
             const store = usePagesStore()
             const id = 'id1'
             await store.addPage({ id, fileName: 'f.png', fileSize: 0, fileType: '', origin: 'upload', status: 'ready', progress: 0, outputs: [], logs: [] })
 
             store.deletePage(id)
             expect(store.pages).toHaveLength(0)
-
-            // Add another page and delete it to trigger clearing of previous timeout
-            const id2 = 'id2'
-            await store.addPage({ id: id2, fileName: 'f2.png', fileSize: 0, fileType: '', origin: 'upload', status: 'ready', progress: 0, outputs: [], logs: [] })
-            store.deletePage(id2) // Should clear previous timeout if it existed (though here id1 was already cleared by clearUndoCache internally? No, deletePages collects it)
-
-            // Test undo
-            store.undoDelete()
-            expect(store.pages).toHaveLength(1)
-            expect(store.pages[0]!.id).toBe('id2')
-
-            // Test timeout
-            store.deletePage(id2)
-            vi.advanceTimersByTime(7000)
-            expect(store.undoDelete()).toBeNull()
         })
 
-        it('undoDelete should restore pages in correct order', async () => {
-            const store = usePagesStore()
-            await store.addPage({ id: '1', fileName: 'f1.png', fileSize: 0, fileType: '', origin: 'upload', status: 'ready', progress: 0, outputs: [], logs: [], order: 1 })
-            await store.addPage({ id: '2', fileName: 'f2.png', fileSize: 0, fileType: '', origin: 'upload', status: 'ready', progress: 0, outputs: [], logs: [], order: 2 })
-            await store.addPage({ id: '3', fileName: 'f3.png', fileSize: 0, fileType: '', origin: 'upload', status: 'ready', progress: 0, outputs: [], logs: [], order: 3 })
-
-            expect(store.pages).toHaveLength(3)
-            store.deletePages(['1', '3'])
-            expect(store.pages).toHaveLength(1)
-            expect(store.pages[0]!.id).toBe('2')
-
-            store.undoDelete()
-            expect(store.pages).toHaveLength(3)
-            expect(store.pages.map(p => p.id)).toEqual(['1', '2', '3'])
-            expect(db.savePage).toHaveBeenCalledTimes(2)
-        })
 
         it('deleteAllPages should clear all relevant state', async () => {
             const store = usePagesStore()
@@ -612,32 +564,15 @@ describe('Pages Store', () => {
             vi.useRealTimers()
         })
 
-        it('deletePages should clear previous timeout on consecutive deletes', async () => {
+        it('deletePages should clear selection', async () => {
             const store = usePagesStore()
             await store.addPage({ id: '1', fileName: 'f1', fileSize: 0, fileType: '', origin: 'upload', status: 'ready', progress: 0, outputs: [], logs: [] })
-            await store.addPage({ id: '2', fileName: 'f2', fileSize: 0, fileType: '', origin: 'upload', status: 'ready', progress: 0, outputs: [], logs: [] })
+            store.selectPage('1')
 
             store.deletePage('1')
             expect(store.selectedPageIds).not.toContain('1')
-
-            // Should invoke clearTimeout internally
-            const clearTimeoutSpy = vi.spyOn(globalThis, 'clearTimeout')
-            store.deletePage('2')
-            expect(clearTimeoutSpy).toHaveBeenCalled()
         })
 
-        it('undoDelete should insert at correct index (middle)', async () => {
-            const store = usePagesStore()
-            await store.addPage({ id: '1', order: 10 } as unknown as import("@/db").DBPage)
-            await store.addPage({ id: '2', order: 20 } as unknown as import("@/db").DBPage) // To be deleted
-            await store.addPage({ id: '3', order: 30 } as unknown as import("@/db").DBPage)
-
-            store.deletePage('2')
-            expect(store.pages.map(p => p.id)).toEqual(['1', '3'])
-
-            store.undoDelete()
-            expect(store.pages.map(p => p.id)).toEqual(['1', '2', '3'])
-        })
 
         it('pdf:page:queued should ignore duplicate pages', async () => {
             const store = usePagesStore()

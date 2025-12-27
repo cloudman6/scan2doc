@@ -43,17 +43,11 @@ export interface Page {
   order: number
 }
 
-interface RecentlyDeleted {
-  pages: Page[]
-  timestamp: number
-  timeoutId?: number
-}
 
 export const usePagesStore = defineStore('pages', () => {
   // State
   const pages = ref<Page[]>([])
   const selectedPageIds = ref<string[]>([])
-  const recentlyDeleted = ref<RecentlyDeleted | null>(null)
   const processingQueue = ref<string[]>([])
   const pdfProcessing = ref({
     active: false,
@@ -209,19 +203,6 @@ export const usePagesStore = defineStore('pages', () => {
       return null
     }
 
-    // Store deleted pages for undo (with 7-second timeout)
-    if (recentlyDeleted.value?.timeoutId) {
-      clearTimeout(recentlyDeleted.value.timeoutId)
-    }
-
-    recentlyDeleted.value = {
-      pages: deletedPages,
-      timestamp: Date.now(),
-      timeoutId: setTimeout(() => {
-        clearUndoCache()
-      }, 7000) as unknown as number // 7 seconds
-    }
-
     // Remove pages from store (in reverse order to maintain correct indices)
     const sortedIndices = pageIds
       .map(pageId => pages.value.findIndex(page => page.id === pageId))
@@ -244,49 +225,6 @@ export const usePagesStore = defineStore('pages', () => {
     return Array.isArray(result) ? result[0] || null : result
   }
 
-  function undoDelete() {
-    if (recentlyDeleted.value) {
-      const { pages: deletedPages } = recentlyDeleted.value
-
-      if (recentlyDeleted.value.timeoutId) {
-        clearTimeout(recentlyDeleted.value.timeoutId)
-      }
-
-      for (const deletedPage of deletedPages) {
-        let insertIndex = pages.value.length
-        for (let i = 0; i < pages.value.length; i++) {
-          const currentPage = pages.value[i]
-          if (currentPage && currentPage.order > deletedPage.order) {
-            insertIndex = i
-            break
-          }
-        }
-        pages.value.splice(insertIndex, 0, deletedPage)
-      }
-
-      pages.value.sort((a, b) => a.order - b.order)
-
-      const savePromises = deletedPages.map(page =>
-        savePageToDB(page).catch(error => {
-          storeLogger.error('Failed to save restored page to database:', error)
-        })
-      )
-
-      Promise.all(savePromises)
-
-      clearUndoCache()
-
-      return deletedPages.length === 1 ? deletedPages[0] : deletedPages
-    }
-    return null
-  }
-
-  function clearUndoCache() {
-    if (recentlyDeleted.value?.timeoutId) {
-      clearTimeout(recentlyDeleted.value.timeoutId)
-    }
-    recentlyDeleted.value = null
-  }
 
   function deleteAllPages() {
     pages.value = []
@@ -533,8 +471,6 @@ export const usePagesStore = defineStore('pages', () => {
     deletePage,
     deletePages,
     deleteAllPages,
-    undoDelete,
-    clearUndoCache,
     addToProcessingQueue,
     removeFromProcessingQueue,
     reset,

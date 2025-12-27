@@ -112,19 +112,27 @@ test.describe('Page Deleting', () => {
             // Click delete button
             await targetPageItem.locator('button[title="Delete page"]').click();
 
+            // Verify confirmation dialog appears
+            const dialog = page.locator('.n-dialog');
+            await expect(dialog).toBeVisible();
+            await expect(dialog).toContainText('Confirm Deletion');
+
+            // Click Confirm in dialog
+            await dialog.locator('button').filter({ hasText: 'Confirm' }).click();
+
             // Verify page count decreased
             await expect(async () => {
                 expect(await page.locator('.page-item').count()).toBe(currentPageCount - 1);
             }).toPass({ timeout: 5000 });
 
-            // Verify toast appears
-            const toast = page.locator('#toast-notification');
-            await expect(toast).toBeVisible();
-            await expect(toast).toContainText('deleted');
-            await expect(toast.locator('button')).toContainText('Undo');
+            // Verify success message appears
+            // Naive UI message usually has .n-message class
+            const message = page.locator('.n-message');
+            await expect(message).toBeVisible();
+            await expect(message).toContainText('deleted');
 
-            // Wait for toast to auto-dismiss (increased timeout for reliability)
-            await expect(toast).not.toBeVisible({ timeout: 15000 });
+            // Wait for message to auto-dismiss
+            await expect(message).not.toBeVisible({ timeout: 10000 });
 
             // Reload page to verify persistence
             await page.reload();
@@ -146,65 +154,6 @@ test.describe('Page Deleting', () => {
         }
     });
 
-    test('should undo single page deletion and persist after reload', async ({ page }) => {
-        await page.goto('/');
-
-        await uploadTestFiles(page);
-
-        // Test undo on 2 different pages
-        for (let testIndex = 0; testIndex < 2; testIndex++) {
-            const currentPageCount = await page.locator('.page-item').count();
-            // eslint-disable-next-line sonarjs/pseudo-random
-            const targetIndex = Math.floor(Math.random() * (currentPageCount - 2)) + 1;
-            const targetPageItem = page.locator('.page-item').nth(targetIndex);
-
-            // Record the file name for verification
-            const fileName = await targetPageItem.locator('.page-name').textContent();
-
-            // Delete page
-            await targetPageItem.hover();
-            await targetPageItem.locator('button[title="Delete page"]').click();
-
-            // Verify deletion
-            await expect(async () => {
-                expect(await page.locator('.page-item').count()).toBe(currentPageCount - 1);
-            }).toPass({ timeout: 5000 });
-
-            // Verify toast
-            const toast = page.locator('#toast-notification');
-            await expect(toast).toBeVisible();
-
-            // Click Undo
-            await toast.locator('button').click();
-
-            // Verify page restored
-            await expect(async () => {
-                expect(await page.locator('.page-item').count()).toBe(currentPageCount);
-            }).toPass({ timeout: 5000 });
-
-            // Verify toast shows "restored"
-            await expect(toast).toContainText('restored');
-            await expect(toast).not.toBeVisible({ timeout: 5000 });
-
-            // Reload to verify persistence
-            await page.reload();
-            await page.waitForLoadState('networkidle');
-
-            const pageItemsAfterReload = page.locator('.page-item');
-            await expect(async () => {
-                expect(await pageItemsAfterReload.count()).toBe(currentPageCount);
-            }).toPass({ timeout: 10000 });
-
-            // Wait for all thumbnails
-            for (let i = 0; i < currentPageCount; i++) {
-                await expect(pageItemsAfterReload.nth(i).locator('.thumbnail-img'))
-                    .toBeVisible({ timeout: 30000 });
-            }
-
-            // Verify the restored page exists
-            await expect(page.locator('.page-name', { hasText: fileName || '' })).toBeVisible();
-        }
-    });
 
     test('should delete multiple pages and persist after reload', async ({ page }) => {
         await page.goto('/');
@@ -231,19 +180,27 @@ test.describe('Page Deleting', () => {
         // Click batch delete
         await deleteBtn.click();
 
+        // Verify confirmation dialog
+        const dialog = page.locator('.n-dialog');
+        await expect(dialog).toBeVisible();
+        await expect(dialog).toContainText(selectCount.toString());
+
+        // Confirm deletion
+        await dialog.locator('button').filter({ hasText: 'Confirm' }).click();
+
         // Verify page count decreased
         await expect(async () => {
             expect(await page.locator('.page-item').count()).toBe(totalPages - selectCount);
         }).toPass({ timeout: 5000 });
 
-        // Verify toast
-        const toast = page.locator('#toast-notification');
-        await expect(toast).toBeVisible();
-        await expect(toast).toContainText('pages deleted');
-        await expect(toast).toContainText(selectCount.toString());
+        // Verify success message
+        const message = page.locator('.n-message');
+        await expect(message).toBeVisible();
+        await expect(message).toContainText('pages deleted');
+        await expect(message).toContainText(selectCount.toString());
 
-        // Wait for toast to dismiss
-        await expect(toast).not.toBeVisible({ timeout: 10000 });
+        // Wait for message to dismiss
+        await expect(message).not.toBeVisible({ timeout: 10000 });
 
         // Reload to verify persistence
         await page.reload();
@@ -261,50 +218,6 @@ test.describe('Page Deleting', () => {
         }
     });
 
-    test('should undo batch deletion and persist after reload', async ({ page }) => {
-        await page.goto('/');
-
-        const totalPages = await uploadTestFiles(page);
-        const selectCount = Math.floor(totalPages / 3);
-        const selectedIndices = getRandomPageIndices(totalPages, selectCount);
-
-        // Select and delete pages
-        for (const index of selectedIndices) {
-            await page.locator('.page-item').nth(index).locator('.page-checkbox').click();
-        }
-
-        await page.locator('.delete-selected-btn').click();
-
-        await expect(async () => {
-            expect(await page.locator('.page-item').count()).toBe(totalPages - selectCount);
-        }).toPass({ timeout: 5000 });
-
-        // Click Undo
-        const toast = page.locator('#toast-notification');
-        await toast.locator('button').click();
-
-        // Verify all pages restored
-        await expect(async () => {
-            expect(await page.locator('.page-item').count()).toBe(totalPages);
-        }).toPass({ timeout: 5000 });
-
-        await expect(toast).toContainText('restored');
-        await expect(toast).not.toBeVisible({ timeout: 5000 });
-
-        // Reload to verify persistence
-        await page.reload();
-        await page.waitForLoadState('networkidle');
-
-        await expect(async () => {
-            expect(await page.locator('.page-item').count()).toBe(totalPages);
-        }).toPass({ timeout: 10000 });
-
-        // Wait for all thumbnails
-        for (let i = 0; i < totalPages; i++) {
-            await expect(page.locator('.page-item').nth(i).locator('.thumbnail-img'))
-                .toBeVisible({ timeout: 30000 });
-        }
-    });
 
     test('should delete all pages and show empty state', async ({ page }) => {
         await page.goto('/');
@@ -327,6 +240,11 @@ test.describe('Page Deleting', () => {
         // Click delete
         await page.locator('.delete-selected-btn').click();
 
+        // Confirm
+        const dialog = page.locator('.n-dialog');
+        await expect(dialog).toBeVisible();
+        await dialog.locator('button').filter({ hasText: 'Confirm' }).click();
+
         // Verify all pages deleted
         await expect(async () => {
             expect(await page.locator('.page-item').count()).toBe(0);
@@ -337,12 +255,12 @@ test.describe('Page Deleting', () => {
         await expect(emptyState).toBeVisible();
         await expect(page.getByText('Drop PDF or Images here to start')).toBeVisible();
 
-        // Verify toast
-        const toast = page.locator('#toast-notification');
-        await expect(toast).toBeVisible();
+        // Verify success message
+        const message = page.locator('.n-message');
+        await expect(message).toBeVisible();
 
-        // Wait for toast to dismiss
-        await expect(toast).not.toBeVisible({ timeout: 10000 });
+        // Wait for message to dismiss
+        await expect(message).not.toBeVisible({ timeout: 10000 });
 
         // Reload to verify empty state persists
         await page.reload();
@@ -352,43 +270,4 @@ test.describe('Page Deleting', () => {
         await expect(emptyState).toBeVisible();
     });
 
-    test('should undo delete all and restore all pages', async ({ page }) => {
-        await page.goto('/');
-
-        const totalPages = await uploadTestFiles(page);
-
-        // Select all and delete
-        await page.locator('.selection-toolbar .n-checkbox').click();
-        await page.locator('.delete-selected-btn').click();
-
-        // Verify all deleted
-        await expect(async () => {
-            expect(await page.locator('.page-item').count()).toBe(0);
-        }).toPass({ timeout: 5000 });
-
-        // Click Undo
-        const toast = page.locator('#toast-notification');
-        await toast.locator('button').click();
-
-        // Verify all restored
-        await expect(async () => {
-            expect(await page.locator('.page-item').count()).toBe(totalPages);
-        }).toPass({ timeout: 5000 });
-
-        await expect(toast).toContainText('restored');
-
-        // Reload to verify persistence
-        await page.reload();
-        await page.waitForLoadState('networkidle');
-
-        await expect(async () => {
-            expect(await page.locator('.page-item').count()).toBe(totalPages);
-        }).toPass({ timeout: 10000 });
-
-        // Wait for all thumbnails
-        for (let i = 0; i < totalPages; i++) {
-            await expect(page.locator('.page-item').nth(i).locator('.thumbnail-img'))
-                .toBeVisible({ timeout: 30000 });
-        }
-    });
 });

@@ -67,6 +67,11 @@ vi.mock('naive-ui', async () => {
         error: vi.fn(),
         success: vi.fn(),
         info: vi.fn()
+      },
+      dialog: {
+        warning: vi.fn(({ onPositiveClick }) => {
+          if (onPositiveClick) onPositiveClick()
+        })
       }
     }))
   }
@@ -153,24 +158,23 @@ describe('App.vue', () => {
     if (mockStore.clearSelection.mockReset) mockStore.clearSelection.mockReset()
 
 
-    // Setup discrete API mock
     mockMessage = {
       error: vi.fn(),
       success: vi.fn()
     }
-    vi.mocked(createDiscreteApi).mockReturnValue({ message: mockMessage } as MockDiscreteApi)
+    const mockDialog = {
+      warning: vi.fn(({ onPositiveClick }) => {
+        if (onPositiveClick) onPositiveClick()
+      })
+    }
+    vi.mocked(createDiscreteApi).mockReturnValue({ message: mockMessage, dialog: mockDialog } as any)
 
     vi.useFakeTimers()
-
-    document.body.innerHTML = ''
-    const existingToast = document.getElementById('toast-notification')
-    if (existingToast) existingToast.remove()
   })
 
   afterEach(() => {
     vi.useRealTimers()
     vi.clearAllMocks()
-    document.body.innerHTML = ''
   })
 
   it('mounts and loads pages from DB', async () => {
@@ -218,141 +222,73 @@ describe('App.vue', () => {
       mockStore.pages = [mockPage]
     })
 
-    it('handles single page deletion', async () => {
+    it('handles single page deletion after confirmation', async () => {
       mockStore.deletePages.mockReturnValue(mockPage)
+      const mockDialog = {
+        warning: vi.fn(({ onPositiveClick }) => {
+          if (onPositiveClick) onPositiveClick()
+        })
+      }
+      vi.mocked(createDiscreteApi).mockReturnValue({ message: mockMessage, dialog: mockDialog } as any)
+
       const wrapper = mount(App)
 
       await (wrapper.vm as AppInstance).handlePageDeleted(mockPage as Page)
 
+      expect(mockDialog.warning).toHaveBeenCalled()
       expect(mockStore.deletePages).toHaveBeenCalledWith(['p1'])
       expect(mockStore.deletePagesFromDB).toHaveBeenCalledWith(['p1'])
-
-      const toast = document.getElementById('toast-notification')
-      expect(toast).toBeTruthy()
-      expect(toast?.textContent).toContain('Page "test.png" deleted')
+      expect(mockMessage.success).toHaveBeenCalledWith('Page "test.png" deleted')
     })
 
-    it('handles batch deletion', async () => {
+    it('handles batch deletion after confirmation', async () => {
       const pages: Partial<Page>[] = [mockPage, { id: 'p2', fileName: 'p2.png' }]
       mockStore.deletePages.mockReturnValue(pages)
+      const mockDialog = {
+        warning: vi.fn(({ onPositiveClick }) => {
+          if (onPositiveClick) onPositiveClick()
+        })
+      }
+      vi.mocked(createDiscreteApi).mockReturnValue({ message: mockMessage, dialog: mockDialog } as any)
+
       const wrapper = mount(App)
 
       await (wrapper.vm as AppInstance).handleBatchDeleted(pages as Page[])
 
-      const toast = document.getElementById('toast-notification')
-      expect(toast?.textContent).toContain('2 pages deleted')
+      expect(mockDialog.warning).toHaveBeenCalled()
+      expect(mockMessage.success).toHaveBeenCalledWith('2 pages deleted')
     })
 
-    it('triggers undo callback when Undo button clicked', async () => {
-      mockStore.deletePages.mockReturnValue(mockPage)
-      const wrapper = mount(App)
+    it('handles deletion cancel', async () => {
+      const mockDialog = {
+        warning: vi.fn(({ onNegativeClick }) => {
+          if (onNegativeClick) onNegativeClick()
+        })
+      }
+      vi.mocked(createDiscreteApi).mockReturnValue({ message: mockMessage, dialog: mockDialog } as any)
 
+      const wrapper = mount(App)
       await (wrapper.vm as AppInstance).handlePageDeleted(mockPage as Page)
 
-      const undoBtn = document.querySelector('#toast-notification button') as HTMLButtonElement
-
-      mockStore.undoDelete.mockReturnValue(mockPage)
-      undoBtn.click()
-
-      expect(mockStore.undoDelete).toHaveBeenCalled()
-
-      const toast = document.getElementById('toast-notification')
-      expect(toast?.textContent).toContain('Page "test.png" restored')
-    })
-
-    it('updates selectedPageId after undo if none selected (branch coverage)', async () => {
-      // Step 1: Force store to be empty so currentPage is null
-      mockStore.pages = []
-      const wrapper = mount(App)
-        ; (wrapper.vm as AppInstance).selectedPageId = null
-
-      const pages = [{ id: 'r1', fileName: 'r1.png' }]
-      mockStore.undoDelete.mockReturnValue(pages[0])
-
-        // Step 2: Simulate undo logic manually since we can't trigger private method easily
-        ; (wrapper.vm as AppInstance).showToast('Test', 'info', async () => {
-          const restored = await mockStore.undoDelete()
-          if (!(wrapper.vm as AppInstance).selectedPageId) {
-            ; (wrapper.vm as AppInstance).selectedPageId = restored.id
-          }
-        })
-
-      const btn = document.querySelector('#toast-notification button') as HTMLButtonElement
-      btn.click()
-      await flushPromises()
-
-      expect((wrapper.vm as AppInstance).selectedPageId).toBe('r1')
-    })
-
-
-    it('handles multiple pages restoration (branch coverage)', async () => {
-      mockStore.undoDelete.mockReturnValue([{ id: 'r1' }, { id: 'r2' }])
-
-      const wrapper = mount(App)
-        ; (wrapper.vm as AppInstance).showToast('Test', 'info', async () => {
-          const restored = await mockStore.undoDelete()
-          if (Array.isArray(restored)) {
-            ; (wrapper.vm as AppInstance).showToast(`${restored.length} pages restored`, 'success')
-          }
-        })
-
-      const btn = document.querySelector('#toast-notification button') as HTMLButtonElement
-      btn.click()
-      await flushPromises()
-
-      expect(document.getElementById('toast-notification')?.textContent).toContain('2 pages restored')
+      expect(mockStore.deletePages).not.toHaveBeenCalled()
     })
 
     it('handles deletion error', async () => {
       mockStore.deletePages.mockReturnValue(mockPage)
       mockStore.deletePagesFromDB.mockRejectedValue(new Error('Delete DB failed'))
+      const mockDialog = {
+        warning: vi.fn(({ onPositiveClick }) => {
+          if (onPositiveClick) onPositiveClick()
+        })
+      }
+      vi.mocked(createDiscreteApi).mockReturnValue({ message: mockMessage, dialog: mockDialog } as any)
+
       const wrapper = mount(App)
 
       await (wrapper.vm as AppInstance).handlePageDeleted(mockPage as Page)
 
-      const toast = document.getElementById('toast-notification')
-      expect(toast?.textContent).toContain('Failed to delete page')
+      expect(mockMessage.error).toHaveBeenCalledWith('Failed to delete page')
       expect(uiLogger.error).toHaveBeenCalled()
-    })
-
-    it('handles undo error', async () => {
-      const wrapper = mount(App)
-      mockStore.undoDelete.mockRejectedValue(new Error('Undo failed'))
-
-        ; (wrapper.vm as AppInstance).showToast('Trigger', 'info', async () => {
-          try {
-            await mockStore.undoDelete()
-          } catch (e) {
-            uiLogger.error('Failed to restore pages', e)
-          }
-        })
-
-      const undoBtn = document.querySelector('#toast-notification button') as HTMLButtonElement
-      undoBtn.click()
-      await flushPromises()
-
-      expect(uiLogger.error).toHaveBeenCalledWith('Failed to restore pages', expect.any(Error))
-    })
-
-    it('auto dismisses toast after timeout', async () => {
-      const wrapper = mount(App)
-        ; (wrapper.vm as AppInstance).showToast('Test', 'success')
-
-      expect(document.getElementById('toast-notification')).toBeTruthy()
-
-      vi.advanceTimersByTime(2000)
-      expect(document.getElementById('toast-notification')).toBeFalsy()
-    })
-
-    it('auto dismisses non-success toast after 7s', async () => {
-      const wrapper = mount(App)
-        ; (wrapper.vm as AppInstance).showToast('Test', 'info')
-
-      vi.advanceTimersByTime(2001)
-      expect(document.getElementById('toast-notification')).toBeTruthy()
-
-      vi.advanceTimersByTime(5000)
-      expect(document.getElementById('toast-notification')).toBeFalsy()
     })
   })
 
