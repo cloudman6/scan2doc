@@ -57,6 +57,11 @@ function getWorker(): Worker {
 function handleWorkerMessage(event: MessageEvent) {
   const response = event.data
 
+  if (response.type === 'started') {
+    handleRenderStarted(response.payload.pageId, response.payload.pageNumber)
+    return
+  }
+
   if (response.type === 'error') {
     handleRenderError(response.payload.pageId, response.payload.error)
     return
@@ -110,6 +115,12 @@ function processWorkerSuccess(response: WorkerResponse) {
   )
 }
 
+/**
+ * Handle render started notification from worker
+ */
+function handleRenderStarted(pageId: string, pageNumber: number): void {
+  queueLogger.info(`[PDF Render] Starting render for pageId: ${pageId}, pageNumber: ${pageNumber}`)
+}
 
 
 
@@ -411,7 +422,6 @@ export async function queuePDFPageRender(task: PDFRenderTask): Promise<void> {
 
   // Add to queue without awaiting - allow multiple pages and files to queue quickly
   pdfRenderQueue.add(async () => {
-    queueLogger.info(`[PDF Queue] Starting render for pageId: ${task.pageId}`)
     await renderPDFPage(task)
   })
 }
@@ -421,8 +431,6 @@ export async function queuePDFPageRender(task: PDFRenderTask): Promise<void> {
  */
 async function renderPDFPage(task: PDFRenderTask): Promise<void> {
   try {
-    queueLogger.info(`[PDF Render] Starting render for pageId: ${task.pageId}, pageNumber: ${task.pageNumber}`)
-
     // Update page status to rendering, but check if it still exists first
     const page = await db.getPage(task.pageId)
     if (!page) {

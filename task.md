@@ -5,9 +5,13 @@ Your task is NOT to implement this yet, but to fully understand and prepare.
 Here is exactly what I need implemented:
 
 ```
-tests/e2e/specs/file-processing.spec.ts 中增加如下测试用例：
-- 多文件上传: 一次性选择多个 PDF / 图片并验证列表生成顺序。
-- 重复上传: 验证上传同名或相同内容文件时的系统表现。
+增加如下测试用例：
+准备工作：添加包含各种类型的多个文件，请使用 tests/e2e/fixtures 中的 pdf/图片测试文件，pdf用 sample3.pdf,此文件页数较多，便于测试
+
+- 全部页面ready后拖拽改变顺序：当所有文件都加载完成，验证能通过点击缩图，拖拽改变顺序。刷新页面，确认顺序依然为拖拽后的顺序。
+- 部分页面ready后拖拽改变顺序：当部分文件加载完成，验证能通过点击ready的文件的缩图，拖拽改变顺序。刷新页面，确认顺序依然为拖拽后的顺序。
+- 部分页面ready后拖拽改变顺序：当部分文件加载完成，验证能通过点击非ready的文件的缩图，拖拽改变顺序。刷新页面，确认顺序依然为拖拽后的顺序。
+
 
 请使用 tests/e2e/fixtures 中的 pdf/图片测试文件
 ```

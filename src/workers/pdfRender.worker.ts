@@ -33,8 +33,16 @@ interface PDFErrorMessage {
   error: string
 }
 
+interface WorkerStartedMessage {
+  type: 'started'
+  payload: {
+    pageId: string
+    pageNumber: number
+  }
+}
+
 type WorkerMessage = PDFRenderMessage
-type WorkerResponse = PDFRenderResult | { type: 'error'; payload: PDFErrorMessage }
+type WorkerResponse = PDFRenderResult | WorkerStartedMessage | { type: 'error'; payload: PDFErrorMessage }
 
 // Polyfill global document for PDF.js internals that expect it even in workers
 if (typeof self !== 'undefined' && !self.document) {
@@ -138,6 +146,15 @@ async function renderPage(payload: PDFRenderMessage['payload']): Promise<PDFRend
   } = payload
 
   validateRenderInputs(payload)
+
+  // Notify main thread that rendering is starting
+  self.postMessage({
+    type: 'started',
+    payload: {
+      pageId,
+      pageNumber
+    }
+  })
 
   const loadingTask = pdfjsLib.getDocument({
     data: new Uint8Array(pdfData),

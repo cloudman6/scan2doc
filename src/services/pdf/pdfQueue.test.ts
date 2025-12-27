@@ -165,6 +165,29 @@ describe('pdfQueue', () => {
     expect(db.savePage).toHaveBeenCalledWith(expect.objectContaining({ status: 'error' }))
   })
 
+  it('worker: should handle started message', async () => {
+    await queuePDFPageRender({ pageId: 'p-started', pageNumber: 1, fileName: 'f.pdf', sourceId: 's1' })
+    expect(lastWorkerInstance).toBeTruthy()
+
+    // Simulate Worker sending started message
+    // @ts-expect-error: mocking internal onmessage call
+    lastWorkerInstance.onmessage({
+      data: {
+        type: 'started',
+        payload: {
+          pageId: 'p-started',
+          pageNumber: 1
+        }
+      }
+    } as any)
+
+    await vi.waitFor(() => {
+      expect(queueLogger.info).toHaveBeenCalledWith(
+        '[PDF Render] Starting render for pageId: p-started, pageNumber: 1'
+      )
+    })
+  })
+
   it('worker: should warn if success response has no imageBlob', async () => {
     await queuePDFPageRender({ pageId: 'p-no-blob', pageNumber: 1, fileName: 'f.pdf', sourceId: 's1' })
     expect(lastWorkerInstance).toBeTruthy()

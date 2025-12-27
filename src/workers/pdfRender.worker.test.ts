@@ -195,16 +195,20 @@ describe('pdfRender.worker', () => {
 
     await messageHandler(createEvent({ type: 'render', payload }));
 
-    // Verify PDF loading
-    expect(pdfjsLib.getDocument).toHaveBeenCalled();
-    expect(mockPdfDocument.getPage).toHaveBeenCalledWith(1);
-    expect(mockPage.getViewport).toHaveBeenCalledWith({ scale: 2.0 });
+    // Verify two messages sent: started + result
+    expect(postMessageMock).toHaveBeenCalledTimes(2);
 
-    // Verify Render
-    expect(mockPage.render).toHaveBeenCalled();
+    // Verify first message is 'started'
+    expect(postMessageMock).toHaveBeenNthCalledWith(1, {
+      type: 'started',
+      payload: {
+        pageId: 'page-123',
+        pageNumber: 1
+      }
+    });
 
-    // Verify Result
-    expect(postMessageMock).toHaveBeenCalledWith({
+    // Verify second message is result
+    expect(postMessageMock).toHaveBeenNthCalledWith(2, {
       pageId: 'page-123',
       imageBlob: expect.any(Blob),
       pageNumber: 1,
@@ -212,6 +216,14 @@ describe('pdfRender.worker', () => {
       height: 200,
       fileSize: expect.any(Number)
     });
+
+    // Verify PDF loading
+    expect(pdfjsLib.getDocument).toHaveBeenCalled();
+    expect(mockPdfDocument.getPage).toHaveBeenCalledWith(1);
+    expect(mockPage.getViewport).toHaveBeenCalledWith({ scale: 2.0 });
+
+    // Verify Render
+    expect(mockPage.render).toHaveBeenCalled();
 
     // Verify Cleanup
     expect(mockPage.cleanup).toHaveBeenCalled();
@@ -237,6 +249,14 @@ describe('pdfRender.worker', () => {
         pdfData: new ArrayBuffer(10),
       }
     }));
+
+    // Verify started message was sent
+    expect(postMessageMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'started',
+        payload: { pageId: 'p1', pageNumber: 1 }
+      })
+    );
 
     // Extract factory from getDocument call
     const params = pdfjsLib.getDocument.mock.calls[0][0];
@@ -289,6 +309,11 @@ describe('pdfRender.worker', () => {
       }
     }));
 
+    // Should send both started and result messages despite cleanup errors
+    expect(postMessageMock).toHaveBeenCalledTimes(2);
+    expect(postMessageMock).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'started' })
+    );
     expect(postMessageMock).toHaveBeenCalledWith(expect.objectContaining({ pageId: 'p1' }));
   });
 
@@ -347,6 +372,10 @@ describe('pdfRender.worker', () => {
       expect.stringContaining('Enhanced rendering failed'),
       expect.any(Error)
     );
+    // Should send started and result messages
+    expect(postMessageMock).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'started' })
+    );
     expect(postMessageMock).toHaveBeenCalledWith(expect.objectContaining({
       pageId: 'p1'
     }));
@@ -401,6 +430,11 @@ describe('pdfRender.worker', () => {
         fallbackFontFamily: 'Arial'
       }
     }));
+
+    // Verify started message was sent
+    expect(postMessageMock).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'started' })
+    );
 
     expect(postMessageMock).toHaveBeenCalledWith(expect.objectContaining({ pageId: 'p1' }));
   });
