@@ -22,7 +22,13 @@ description: E2E test development workflow using Playwright. Use this for creati
 > 引用 `/dev` workflow 的阶段 0，确保项目处于健康状态。
 
 // turbo
-1. **运行所有单元测试**
+1. **清理环境（防止进程残留）**
+   ```bash
+   npm run test:e2e:cleanup
+   ```
+
+// turbo
+2. **运行所有单元测试**
    ```bash
    npm run test:unit -- --run
    ```
@@ -166,6 +172,12 @@ description: E2E test development workflow using Playwright. Use this for creati
 4. **处理开发服务器**
    - **若为"复用模式"**（阶段 1 检测到已有服务器）→ 保持运行，不关闭
    - **若为"新启动模式"**（阶段 1 启动了新服务器）→ 关闭服务器
+
+// turbo
+5. **环境清理**
+   ```bash
+   npm run test:e2e:cleanup
+   ```
 
 ✅ **只有阶段 3 所有检查通过后，任务才算完成。**
 

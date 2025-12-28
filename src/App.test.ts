@@ -387,16 +387,6 @@ describe('App.vue', () => {
     })
   })
 
-  it('updates selectedPageId when pageListRef changes and no page is selected', async () => {
-    const wrapper = mount(App)
-    expect((wrapper.vm as AppInstance).selectedPageId).toBeNull()
-
-      ; (wrapper.vm as AppInstance).pageListRef = { currentPage: { id: 'p_auto' } as Page }
-    await flushPromises()
-
-    expect((wrapper.vm as AppInstance).selectedPageId).toBe('p_auto')
-  })
-
   it('handles resume processing error', async () => {
     const { pdfService } = await import('./services/pdf')
     vi.mocked(pdfService.resumeProcessing).mockRejectedValue(new Error('Resume failed'))

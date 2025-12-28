@@ -48,7 +48,7 @@
         <template #item="{ element: page }">
           <PageItem
             :page="page"
-            :is-active="page.id === currentPage?.id"
+            :is-active="page.id === selectedId"
             @click="selectPage"
             @delete="handlePageDeleted"
           />
@@ -108,6 +108,7 @@ import { NScrollbar, NEmpty, NCheckbox, NButton, NIcon } from 'naive-ui'
 
 const props = defineProps<{
   pages: Page[]
+  selectedId: string | null
 }>()
 
 const emit = defineEmits<{
@@ -117,7 +118,6 @@ const emit = defineEmits<{
 }>()
 
 const pagesStore = usePagesStore()
-const currentPage = ref<Page | null>(props.pages[0] || null)
 const isDeleteHovered = ref(false)
 
 // Local copy of pages for drag and drop
@@ -126,11 +126,6 @@ const localPages = ref<Page[]>([...props.pages])
 // Watch for changes in props.pages and update local copy
 watch(() => props.pages, (newPages) => {
   localPages.value = [...newPages]
-  
-  // Update current page if it's no longer in the list
-  if (currentPage.value && !newPages.find(p => p.id === currentPage.value?.id)) {
-    currentPage.value = newPages[0] || null
-  }
 }, { deep: true, immediate: true })
 
 // Computed properties for selection state
@@ -143,7 +138,6 @@ const isPartiallySelected = computed(() =>
 )
 
 function selectPage(page: Page) {
-  currentPage.value = page
   emit('pageSelected', page)
 }
 
@@ -187,15 +181,14 @@ async function handleDragEnd(event: DragEndEvent) {
   }
 }
 
-// Expose current page for parent components
-defineExpose({
-  currentPage: computed(() => currentPage.value)
-})
+// Expose nothing for now as currentPage is controlled by parent
+defineExpose({})
 </script>
 
 <style scoped>
 .page-list-container {
   display: flex;
+  padding: 8px 0 8px 8px;
   flex-direction: column;
   height: 100%;
 }

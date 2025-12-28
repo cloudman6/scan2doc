@@ -22,10 +22,11 @@
       :style="{
         position: 'absolute',
         top: '50%',
-        right: '4px',
+        right: '12px',
         transform: isDeleteHovered ? 'translateY(-50%) scale(1.1)' : 'translateY(-50%)',
         opacity: isPageHovered || isDeleteHovered ? 1 : 0,
-        transition: 'all 0.2s ease'
+        transition: 'all 0.2s ease',
+        zIndex: 10
       }"
       title="Delete page"
       @click.stop="handleDelete"
@@ -183,57 +184,93 @@ function getStatusType(status: Page['status']): 'success' | 'info' | 'warning' |
 <style scoped>
 .page-item {
   display: flex;
-  gap: 8px;
-  padding: 8px 8px 8px 0;
+  /* Layout & Box Model */
+  width: auto; /* Allow it to shrink */
+  max-width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  margin: 8px 16px 8px 0; /* Increased to 16px to clear scrollbar */
+  padding: 8px 8px 8px 0; 
+  
+  /* Borders & Background */
   background: white;
   border-radius: 8px;
+  border: 1px solid rgba(0,0,0,0.06);
+  border-left: 4px solid transparent; /* Active indicator space */
+  
+  /* Behavior */
   cursor: pointer;
-  border: 0px solid transparent;
-  transition: all 0.2s ease;
-  margin-right: 13px;
-  user-select: none; /* Prevent text selection during drag */
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
-  align-items: center;
 }
 
+/* Hover effect */
 .page-item:hover {
-  background: #F5F5F5;
+  background: #ffffff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
+  z-index: 1;
 }
 
-.page-item.active {
-  background: #D3E4F8;
+/* Active/Selected state */
+.page-item.active,
+.page-item.selected {
+  background: #ffffff;
+  border-left-color: #18A058; /* Highlight color */
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15); /* Soft blue shadow */
 }
 
+.page-item.active .page-name,
+.page-item.selected .page-name {
+  color: #3b82f6;
+  font-weight: 600;
+}
+
+/* Dragging state */
 .page-item.dragging {
-  transform: rotate(5deg);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  transform: rotate(2deg) scale(1.02);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.2);
   z-index: 1000;
-  opacity: 0.9;
+  opacity: 0.95;
+  background: #fafafa;
+  cursor: grabbing;
 }
 
-/* Drag and drop styles */
+/* Drag handle */
 .drag-handle {
   display: flex;
   align-items: center;
-  color: #9ca3af;
-  font-size: 12px;
+  color: #d1d5db;
+  font-size: 14px;
   cursor: grab;
-  padding: 0;
+  margin-left: 0; /* Reset margin */
+  margin-right: 4px; 
   user-select: none;
+  transition: color 0.2s;
+  width: 12px; /* Narrower width */
+  justify-content: center;
+}
+
+.page-item:hover .drag-handle {
+  color: #9ca3af; /* Darker on hover */
 }
 
 .drag-handle:active {
   cursor: grabbing;
 }
 
+/* Thumbnail area */
 .page-thumbnail {
   flex-shrink: 0;
   width: 48px;
   height: 64px;
+  margin-right: 4px;
   position: relative;
   overflow: hidden;
-  border-radius: 4px;
+  border-radius: 6px; /* Slightly softer corners */
   background: #f3f4f6;
+  border: 1px solid rgba(0,0,0,0.05);
 }
 
 .thumbnail-img {
@@ -241,8 +278,14 @@ function getStatusType(status: Page['status']): 'success' | 'info' | 'warning' |
   height: 100%;
   object-fit: cover;
   display: block;
+  transition: transform 0.3s ease;
 }
 
+.page-item:hover .thumbnail-img {
+  transform: scale(1.05); /* Subtle zoom on hover */
+}
+
+/* Status Placeholder */
 .status-placeholder {
   width: 100%;
   height: 100%;
@@ -251,15 +294,11 @@ function getStatusType(status: Page['status']): 'success' | 'info' | 'warning' |
   align-items: center;
   justify-content: center;
   position: relative;
-  background: #f3f4f6;
-}
-
-.status-placeholder.pending_render {
-  background: #f3f4f6;
+  background: #f9fafb;
 }
 
 .status-placeholder.rendering {
-  background: #ebf5ff;
+  background: #eff6ff;
 }
 
 .status-placeholder.error {
@@ -290,7 +329,7 @@ function getStatusType(status: Page['status']): 'success' | 'info' | 'warning' |
 }
 
 .status-label {
-  font-size: 8px;
+  font-size: 9px; /* Slightly larger */
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: #9ca3af;
@@ -317,7 +356,7 @@ function getStatusType(status: Page['status']): 'success' | 'info' | 'warning' |
   background: linear-gradient(
     90deg,
     rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.6) 50%,
+    rgba(255, 255, 255, 0.4) 50%,
     rgba(255, 255, 255, 0) 100%
   );
   background-size: 200% 100%;
@@ -340,6 +379,7 @@ function getStatusType(status: Page['status']): 'success' | 'info' | 'warning' |
   opacity: 0;
 }
 
+/* Text Meta Info */
 .page-meta {
   font-size: 12px;
   display: flex;
@@ -351,15 +391,17 @@ function getStatusType(status: Page['status']): 'success' | 'info' | 'warning' |
 
 .page-name {
   font-weight: 500;
-  color: #111;
+  color: #374151;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   margin-bottom: 2px;
+  padding-right: 24px; /* Space for delete button */
+  font-size: 13px;
 }
 
 .page-info {
-  color: #6b7280;
+  color: #9ca3af;
   font-size: 11px;
   margin-bottom: 4px;
 }
@@ -370,18 +412,14 @@ function getStatusType(status: Page['status']): 'success' | 'info' | 'warning' |
   margin-top: 2px;
 }
 
+/* Inputs */
 .page-checkbox {
   flex-shrink: 0;
   margin: 0;
+  margin-right: 8px; /* Gap to thumbnail */
   display: flex;
   align-items: center;
-  width: 15px;
-  height: 15px;
+  /* Visual alignment tweak if needed specifically for NCheckbox */
+  transform: translateX(-2px); 
 }
-
-.page-item.selected {
-  border-color: #6366f1;
-  background: #D3E4F8;
-}
-
 </style>

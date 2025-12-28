@@ -22,7 +22,13 @@ description: TDD development workflow with pre-check and post-verification gates
 在编写任何代码之前，验证项目处于健康状态。
 
 // turbo
-1. **运行所有单元测试**
+1. **清理环境（防止进程残留）**
+   ```bash
+   npm run test:e2e:cleanup
+   ```
+
+// turbo
+2. **运行所有单元测试**
    ```bash
    npm run test:unit -- --run
    ```

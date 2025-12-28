@@ -99,7 +99,7 @@ describe('PageList.vue', () => {
 
   it('renders a list of pages', () => {
     const wrapper = mount(PageList, {
-      props: { pages: mockPages },
+      props: { pages: mockPages, selectedId: null },
       global: {
         plugins: [pinia]
       }
@@ -113,7 +113,7 @@ describe('PageList.vue', () => {
 
   it('shows empty state when no pages are provided', () => {
     const wrapper = mount(PageList, {
-      props: { pages: [] },
+      props: { pages: [], selectedId: null },
       global: {
         plugins: [pinia]
       }
@@ -123,9 +123,9 @@ describe('PageList.vue', () => {
     expect(wrapper.find('.empty-state').text()).toContain('No pages added')
   })
 
-  it('marks the first page as active by default', () => {
+  it('marks the selected page as active', () => {
     const wrapper = mount(PageList, {
-      props: { pages: mockPages },
+      props: { pages: mockPages, selectedId: 'page-1' },
       global: {
         plugins: [pinia]
       }
@@ -136,9 +136,27 @@ describe('PageList.vue', () => {
     expect(items[1]!.classes()).not.toContain('active')
   })
 
-  it('emits pageSelected and updates active state when a page is clicked', async () => {
+  it('updates active state when selectedId prop changes', async () => {
     const wrapper = mount(PageList, {
-      props: { pages: mockPages },
+      props: { pages: mockPages, selectedId: 'page-1' },
+      global: {
+        plugins: [pinia]
+      }
+    })
+
+    let items = wrapper.findAll('.page-item-mock')
+    expect(items[0]!.classes()).toContain('active')
+
+    await wrapper.setProps({ selectedId: 'page-2' })
+    items = wrapper.findAll('.page-item-mock')
+
+    expect(items[0]!.classes()).not.toContain('active')
+    expect(items[1]!.classes()).toContain('active')
+  })
+
+  it('emits pageSelected when a page is clicked', async () => {
+    const wrapper = mount(PageList, {
+      props: { pages: mockPages, selectedId: 'page-1' },
       global: {
         plugins: [pinia]
       }
@@ -147,7 +165,6 @@ describe('PageList.vue', () => {
     const pageItems = wrapper.findAllComponents({ name: 'PageItem' })
     // Click second item
     await pageItems[1]!.trigger('click')
-    await wrapper.vm.$nextTick()
 
     const events = wrapper.emitted('pageSelected')
     expect(events).toBeTruthy()
@@ -159,7 +176,7 @@ describe('PageList.vue', () => {
 
   it('emits pageDeleted when delete event is received from PageItem', async () => {
     const wrapper = mount(PageList, {
-      props: { pages: mockPages },
+      props: { pages: mockPages, selectedId: null },
       global: {
         plugins: [pinia]
       }
@@ -177,7 +194,7 @@ describe('PageList.vue', () => {
 
   it('handles batch selection (select all / clear selection)', async () => {
     const wrapper = mount(PageList, {
-      props: { pages: mockPages },
+      props: { pages: mockPages, selectedId: null },
       global: {
         plugins: [pinia]
       }
@@ -197,7 +214,7 @@ describe('PageList.vue', () => {
 
   it('shows batch delete button only when pages are selected', async () => {
     const wrapper = mount(PageList, {
-      props: { pages: mockPages },
+      props: { pages: mockPages, selectedId: null },
       global: {
         plugins: [pinia]
       }
@@ -206,20 +223,7 @@ describe('PageList.vue', () => {
     // Initially no selection
     expect(wrapper.find('.delete-selected-btn').exists()).toBe(false)
 
-    // Select some pages
-    const store = usePagesStore()
-
-    store.selectedPageIds = ['page-1']
-
-    // We need to trigger a re-render because createTestingPinia doesn't always 
-    // trigger reactive updates automatically depending on how it's used.
-    // In Vue 3, computed based on pinia state should update.
-    await wrapper.vm.$nextTick()
-
-    // Since we are using createTestingPinia, we might need to update the prop or state manually if it's not reactive.
-    // Actually, createTestingPinia makes state reactive if stubActions is false, but default is true.
-    // Let's just re-mount with initial state to be sure or use a real store if needed.
-
+    // Select some pages via new store instance or just assume store behavior if already mocked
     const selectedPinia = createTestingPinia({
       initialState: {
         pages: {
@@ -229,7 +233,7 @@ describe('PageList.vue', () => {
     })
 
     const wrapper2 = mount(PageList, {
-      props: { pages: mockPages },
+      props: { pages: mockPages, selectedId: null },
       global: {
         plugins: [selectedPinia]
       }
@@ -245,18 +249,16 @@ describe('PageList.vue', () => {
           selectedPageIds: ['page-1', 'page-2']
         }
       },
-      stubActions: false // Allow getters like selectedPages to work if they exist
+      stubActions: false
     })
 
-    // Manually mock the getter for testing purpose as createTestingPinia handles state but getters might need help
     const store = usePagesStore(selectedPinia)
-
     Object.defineProperty(store, 'selectedPages', {
       get: () => mockPages
     })
 
     const wrapper = mount(PageList, {
-      props: { pages: mockPages },
+      props: { pages: mockPages, selectedId: null },
       global: {
         plugins: [selectedPinia]
       }
@@ -266,14 +268,13 @@ describe('PageList.vue', () => {
     const events = wrapper.emitted('batchDeleted')
     expect(events).toBeTruthy()
     if (events) {
-
       expect(events[0]!).toEqual([mockPages])
     }
   })
 
   it('updates local pages when props pages change', async () => {
     const wrapper = mount(PageList, {
-      props: { pages: mockPages },
+      props: { pages: mockPages, selectedId: null },
       global: { plugins: [pinia] }
     })
 
@@ -283,36 +284,9 @@ describe('PageList.vue', () => {
     expect(wrapper.findAllComponents({ name: 'PageItem' })).toHaveLength(3)
   })
 
-  it('resets current page if it is removed from pages prop', async () => {
-    const wrapper = mount(PageList, {
-      props: { pages: mockPages },
-      global: { plugins: [pinia] }
-    })
-
-    // Click second page to make it active
-    const pageItems = wrapper.findAllComponents({ name: 'PageItem' })
-    await pageItems[1]!.trigger('click')
-    await wrapper.vm.$nextTick()
-
-    // Check emitted event instead of internal state
-    const events = wrapper.emitted('pageSelected')
-    if (events && events[0]) {
-      expect((events[0][0] as Page).id).toBe('page-2')
-    }
-
-    // Remove page-2 from props
-    await wrapper.setProps({ pages: [mockPages[0]] })
-    await wrapper.vm.$nextTick()
-
-    // Check if first page is now active
-    const updatedItems = wrapper.findAllComponents({ name: 'PageItem' })
-    expect(updatedItems).toHaveLength(1)
-    expect(updatedItems[0]!.props('isActive')).toBe(true)
-  })
-
   it('calls reorderPages when drag ends at a different index', async () => {
     const wrapper = mount(PageList, {
-      props: { pages: mockPages },
+      props: { pages: mockPages, selectedId: null },
       global: { plugins: [pinia] }
     })
 
@@ -330,7 +304,7 @@ describe('PageList.vue', () => {
 
   it('does not call reorderPages if drag ends at same index', async () => {
     const wrapper = mount(PageList, {
-      props: { pages: mockPages },
+      props: { pages: mockPages, selectedId: null },
       global: { plugins: [pinia] }
     })
 
@@ -347,7 +321,7 @@ describe('PageList.vue', () => {
       initialState: { pages: { selectedPageIds: ['page-1'] } }
     })
     const wrapper = mount(PageList, {
-      props: { pages: mockPages },
+      props: { pages: mockPages, selectedId: null },
       global: { plugins: [selectedPinia] }
     })
 
@@ -368,13 +342,12 @@ describe('PageList.vue', () => {
 
   it('renders empty state with icon when no pages', () => {
     const wrapper = mount(PageList, {
-      props: { pages: [] },
+      props: { pages: [], selectedId: null },
       global: { plugins: [pinia] }
     })
 
     const empty = wrapper.findComponent({ name: 'NEmpty' })
     expect(empty.exists()).toBe(true)
-    // Check if SVG icon in slot is rendered
     expect(wrapper.find('svg').exists()).toBe(true)
   })
 })

@@ -21,7 +21,13 @@ description: Pipeline for validating quality gates before committing and pushing
 > 引用 `/dev` workflow 的阶段 0，确保项目处于健康状态。
 
 // turbo
-1. **运行所有单元测试**
+1. **清理环境（防止进程残留）**
+   ```bash
+   npm run test:e2e:cleanup
+   ```
+
+// turbo
+2. **运行所有单元测试**
    ```bash
    npm run test:unit -- --run
    ```

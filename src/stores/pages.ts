@@ -44,6 +44,21 @@ export interface Page {
 }
 
 
+
+function waitForPDFQueuedPromise(timeout = 10000): Promise<void> {
+  return new Promise<void>((resolve) => {
+    const handler = () => {
+      pdfEvents.off('pdf:pages:queued', handler)
+      resolve()
+    }
+    pdfEvents.on('pdf:pages:queued', handler)
+    setTimeout(() => {
+      pdfEvents.off('pdf:pages:queued', handler)
+      resolve()
+    }, timeout)
+  })
+}
+
 export const usePagesStore = defineStore('pages', () => {
   // State
   const pages = ref<Page[]>([])
@@ -317,18 +332,7 @@ export const usePagesStore = defineStore('pages', () => {
           // Prepare a promise to wait for PDF pages to be queued if we detect PDF processing
           const pdfFiles = files!.filter(f => f.type === 'application/pdf')
           const waitForPDFQueued = pdfFiles.length > 0
-            ? new Promise<void>((resolve) => {
-              const handler = () => {
-                pdfEvents.off('pdf:pages:queued', handler)
-                resolve()
-              }
-              pdfEvents.on('pdf:pages:queued', handler)
-              // Safety timeout to avoid hanging for too long
-              setTimeout(() => {
-                pdfEvents.off('pdf:pages:queued', handler)
-                resolve()
-              }, 10000)
-            })
+            ? waitForPDFQueuedPromise()
             : Promise.resolve()
 
           for (const pageData of result.pages) {

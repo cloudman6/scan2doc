@@ -33,8 +33,8 @@
         >
           <div class="page-list-container">
             <PageList
-              ref="pageListRef"
               :pages="pagesStore.pages"
+              :selected-id="selectedPageId"
               @page-selected="handlePageSelected"
               @page-deleted="handlePageDeleted"
               @batch-deleted="handleBatchDeleted"
@@ -65,7 +65,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watchEffect, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { usePagesStore } from './stores/pages'
 import type { Page } from './stores/pages'
 import { uiLogger } from '@/utils/logger'
@@ -91,7 +91,6 @@ const selectedPageId = ref<string | null>(null)
 const currentPage = computed(() => 
   pagesStore.pages.find(p => p.id === selectedPageId.value) || null
 )
-const pageListRef = ref()
 
 function handlePageSelected(page: Page) {
   // Get current selection state
@@ -219,12 +218,17 @@ function handleDragOver(event: DragEvent) {
 }
 
 
-// Watch for page list updates and sync current page
-watchEffect(() => {
-  if (pageListRef.value && pageListRef.value.currentPage && !selectedPageId.value) {
-    selectedPageId.value = pageListRef.value.currentPage.id
+// Watch for changes in existing pages to keep selection valid
+// If the selected page is removed or ID changes (unlikely), reset selection
+watch(() => pagesStore.pages, (newPages) => {
+  if (selectedPageId.value && !newPages.find(p => p.id === selectedPageId.value)) {
+    // If selected page is gone, select the first available page or null
+    selectedPageId.value = newPages[0]?.id || null
+  } else if (!selectedPageId.value && newPages.length > 0) {
+    // If no page selected but pages exist (e.g. init load), select first
+    selectedPageId.value = newPages[0]!.id
   }
-})
+}, { deep: true })
 
 // Load pages from database on mount and resume PDF processing
 onMounted(async () => {
@@ -277,7 +281,7 @@ body {
 }
 
 .page-list-container {
-  padding: 8px;
+  padding: 0;
   height: 100%;
 }
 
