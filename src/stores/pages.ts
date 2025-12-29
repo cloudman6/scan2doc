@@ -32,7 +32,6 @@ export interface Page {
   status: PageStatus
   progress: number
   ocrText?: string
-  ocrConfidence?: number
   thumbnailData?: string
   width?: number
   height?: number
@@ -168,8 +167,8 @@ export const usePagesStore = defineStore('pages', () => {
     }
   }
 
-  function setOcrResult(id: string, text: string, confidence?: number) {
-    updatePage(id, { ocrText: text, ocrConfidence: confidence })
+  function setOcrResult(id: string, text: string) {
+    updatePage(id, { ocrText: text })
   }
 
   function addOutput(id: string, output: PageOutput) {
@@ -370,7 +369,6 @@ export const usePagesStore = defineStore('pages', () => {
       status: page.status,
       progress: page.progress,
       ocrText: page.ocrText,
-      ocrConfidence: page.ocrConfidence,
       thumbnailData: page.thumbnailData,
       width: page.width,
       height: page.height,
@@ -508,8 +506,7 @@ export const usePagesStore = defineStore('pages', () => {
     ocrEvents.on('ocr:success', ({ pageId, result }) => {
       updatePage(pageId, {
         status: 'ocr_success',
-        ocrText: result.text,
-        ocrConfidence: 1.0
+        ocrText: result.text
       })
 
       addPageLog(pageId, {

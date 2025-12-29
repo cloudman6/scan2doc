@@ -138,9 +138,8 @@ describe('Pages Store', () => {
             const store = usePagesStore()
             await store.addPage({ id: 'id1', fileName: 'f.png', fileSize: 0, fileType: '', origin: 'upload', status: 'ready', progress: 0, outputs: [], logs: [] })
 
-            store.setOcrResult('id1', 'hello world', 0.95)
+            store.setOcrResult('id1', 'hello world')
             expect(store.pages[0]!.ocrText).toBe('hello world')
-            expect(store.pages[0]!.ocrConfidence).toBe(0.95)
         })
 
         it('addOutput should append to outputs array', async () => {
@@ -175,7 +174,7 @@ describe('Pages Store', () => {
             expect(store.pages[0]!.status).toBe('rendering')
             expect(store.pages[0]!.progress).toBe(50)
 
-            store.setOcrResult('touch-id', 'text', 0.8)
+            store.setOcrResult('touch-id', 'text')
             expect(store.pages[0]!.ocrText).toBe('text')
 
             store.addPageLog('touch-id', { level: 'info', message: 'msg' })
@@ -378,7 +377,7 @@ describe('Pages Store', () => {
             vi.mocked(db.getPage).mockResolvedValue(dbPage)
 
             // Trigger event (setupPDFEventListeners is called in store constructor)
-            const queuedHandler = vi.mocked(pdfEvents.on).mock.calls.find(c => c[0] === 'pdf:page:queued')?.[1]
+            const queuedHandler = vi.mocked(pdfEvents.on).mock.calls.find(c => (c[0] as string) === 'pdf:page:queued')?.[1]
             await (queuedHandler as any)({ pageId: 'pdf-1' })
 
             expect(store.pages).toHaveLength(2)
@@ -396,7 +395,7 @@ describe('Pages Store', () => {
             // 1. Start PDF process (simulated)
             const dbPage = { id: 'pdf-1', fileName: 'test.pdf', order: 0 } as any
             vi.mocked(db.getPage).mockResolvedValue(dbPage)
-            const queuedHandler = vi.mocked(pdfEvents.on).mock.calls.find(c => c[0] === 'pdf:page:queued')?.[1]
+            const queuedHandler = vi.mocked(pdfEvents.on).mock.calls.find(c => (c[0] as string) === 'pdf:page:queued')?.[1]
             await (queuedHandler as any)({ pageId: 'pdf-1' })
 
             // 2. Add an Image while PDF is processing
@@ -443,7 +442,7 @@ describe('Pages Store', () => {
             const dbPage = { id: 'pdf-p1', fileName: 'f1', fileSize: 0, fileType: '', origin: 'upload', status: 'pending_render', progress: 0, order: 1, outputs: [], logs: [], createdAt: new Date(), updatedAt: new Date() }
             vi.mocked(db.getPage).mockResolvedValue(dbPage as unknown as import("@/db").DBPage)
 
-            const queuedHandler = vi.mocked(pdfEvents.on).mock.calls.find((call: unknown[]) => call[0] === 'pdf:page:queued')?.[1]
+            const queuedHandler = vi.mocked(pdfEvents.on).mock.calls.find((call: unknown[]) => (call[0] as string) === 'pdf:page:queued')?.[1]
             if (queuedHandler) {
                 await (queuedHandler as (arg: any) => Promise<void>)({ pageId: 'pdf-p1' })
                 expect(store.pages).toHaveLength(1)
@@ -455,7 +454,7 @@ describe('Pages Store', () => {
             const store = usePagesStore()
             store.setupPDFEventListeners()
             vi.mocked(db.getPage).mockRejectedValue(new Error('Queued Load Fail'))
-            const handler = vi.mocked(pdfEvents.on).mock.calls.find((call: unknown[]) => call[0] === 'pdf:page:queued')?.[1]
+            const handler = vi.mocked(pdfEvents.on).mock.calls.find((call: unknown[]) => (call[0] as string) === 'pdf:page:queued')?.[1]
             if (handler) {
                 await (handler as (arg: any) => Promise<void>)({ pageId: 'q-err' })
                 expect(store.pages).toHaveLength(0)
@@ -465,7 +464,7 @@ describe('Pages Store', () => {
         it('should handle pdf:page:rendering', () => {
             const store = usePagesStore()
             store.setupPDFEventListeners()
-            const renderingHandler = vi.mocked(pdfEvents.on).mock.calls.find((call: unknown[]) => call[0] === 'pdf:page:rendering')?.[1]
+            const renderingHandler = vi.mocked(pdfEvents.on).mock.calls.find((call: unknown[]) => (call[0] as string) === 'pdf:page:rendering')?.[1]
             if (renderingHandler) {
                 (renderingHandler as (arg: any) => void)({ pageId: 'rendering-p' })
                 // This updates status via updatePageStatus, we verify call definition
@@ -547,7 +546,7 @@ describe('Pages Store', () => {
             store.setupPDFEventListeners()
             await store.addPage({ id: 'pdf-p1', fileName: 'f1', fileSize: 0, fileType: '', origin: 'upload', status: 'rendering', progress: 0, outputs: [], logs: [] })
 
-            const errorHandler = vi.mocked(pdfEvents.on).mock.calls.find((call: unknown[]) => call[0] === 'pdf:page:error')?.[1]
+            const errorHandler = vi.mocked(pdfEvents.on).mock.calls.find((call: unknown[]) => (call[0] as string) === 'pdf:page:error')?.[1]
             if (errorHandler) {
                 await (errorHandler as (arg: any) => Promise<void>)({ pageId: 'pdf-p1', error: 'Render crash' })
                 expect(store.pages[0]!.status).toBe('error')
@@ -557,7 +556,7 @@ describe('Pages Store', () => {
         it('should handle pdf:processing-error', () => {
             const store = usePagesStore()
             store.setupPDFEventListeners()
-            const errorHandler = vi.mocked(pdfEvents.on).mock.calls.find((call: unknown[]) => call[0] === 'pdf:processing-error')?.[1]
+            const errorHandler = vi.mocked(pdfEvents.on).mock.calls.find((call: unknown[]) => (call[0] as string) === 'pdf:processing-error')?.[1]
             if (errorHandler) {
                 (errorHandler as (arg: any) => void)({ file: { name: 'err.pdf' }, error: 'Global PDF error' })
                 expect(errorHandler).toBeDefined()
@@ -567,7 +566,7 @@ describe('Pages Store', () => {
         it('should handle pdf:progress', () => {
             const store = usePagesStore()
             store.setupPDFEventListeners()
-            const progressHandler = vi.mocked(pdfEvents.on).mock.calls.find((call: unknown[]) => call[0] === 'pdf:progress')?.[1]
+            const progressHandler = vi.mocked(pdfEvents.on).mock.calls.find((call: unknown[]) => (call[0] as string) === 'pdf:progress')?.[1]
             if (progressHandler) {
                 (progressHandler as (arg: any) => void)({ done: 5, total: 10 })
                 expect(store.pdfProcessing.completed).toBe(5)
@@ -578,8 +577,8 @@ describe('Pages Store', () => {
         it('should handle pdf:processing-start and pdf:processing-complete', () => {
             const store = usePagesStore()
             store.setupPDFEventListeners()
-            const startHandler = vi.mocked(pdfEvents.on).mock.calls.find((call: unknown[]) => call[0] === 'pdf:processing-start')?.[1]
-            const completeHandler = vi.mocked(pdfEvents.on).mock.calls.find((call: unknown[]) => call[0] === 'pdf:processing-complete')?.[1]
+            const startHandler = vi.mocked(pdfEvents.on).mock.calls.find((call: unknown[]) => (call[0] as string) === 'pdf:processing-start')?.[1]
+            const completeHandler = vi.mocked(pdfEvents.on).mock.calls.find((call: unknown[]) => (call[0] as string) === 'pdf:processing-complete')?.[1]
 
             if (startHandler) {
                 (startHandler as (arg: any) => void)({ file: { name: 'test.pdf' }, totalPages: 10 })
@@ -598,7 +597,7 @@ describe('Pages Store', () => {
             store.setupPDFEventListeners()
             await store.addPage({ id: 'pdf-p1', fileName: 'f1', fileSize: 0, fileType: '', origin: 'upload', status: 'rendering', progress: 0, outputs: [], logs: [] })
 
-            const logHandler = vi.mocked(pdfEvents.on).mock.calls.find((call: unknown[]) => call[0] === 'pdf:log')?.[1]
+            const logHandler = vi.mocked(pdfEvents.on).mock.calls.find((call: unknown[]) => (call[0] as string) === 'pdf:log')?.[1]
             if (logHandler) {
                 (logHandler as (arg: any) => void)({ pageId: 'pdf-p1', message: 'ocr done', level: 'info' })
                 expect(store.pages[0]!.logs.some(l => l.message === 'ocr done')).toBe(true)

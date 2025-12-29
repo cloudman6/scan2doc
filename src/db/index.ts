@@ -27,7 +27,6 @@ export interface DBPage {
   width?: number
   height?: number
   ocrText?: string
-  ocrConfidence?: number
   outputs: PageOutput[]
   logs: PageProcessingLog[]
   createdAt: Date
