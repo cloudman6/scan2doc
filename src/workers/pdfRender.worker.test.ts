@@ -50,9 +50,9 @@ const addEventListenerMock = vi.fn((type, handler) => {
 });
 
 // Assign to globalThis (which acts as 'self' in this context)
-(globalThis as unknown).self = globalThis;
-(globalThis as unknown).addEventListener = addEventListenerMock;
-(globalThis as unknown).postMessage = postMessageMock;
+(globalThis as any).self = globalThis;
+(globalThis as any).addEventListener = addEventListenerMock;
+(globalThis as any).postMessage = postMessageMock;
 
 // Mock OffscreenCanvas
 class MockOffscreenCanvas {
@@ -72,7 +72,7 @@ class MockOffscreenCanvas {
     return Promise.resolve(new Blob(['mock-image-data'], { type }));
   }
 }
-(globalThis as unknown).OffscreenCanvas = MockOffscreenCanvas;
+(globalThis as any).OffscreenCanvas = MockOffscreenCanvas;
 
 
 describe('pdfRender.worker', () => {
@@ -86,9 +86,9 @@ describe('pdfRender.worker', () => {
 
     vi.resetModules();
 
-    (globalThis as unknown).addEventListener = addEventListenerMock;
-    (globalThis as unknown).postMessage = postMessageMock;
-    (globalThis as unknown).OffscreenCanvas = MockOffscreenCanvas;
+    (globalThis as any).addEventListener = addEventListenerMock;
+    (globalThis as any).postMessage = postMessageMock;
+    (globalThis as any).OffscreenCanvas = MockOffscreenCanvas;
 
     await import('@/workers/pdfRender.worker');
   });
@@ -272,7 +272,7 @@ describe('pdfRender.worker', () => {
     );
 
     // Extract factory from getDocument call
-    const params = (pdfjsLib.getDocument as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    const params = (pdfjsLib.getDocument as unknown as ReturnType<typeof vi.fn>).mock.calls[0]![0];
     const factory = params!.canvasFactory;
 
     expect(factory).toBeDefined();

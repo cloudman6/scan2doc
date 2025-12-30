@@ -6,12 +6,7 @@ export type { PDFPageInfo, PDFProcessingOptions } from './pdf'
 
 export { ocrService, OCRService } from './ocr'
 export type {
-  OCRProvider,
-  OCROptions,
-  OCRResult,
-  OCRWord,
-  OCRLine,
-  BoundingBox
+  OCRBox
 } from './ocr'
 
 export { exportService, ExportService } from './export'

@@ -95,7 +95,7 @@ describe('OCRService', () => {
       const emitSpy = vi.spyOn(ocrEvents, 'emit')
 
       // Spy on db
-      const savePageOCRSpy = vi.spyOn(db, 'savePageOCR').mockResolvedValue(1)
+      const savePageOCRSpy = vi.spyOn(db, 'savePageOCR').mockResolvedValue(undefined)
 
       await service.queueOCR(pageId, blob)
 

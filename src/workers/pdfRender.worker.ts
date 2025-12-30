@@ -166,10 +166,9 @@ async function renderPage(payload: PDFRenderMessage['payload']): Promise<PDFRend
     useSystemFonts: true,
     disableFontFace: true,
     fontExtraProperties: true,
-    // @ts-expect-error - Custom CanvasFactory
-    canvasFactory: new OffscreenCanvasFactory() as unknown,
+    canvasFactory: new OffscreenCanvasFactory() as any,
     verbosity: 0
-  })
+  } as any)
 
   const pdfDocument = await loadingTask.promise
 
@@ -184,17 +183,15 @@ async function renderPage(payload: PDFRenderMessage['payload']): Promise<PDFRend
     const renderContext = createRenderContext(context, viewport)
 
     try {
-      // @ts-expect-error - Custom parameters
-      await (page.render(renderContext as unknown).promise)
+      await (page.render(renderContext as any).promise)
     } catch (renderError) {
       workerLogger.warn('Enhanced rendering failed, falling back to standard rendering:', renderError)
       await (page.render({
         canvasContext: context as unknown as CanvasRenderingContext2D,
         viewport: viewport,
         intent: 'print',
-        // @ts-expect-error - Custom CanvasFactory
-        canvasFactory: new OffscreenCanvasFactory() as unknown
-      } as unknown).promise)
+        canvasFactory: new OffscreenCanvasFactory() as any
+      } as any).promise)
     }
 
     const mimeType = imageFormat === 'jpeg' ? 'image/jpeg' : 'image/png'

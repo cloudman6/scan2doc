@@ -35,7 +35,6 @@ vi.mock('@/services/pdf/enhancedPdfRenderer', () => ({
 }))
 
 // Globals for cleanup
-// @ts-expect-error: intentional for testing
 const originalFileReader = global.FileReader
 const originalCreateElement = document.createElement
 
@@ -47,13 +46,12 @@ describe('PDFService', () => {
   })
 
   afterEach(() => {
-    // @ts-expect-error: intentional for testing
     global.FileReader = originalFileReader
     document.createElement = originalCreateElement
   })
 
   it('validatePDF: should fail if file is null/undefined', () => {
-    expect(pdfService.validatePDF(undefined as unknown)).toEqual({ valid: false, error: 'Please select a file!' })
+    expect(pdfService.validatePDF(undefined as any)).toEqual({ valid: false, error: 'Please select a file!' })
   })
 
   it('validatePDF: should fail for non-pdf types', () => {
@@ -92,7 +90,7 @@ describe('PDFService', () => {
   })
 
   it('loadPDF: should throw error if pdf loading fails', async () => {
-    vi.mocked(pdfjsLib.getDocument).mockReturnValue({ promise: Promise.reject(new Error('PDF Corrupt')) } as import("@/db").DBPage)
+    vi.mocked(pdfjsLib.getDocument).mockReturnValue({ promise: Promise.reject(new Error('PDF Corrupt')) } as any)
     const file = new File(['x'], 'corrupt.pdf', { type: 'application/pdf' })
     await expect(pdfService.loadPDF(file)).rejects.toThrow('PDF Corrupt')
     expect(pdfLogger.error).toHaveBeenCalled()
@@ -117,7 +115,7 @@ describe('PDFService', () => {
   })
 
   it('processPDF: should handle errors and emit error event', async () => {
-    vi.mocked(pdfjsLib.getDocument).mockReturnValue({ promise: Promise.reject(new Error('Load failed')) } as import("@/db").DBPage)
+    vi.mocked(pdfjsLib.getDocument).mockReturnValue({ promise: Promise.reject(new Error('Load failed')) } as any)
     const file = new File(['content'], 'test.pdf', { type: 'application/pdf' })
     await pdfService.processPDF(file)
     expect(pdfLogger.error).toHaveBeenCalled()
@@ -126,7 +124,7 @@ describe('PDFService', () => {
 
   it('generateThumbnail: should render page and return data url', async () => {
     const { mockPage, mockDoc } = setupThumbnailMocks()
-    vi.mocked(pdfjsLib.getDocument).mockReturnValue({ promise: Promise.resolve(mockDoc) } as import("@/db").DBPage)
+    vi.mocked(pdfjsLib.getDocument).mockReturnValue({ promise: Promise.resolve(mockDoc) } as any)
     const thumb = await pdfService.generateThumbnail(new ArrayBuffer(10), 1)
     expect(mockPage.render).toHaveBeenCalled()
     expect(thumb).toBe('data:image/jpeg;base64,thumb')
@@ -155,7 +153,7 @@ describe('PDFService', () => {
 
   it('metadata: should return extracted metadata', async () => {
     const { mockDoc } = setupMetadataMocks()
-    vi.mocked(pdfjsLib.getDocument).mockReturnValue({ promise: Promise.resolve(mockDoc) } as import("@/db").DBPage)
+    vi.mocked(pdfjsLib.getDocument).mockReturnValue({ promise: Promise.resolve(mockDoc) } as any)
     const file = new File(['content'], 'test.pdf', { type: 'application/pdf' })
     const metadata = await pdfService.getPDFMetadata(file)
     expect(metadata.pageCount).toBe(10)
@@ -163,7 +161,7 @@ describe('PDFService', () => {
   })
 
   it('metadata: should return empty object on error', async () => {
-    vi.mocked(pdfjsLib.getDocument).mockReturnValue({ promise: Promise.reject(new Error('Load failed')) } as import("@/db").DBPage)
+    vi.mocked(pdfjsLib.getDocument).mockReturnValue({ promise: Promise.reject(new Error('Load failed')) } as any)
     const file = new File(['content'], 'test.pdf', { type: 'application/pdf' })
     const metadata = await pdfService.getPDFMetadata(file)
     expect(metadata).toEqual({})
@@ -171,7 +169,7 @@ describe('PDFService', () => {
   })
 
   it('info: should return correct page count and info', () => {
-    const mockPDFDoc = { pageCount: 5, pages: [{ pageNumber: 1, width: 100, height: 200 }] } as import("@/db").DBPage
+    const mockPDFDoc = { pageCount: 5, pages: [{ pageNumber: 1, width: 100, height: 200 }] } as any
     expect(pdfService.getPageCount(mockPDFDoc)).toBe(5)
     expect(pdfService.getPageInfo(mockPDFDoc, 1)).toEqual({ pageNumber: 1, width: 100, height: 200 })
   })
@@ -242,14 +240,13 @@ describe('Coverage Gaps', () => {
 })
 
 function setupFileReaderMock() {
-  // @ts-expect-error: intentional for testing
   global.FileReader = class MockFileReader {
+    onload: (() => void) | null = null
     readAsDataURL() {
-      // @ts-expect-error: intentional for testing
       if (this.onload) this.onload()
     }
     result = 'data:application/pdf;base64,Zm9v'
-  } as import("@/db").DBPage
+  } as any
 }
 
 function setupCanvasMock(originalCreateElement: typeof document.createElement) {
@@ -261,9 +258,9 @@ function setupCanvasMock(originalCreateElement: typeof document.createElement) {
   }
 
   document.createElement = vi.fn((tag) => {
-    if (tag === 'canvas') return mockCanvas
+    if (tag === 'canvas') return mockCanvas as any
     return originalCreateElement.call(document, tag)
-  })
+  }) as any
 }
 
 function setupPDFMocks() {
@@ -274,7 +271,7 @@ function setupPDFMocks() {
     getPage: vi.fn().mockResolvedValue(mockPage),
     base64Data: 'Zm9v'
   }
-  vi.mocked(pdfjsLib.getDocument).mockReturnValue({ promise: Promise.resolve(mockDoc) } as import("@/db").DBPage)
+  vi.mocked(pdfjsLib.getDocument).mockReturnValue({ promise: Promise.resolve(mockDoc) } as any)
   return { mockDoc, mockPage }
 }
 

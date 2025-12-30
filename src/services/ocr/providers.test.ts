@@ -46,7 +46,7 @@ describe('DeepSeekOCRProvider', () => {
         const result = await provider.process(blob)
 
         expect(fetchMock).toHaveBeenCalledTimes(1)
-        const [url, options] = fetchMock.mock.calls[0]
+        const [url, options] = fetchMock.mock.calls[0]!
 
         // eslint-disable-next-line sonarjs/no-clear-text-protocols
         expect(url).toBe('http://mock-api/ocr')
@@ -122,7 +122,7 @@ describe('DeepSeekOCRProvider', () => {
         await provider.process(blob, { signal: controller.signal })
 
         expect(fetchMock).toHaveBeenCalledTimes(1)
-        const [, options] = fetchMock.mock.calls[0]
+        const [, options] = fetchMock.mock.calls[0]!
         expect(options.signal).toBe(controller.signal)
     })
 

@@ -3,6 +3,7 @@ import { queueManager } from '@/services/queue'
 import { db } from '@/db'
 import { imageProcessor } from './image-processor'
 import { markdownAssembler } from './markdown'
+import { docxGenerator } from './docx'
 import type { OCRResult } from '@/services/ocr'
 
 export class DocumentService {
@@ -57,12 +58,43 @@ export class DocumentService {
 
             ocrEvents.emit('doc:gen:success', { pageId, type: 'markdown' })
 
+            // 5. Trigger DOCX generation automatically
+            await this.generateDocx(pageId, markdown, signal)
+
         } catch (error) {
             if (signal?.aborted) return
 
             console.error(`[DocumentService] Error generating markdown for ${pageId}`, error)
             const err = error instanceof Error ? error : new Error(String(error))
             ocrEvents.emit('doc:gen:error', { pageId, type: 'markdown', error: err })
+            throw err
+        }
+    }
+
+    async generateDocx(pageId: string, markdown: string, signal?: AbortSignal) {
+        ocrEvents.emit('doc:gen:start', { pageId, type: 'docx' })
+
+        try {
+            if (signal?.aborted) return
+
+            // 1. Generate DOCX Blob
+            const docxBlob = await docxGenerator.generate(markdown)
+
+            if (signal?.aborted) return
+
+            // 2. Save DOCX
+            await db.savePageDOCX(pageId, docxBlob)
+
+            ocrEvents.emit('doc:gen:success', { pageId, type: 'docx' })
+
+        } catch (error) {
+            if (signal?.aborted) return
+
+            console.error(`[DocumentService] Error generating docx for ${pageId}`, error)
+            const err = error instanceof Error ? error : new Error(String(error))
+            ocrEvents.emit('doc:gen:error', { pageId, type: 'docx', error: err })
+            // Don't re-throw as DOCX is secondary to Markdown? 
+            // Or re-throw if we want it recorded in queue.
             throw err
         }
     }

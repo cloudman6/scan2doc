@@ -176,10 +176,8 @@ class QueueManager {
 2.  **MarkdownAssembler**: 组合 `ocr.text` 和切割后的图片。
 3.  **UI集成**: 对接 `QueueManager`，监听事件更新 UI 状态。
 
-### 第四阶段：文档导出器
-
-2.  实现 `DocxGenerator`。
-3.  UI: 在预览区增加 "Export" 功能。
+### 第四阶段：DOCX 生成器
+1.  实现 `DocxGenerator`。
 
 ### 第五阶段：双层 PDF 引擎
 1.  实现 `SandwichPDFBuilder`：基于 `pdf-lib`，解析 `raw_text` 坐标，合成最终 PDF。
