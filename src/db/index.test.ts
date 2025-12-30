@@ -80,7 +80,6 @@ describe('Scan2DocDB', () => {
         // Clear new tables
         await db.pageOCRs.clear()
         await db.pageMarkdowns.clear()
-        await db.pageHTMLs.clear()
         await db.pagePDFs.clear()
         await db.pageDOCXs.clear()
         await db.pageExtractedImages.clear()
@@ -298,7 +297,6 @@ describe('Scan2DocDB', () => {
         afterEach(async () => {
             await db.pageOCRs.clear()
             await db.pageMarkdowns.clear()
-            await db.pageHTMLs.clear()
             await db.pagePDFs.clear()
             await db.pageDOCXs.clear()
             await db.pageExtractedImages.clear()
@@ -340,18 +338,7 @@ describe('Scan2DocDB', () => {
             expect(stored?.content).toBe('# Heading')
         })
 
-        it('should support CRUD on pageHTMLs', async () => {
-            const pageId = 'page_html_test'
-            const data: import('./index').PageHTML = {
-                pageId,
-                content: '<h1>Heading</h1>'
-            }
 
-            await db.savePageHTML(data)
-            const stored = await db.getPageHTML(pageId)
-            expect(stored).toBeDefined()
-            expect(stored?.content).toBe('<h1>Heading</h1>')
-        })
 
         it('should support CRUD on pagePDFs', async () => {
             const pageId = 'page_pdf_test'

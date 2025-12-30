@@ -170,7 +170,12 @@ const isDeleteHovered = ref(false)
 const isScanHovered = ref(false)
 const isPageHovered = ref(false)
 
-const isScanning = computed(() => props.page.status === 'recognizing' || props.page.status === 'pending_ocr')
+const isScanning = computed(() => {
+  const s = props.page.status
+  return s === 'recognizing' || s === 'pending_ocr' || 
+         s === 'pending_gen' || s === 'generating_markdown' || 
+         s === 'generating_pdf' || s === 'generating_docx'
+})
 
 const isActionHovered = computed(() => isDeleteHovered.value || isScanHovered.value)
 
@@ -188,7 +193,7 @@ function handleDelete() {
 }
 
 async function handleScan() {
-  if (props.page.status === 'recognizing' || props.page.status === 'pending_ocr') return
+  if (isScanning.value) return
   
   try {
     const imageBlob = await db.getPageImage(props.page.id)
@@ -218,6 +223,13 @@ function getShortStatusText(status: Page['status']): string {
     case 'pending_ocr': return 'Queued'
     case 'recognizing': return 'Scanning'
     case 'ocr_success': return 'OCR Done'
+    case 'pending_gen': return 'Waiting'
+    case 'generating_markdown': return 'Gen MD...'
+    case 'markdown_success': return 'MD Ready'
+    case 'generating_pdf': return 'Gen PDF...'
+    case 'pdf_success': return 'PDF Ready'
+    case 'generating_docx': return 'Gen DOCX...'
+    case 'completed': return 'Done'
     case 'error': return 'Error'
     default: return ''
   }
@@ -238,11 +250,16 @@ function getStatusType(status: Page['status']): 'success' | 'info' | 'warning' |
     case 'completed':
     case 'ready':
     case 'ocr_success':
+    case 'markdown_success':
+    case 'pdf_success':
       return 'success'
     case 'rendering':
-      return 'info'
     case 'pending_ocr':
     case 'recognizing':
+    case 'pending_gen':
+    case 'generating_markdown':
+    case 'generating_pdf':
+    case 'generating_docx':
       return 'info'
     case 'error':
       return 'error'

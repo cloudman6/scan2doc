@@ -1,59 +1,73 @@
 <template>
   <div class="preview">
-    <n-tabs
-      v-model:value="currentView"
-      type="segment"
-      animated
-    >
-      <n-tab-pane
-        v-for="view in views"
-        :key="view.key"
-        :name="view.key"
-        :tab="view.label"
+    <div class="preview-header">
+       <n-tabs
+        v-model:value="currentView"
+        type="segment"
+        animated
+        class="preview-tabs"
       >
-        <div class="preview-content">
-          <div
-            v-if="view.key === 'image'"
-            class="image-wrapper"
+        <n-tab-pane
+          v-for="view in views"
+          :key="view.key"
+          :name="view.key"
+          :tab="view.label"
+        />
+      </n-tabs>
+      <div v-if="currentView === 'md'" class="header-actions">
+           <n-button 
+             size="small" 
+             secondary 
+             type="primary" 
+             @click="downloadMarkdown"
+             :disabled="!mdContent || isLoadingMd"
+           >
+             Download
+           </n-button>
+      </div>
+    </div>
+
+    <div class="preview-content">
+        <!-- Image View -->
+        <div
+          v-if="currentView === 'image'"
+          class="image-wrapper"
+        >
+          <img
+            v-if="fullImageUrl"
+            :src="fullImageUrl"
+            alt="Preview"
+            class="preview-img"
           >
-            <img
-              v-if="fullImageUrl"
-              :src="fullImageUrl"
-              alt="Preview"
-              class="preview-img"
-            >
-            <n-empty
-              v-else
-              :description="currentPage?.status === 'rendering' ? 'Rendering...' : 'No image available'"
-            />
-          </div>
-          <pre
-            v-else-if="view.key === 'md'"
-            class="markdown-preview"
-          >{{ currentPageContent?.md || 'No markdown content available' }}</pre>
-          <div
-            v-else-if="view.key === 'html'"
-            class="html-preview"
-            v-html="currentPageContent?.html || '<p>No HTML content available</p>'"
+          <n-empty
+            v-else
+            :description="currentPage?.status === 'rendering' ? 'Rendering...' : 'No image available'"
           />
         </div>
-      </n-tab-pane>
-    </n-tabs>
+
+        <!-- Markdown View -->
+        <div v-else-if="currentView === 'md'" class="markdown-wrapper">
+             <n-spin v-if="isLoadingMd" description="Loading markdown..." />
+             <pre v-else class="markdown-preview">{{ mdContent || 'No markdown content available' }}</pre>
+        </div>
+
+        <!-- HTML View -->
+        <div
+          v-else-if="currentView === 'html'"
+          class="html-preview"
+          v-html="htmlContent || '<p>No HTML content available</p>'"
+        />
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onUnmounted } from 'vue'
-import { NTabs, NTabPane, NEmpty } from 'naive-ui'
+import { ref, watch, onUnmounted, computed } from 'vue'
+import { NTabs, NTabPane, NEmpty, NButton, NSpin } from 'naive-ui'
 import { db } from '@/db'
 import { uiLogger } from '@/utils/logger'
 
 import type { Page } from '@/stores/pages'
-
-interface Output {
-  format: string
-  content?: string
-}
 
 const props = defineProps<{
   currentPage?: Page | null
@@ -61,6 +75,13 @@ const props = defineProps<{
 
 const currentView = ref<'image' | 'md' | 'html'>('image')
 const fullImageUrl = ref<string>('')
+const mdContent = ref<string>('')
+const isLoadingMd = ref(false)
+
+const htmlContent = computed(() => {
+  if (!props.currentPage?.outputs) return ''
+  return props.currentPage.outputs.find((o: any) => o.format === 'html')?.content || ''
+})
 
 const views = [
   { key: 'image' as const, label: 'Image' },
@@ -68,21 +89,29 @@ const views = [
   { key: 'html' as const, label: 'HTML' }
 ]
 
-const currentPageContent = computed(() => {
-  if (!props.currentPage) return { md: '', html: '' }
-  
-  const outputs = (props.currentPage.outputs || []) as Output[]
-  const md = outputs.find((o: Output) => o.format === 'markdown')?.content || ''
-  const html = outputs.find((o: Output) => o.format === 'html')?.content || ''
-  
-  return { md, html }
-})
-
-// Watch for page change or status change to load image
+// Watch for page change or status change or view change
 watch(
-  [() => props.currentPage?.id, () => props.currentPage?.status],
-  async ([newPageId, newStatus], [oldPageId, oldStatus]) => {
-    await handlePreviewPageChange(newPageId, newStatus, oldPageId, oldStatus)
+  [() => props.currentPage?.id, () => props.currentPage?.status, currentView],
+  async ([newPageId, newStatus, newView], [oldPageId, oldStatus, oldView]) => {
+    // Determine if we need to reload content
+    if (!newPageId) {
+       fullImageUrl.value = ''
+       mdContent.value = ''
+       return
+    }
+
+    // Image logic
+    if (newView === 'image') {
+        if (newPageId !== oldPageId || newStatus !== oldStatus || oldView !== 'image') {
+           await handlePreviewPageChange(newPageId, newStatus, oldPageId, oldStatus)
+        }
+    } 
+    // Markdown logic
+    else if (newView === 'md') {
+        if (newPageId !== oldPageId || newStatus !== oldStatus || oldView !== 'md') {
+            await loadMarkdown(newPageId)
+        }
+    }
   },
   { immediate: true }
 )
@@ -97,10 +126,7 @@ async function handlePreviewPageChange(
   oldStatus: string | undefined
 ) {
   const idChanged = newPageId !== oldPageId
-  const becameReady = newStatus === 'ready' && oldStatus !== 'ready'
-
-  if (!idChanged && !becameReady) return
-
+  // Cleanup if page changed
   cleanupPreviewUrl(idChanged)
 
   if (!newPageId || newStatus === 'pending_render' || newStatus === 'rendering') return
@@ -108,9 +134,6 @@ async function handlePreviewPageChange(
   await loadPreviewBlob(newPageId)
 }
 
-/**
- * Cleanup preview object URL
- */
 function cleanupPreviewUrl(idChanged: boolean) {
   if (idChanged && fullImageUrl.value) {
     URL.revokeObjectURL(fullImageUrl.value)
@@ -118,9 +141,6 @@ function cleanupPreviewUrl(idChanged: boolean) {
   }
 }
 
-/**
- * Load preview blob from DB
- */
 async function loadPreviewBlob(pageId: string) {
   try {
     const blob = await db.getPageImage(pageId)
@@ -132,13 +152,47 @@ async function loadPreviewBlob(pageId: string) {
   }
 }
 
+async function loadMarkdown(pageId: string) {
+    isLoadingMd.value = true
+    try {
+        const record = await db.getPageMarkdown(pageId)
+        if (record) {
+            mdContent.value = record.content
+        } else {
+            // Fallback to OCR text if no markdown yet?
+            // Actually OCR text is in page object, but let's stick to DB or Page object
+            // Page object has ocrText.
+            mdContent.value = props.currentPage?.ocrText || ''
+        }
+    } catch (error) {
+        uiLogger.error('Failed to load markdown', error)
+        mdContent.value = 'Failed to load content.'
+    } finally {
+        isLoadingMd.value = false
+    }
+}
+
+function downloadMarkdown() {
+    if (!mdContent.value || !props.currentPage) return
+    const blob = new Blob([mdContent.value], { type: 'text/markdown' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    // Use original filename base + .md
+    const baseName = props.currentPage.fileName.replace(/\.[^/.]+$/, "")
+    const pageNum = props.currentPage.pageNumber || 1
+    a.download = `${baseName}_page${pageNum}.md`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+}
+
 onUnmounted(() => {
   if (fullImageUrl.value) {
     URL.revokeObjectURL(fullImageUrl.value)
   }
 })
-
-
 </script>
 
 <style scoped>

@@ -21,11 +21,17 @@ export interface PageOutput {
   confidence?: number
 }
 
-export type PageStatus = 'pending_render' | 'rendering' | 'pending_ocr' | 'recognizing' | 'ocr_success' | 'ready' | 'completed' | 'error'
+export type PageStatus =
+  | 'pending_render' | 'rendering'
+  | 'pending_ocr' | 'recognizing' | 'ocr_success'
+  | 'pending_gen' | 'generating_markdown' | 'markdown_success'
+  | 'generating_pdf' | 'pdf_success' | 'generating_docx'
+  | 'ready' | 'completed' | 'error'
 
 export interface Page {
   id: string
   fileName: string
+  pageNumber?: number
   fileSize: number
   fileType: string
   origin: 'upload' | 'scanner' | 'pdf_generated'
@@ -542,8 +548,96 @@ export const usePagesStore = defineStore('pages', () => {
     })
   }
 
+  function setupDocGenEventListeners() {
+    ocrEvents.on('doc:gen:queued', async ({ pageId }) => {
+      try {
+        await db.updatePage(pageId, { status: 'pending_gen' })
+        updatePageStatus(pageId, 'pending_gen')
+        addPageLog(pageId, {
+          level: 'info',
+          message: 'Generation task queued'
+        })
+      } catch (err) {
+        storeLogger.error(`[Pages Store] Failed to update status (queued) for ${pageId}:`, err)
+        addPageLog(pageId, { level: 'error', message: 'Failed to update status in DB' })
+      }
+    })
+
+    ocrEvents.on('doc:gen:start', async ({ pageId, type }) => {
+      const statusMap: Record<string, PageStatus> = {
+        markdown: 'generating_markdown',
+        pdf: 'generating_pdf',
+        docx: 'generating_docx'
+      }
+      const newStatus = statusMap[type] || 'completed'
+
+      try {
+        await db.updatePage(pageId, { status: newStatus })
+        updatePageStatus(pageId, newStatus)
+        addPageLog(pageId, {
+          level: 'info',
+          message: `Started generating ${type}`
+        })
+      } catch (err) {
+        storeLogger.error(`[Pages Store] Failed to update status (start) for ${pageId} (${type}):`, err)
+        addPageLog(pageId, { level: 'error', message: `Failed to update status in DB for ${type}` })
+      }
+    })
+
+    ocrEvents.on('doc:gen:success', async ({ pageId, type }) => {
+      const statusMap: Record<string, PageStatus> = {
+        markdown: 'markdown_success',
+        pdf: 'pdf_success',
+        docx: 'completed'
+      }
+      const newStatus = statusMap[type] || 'completed'
+
+      try {
+        // DB-First for terminal or important intermediate states
+        await db.updatePage(pageId, {
+          status: newStatus,
+          processedAt: new Date(),
+          // We don't store the full content here, it's in specific tables
+          // but we add a log entry/output placeholder
+        })
+
+        updatePageStatus(pageId, newStatus)
+        addPageLog(pageId, {
+          level: 'success',
+          message: `Generated ${type} successfully`
+        })
+
+        addOutput(pageId, {
+          format: type as 'markdown' | 'text' | 'html',
+          content: `(Saved to DB)`
+        })
+      } catch (err) {
+        storeLogger.error(`[Pages Store] Failed to update status (success) for ${pageId} (${type}):`, err)
+        // If it's a final state and DB failed, mark as error to avoid misleading users
+        updatePageStatus(pageId, 'error')
+        addPageLog(pageId, {
+          level: 'error',
+          message: `Critical: Generated ${type} but failed to save status to DB. Data might be lost on refresh.`
+        })
+      }
+    })
+
+    ocrEvents.on('doc:gen:error', ({ pageId, type, error }) => {
+      updatePageStatus(pageId, 'error')
+      addPageLog(pageId, {
+        level: 'error',
+        message: `Failed to generate ${type}: ${error.message}`
+      })
+      db.updatePage(pageId, { status: 'error' }).catch(err => {
+        storeLogger.error(`[Pages Store] Failed to update status (error) for ${pageId}:`, err)
+      })
+    })
+  }
+
+
   setupPDFEventListeners()
   setupOCREventListeners()
+  setupDocGenEventListeners()
 
   return {
     pages,
@@ -581,6 +675,7 @@ export const usePagesStore = defineStore('pages', () => {
     reorderPages,
     addFiles,
     setupPDFEventListeners,
-    setupOCREventListeners
+    setupOCREventListeners,
+    setupDocGenEventListeners
   }
 })

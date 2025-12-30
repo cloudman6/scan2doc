@@ -19,7 +19,12 @@ export interface DBPage {
   fileSize: number
   fileType: string
   origin: 'upload' | 'pdf_generated' | 'scanner'
-  status: 'pending_render' | 'rendering' | 'ready' | 'pending_ocr' | 'recognizing' | 'ocr_success' | 'completed' | 'error'
+  status:
+  | 'pending_render' | 'rendering' | 'ready'
+  | 'pending_ocr' | 'recognizing' | 'ocr_success'
+  | 'pending_gen' | 'generating_markdown' | 'markdown_success'
+  | 'generating_pdf' | 'pdf_success' | 'generating_docx'
+  | 'completed' | 'error'
   progress: number
   order: number  // Sort order for drag and drop
   imageData?: string  // base64 image data
@@ -61,10 +66,7 @@ export interface PageMarkdown {
   content: string
 }
 
-export interface PageHTML {
-  pageId: string
-  content: string
-}
+
 
 export interface PagePDF {
   pageId: string
@@ -93,7 +95,7 @@ export class Scan2DocDB extends Dexie {
   // New tables for Phase 1
   pageOCRs!: EntityTable<PageOCR, 'pageId'>
   pageMarkdowns!: EntityTable<PageMarkdown, 'pageId'>
-  pageHTMLs!: EntityTable<PageHTML, 'pageId'>
+
   pagePDFs!: EntityTable<PagePDF, 'pageId'>
   pageDOCXs!: EntityTable<PageDOCX, 'pageId'>
   pageExtractedImages!: EntityTable<PageExtractedImage, 'id'>
@@ -111,7 +113,7 @@ export class Scan2DocDB extends Dexie {
       // New tables
       pageOCRs: 'pageId',
       pageMarkdowns: 'pageId',
-      pageHTMLs: 'pageId',
+
       pagePDFs: 'pageId',
       pageDOCXs: 'pageId',
       pageExtractedImages: 'id, pageId'
@@ -211,13 +213,7 @@ export class Scan2DocDB extends Dexie {
     return await this.pageMarkdowns.get(pageId)
   }
 
-  async savePageHTML(data: PageHTML): Promise<void> {
-    await this.pageHTMLs.put(data)
-  }
 
-  async getPageHTML(pageId: string): Promise<PageHTML | undefined> {
-    return await this.pageHTMLs.get(pageId)
-  }
 
   async savePagePDF(pageId: string, content: Blob | ArrayBuffer): Promise<void> {
     let dataToSave = content
@@ -451,7 +447,7 @@ export const db = new Scan2DocDB()
 function getSecureRandomPart(): string {
   const array = new Uint32Array(1)
   crypto.getRandomValues(array)
-  return array[0].toString(36)
+  return array[0]!.toString(36)
 }
 
 export function generatePageId(): string {

@@ -30,13 +30,7 @@ interface PageOCR {
       content: string; // Markdown 字符串
     }
     ```
-*   **`pageHTMLs`**: 存储生成的 HTML 代码。
-    ```typescript
-    interface PageHTML {
-      pageId: string;
-      content: string; // HTML 字符串
-    }
-    ```
+
 *   **`pagePDFs`**: 存储生成的双层 PDF (Blob)。
     ```typescript
     interface PagePDF {
@@ -54,7 +48,7 @@ interface PageOCR {
 
 ### 2.3 `pageExtractedImages` 表 (新增)
 用于存储从原扫描图中裁剪出来的插图。
-*   **原因**: 不要将图片 base64 直接嵌入 Markdown/HTML 字符串存储，这会导致数据库读写性能急剧下降且浪费空间。
+*   **原因**: 不要将图片 base64 直接嵌入 Markdown 字符串存储，这会导致数据库读写性能急剧下降且浪费空间。
 *   **策略**: 切图后存入此表，Markdown 中引用 `blob:url` (运行时生成) 或自定义协议链接。
 ```typescript
 interface PageExtractedImage {
@@ -75,21 +69,18 @@ interface PageExtractedImage {
     2.  从原图裁剪图片，存入 `pageExtractedImages`。
     3.  在 Markdown 中插入图片占位符。
 
-### 3.2 HTML 生成 (Markdown -> HTML)
-*   **路径**: Markdown -> HTML
-*   **工具**: `markdown-it`
-*   **理由**: Markdown 生成的 HTML 结构清晰，样式可控，且能完美复用 Markdown 的图片和表格逻辑。
+
 
 ### 3.3 DOCX 生成 (Markdown -> DOCX)
 *   **路径**: Markdown -> AST -> DOCX
 *   **工具**: `docx` 库 + 自定义 Markdown 解析器
-*   **理由**: 比起 HTML -> DOCX，直接从 Markdown AST 转换能生成更原生的 Word 格式（如真正的 Word 表格对象，而不是嵌入的 HTML 表格）。
+*   **理由**: 直接从 Markdown AST 转换能生成更原生的 Word 格式（如真正的 Word 表格对象），避免了中间格式转换的样式丢失。
 
 ### 3.4 可搜索 PDF (Raw Text -> PDF)
 *   **数据源**: 原图 (`pageImages`) + `data.raw_text` (坐标信息)
 *   **路径**: **Image + Raw Text Layer = Sandwich PDF**
 *   **理由**: 
-    *   HTML -> PDF 通常只是将 HTML 截图或重排，**会丢失原始扫描件的外观**。
+    *   纯文本生成的 PDF 通常只是重排文字，**会丢失原始扫描件的外观**。
     *   我们的目标通常是保留扫描件的原貌（公章、手写痕迹），同时通过 OCR 使得文字可被搜索/复制。这必须通过在原图上覆盖透明文字层来实现，`raw_text` 提供了精确的坐标。
 
 ## 4. 队列与事件架构 (Queue & Event Architecture)
@@ -172,7 +163,7 @@ class QueueManager {
 ## 5. 实施路线图 (Implementation Roadmap)
 
 ### 第一阶段：数据层升级
-1.  **Schema 变更**: 在 `Scan2DocDB` 中注册 `pageOCRs`, `pageMarkdowns`, `pageHTMLs`, `pagePDFs`, `pageDOCXs`, `pageExtractedImages` 表。
+1.  **Schema 变更**: 在 `Scan2DocDB` 中注册 `pageOCRs`, `pageMarkdowns`, `pagePDFs`, `pageDOCXs`, `pageExtractedImages` 表。
 2.  **Repo 层**: 封装对应的 `save/get` 方法。
 
 ### 第二阶段：队列与事件总线(Queue & Event Infrastructure)
@@ -186,7 +177,7 @@ class QueueManager {
 3.  **UI集成**: 对接 `QueueManager`，监听事件更新 UI 状态。
 
 ### 第四阶段：文档导出器
-1.  实现 `HTMLGenerator`。
+
 2.  实现 `DocxGenerator`。
 3.  UI: 在预览区增加 "Export" 功能。
 

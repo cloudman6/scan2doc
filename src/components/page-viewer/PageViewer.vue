@@ -307,7 +307,15 @@ const statusText = computed(() => {
     case 'pending_render': return 'Pending Render'
     case 'rendering': return 'Rendering'
     case 'ready': return 'Ready'
-    case 'recognizing': return 'Recognizing'
+    case 'pending_ocr': return 'OCR Queued'
+    case 'recognizing': return 'Recognizing...'
+    case 'ocr_success': return 'OCR Done'
+    case 'pending_gen': return 'Waiting for Gen'
+    case 'generating_markdown': return 'Generating Markdown...'
+    case 'markdown_success': return 'Markdown Ready'
+    case 'generating_pdf': return 'Generating PDF...'
+    case 'pdf_success': return 'PDF Ready'
+    case 'generating_docx': return 'Generating DOCX...'
     case 'completed': return 'Completed'
     case 'error': return 'Error'
     default: return 'Unknown'
@@ -316,11 +324,22 @@ const statusText = computed(() => {
 
 function getStatusType(): 'success' | 'info' | 'warning' | 'error' | 'default' {
   switch (status.value) {
-    case 'completed': return 'success'
-    case 'ready': return 'success'
+    case 'completed':
+    case 'ready':
+    case 'ocr_success':
+    case 'markdown_success':
+    case 'pdf_success':
+      return 'success'
     case 'rendering':
-    case 'recognizing': return 'info'
-    case 'error': return 'error'
+    case 'recognizing':
+    case 'pending_ocr':
+    case 'pending_gen':
+    case 'generating_markdown':
+    case 'generating_pdf':
+    case 'generating_docx':
+      return 'info'
+    case 'error':
+      return 'error'
     default: return 'default'
   }
 }
@@ -363,7 +382,14 @@ function formatFileSize(bytes: number): string {
 }
 
 function runOCR() {
-  if (!props.currentPage || status.value === 'recognizing' || status.value === 'rendering') return
+  const isProcessing = status.value === 'recognizing' || 
+                      status.value === 'pending_ocr' || 
+                      status.value === 'rendering' || 
+                      status.value === 'pending_render' ||
+                      status.value === 'pending_gen' ||
+                      status.value.startsWith('generating_')
+
+  if (!props.currentPage || isProcessing) return
   uiLogger.info('Running OCR for page', props.currentPage.id)
 }
 </script>

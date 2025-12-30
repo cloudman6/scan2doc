@@ -772,5 +772,86 @@ describe('Pages Store', () => {
                 }))
             })
         })
+
+        describe('Doc Gen Persistence', () => {
+            it('should persist granular generation statuses to DB', async () => {
+                const store = usePagesStore()
+                store.setupDocGenEventListeners()
+
+                // 1. Initial State
+                await store.addPage({ id: 'gen-p1', fileName: 'f1', fileSize: 0, fileType: '', origin: 'upload', status: 'ocr_success', progress: 100, outputs: [], logs: [] })
+
+                // 2. Simulate doc:gen:queued
+                await simulateOCREvent('doc:gen:queued', { pageId: 'gen-p1' })
+                expect(db.updatePage).toHaveBeenCalledWith('gen-p1', expect.objectContaining({ status: 'pending_gen' }))
+                expect(store.pages[0]!.status).toBe('pending_gen')
+
+                // 3. Simulate doc:gen:start (markdown)
+                await simulateOCREvent('doc:gen:start', { pageId: 'gen-p1', type: 'markdown' })
+                expect(db.updatePage).toHaveBeenCalledWith('gen-p1', expect.objectContaining({ status: 'generating_markdown' }))
+                expect(store.pages[0]!.status).toBe('generating_markdown')
+
+                // 4. Simulate doc:gen:success (markdown)
+                await simulateOCREvent('doc:gen:success', { pageId: 'gen-p1', type: 'markdown' })
+                expect(db.updatePage).toHaveBeenCalledWith('gen-p1', expect.objectContaining({ status: 'markdown_success' }))
+                expect(store.pages[0]!.status).toBe('markdown_success')
+                expect(store.pages[0]!.outputs).toHaveLength(1)
+
+                // 5. Simulate doc:gen:start (pdf)
+                await simulateOCREvent('doc:gen:start', { pageId: 'gen-p1', type: 'pdf' })
+                expect(db.updatePage).toHaveBeenCalledWith('gen-p1', expect.objectContaining({ status: 'generating_pdf' }))
+
+                // 6. Simulate doc:gen:success (pdf)
+                await simulateOCREvent('doc:gen:success', { pageId: 'gen-p1', type: 'pdf' })
+                expect(db.updatePage).toHaveBeenCalledWith('gen-p1', expect.objectContaining({ status: 'pdf_success' }))
+
+                // 7. Simulate doc:gen:start (docx)
+                await simulateOCREvent('doc:gen:start', { pageId: 'gen-p1', type: 'docx' })
+                expect(db.updatePage).toHaveBeenCalledWith('gen-p1', expect.objectContaining({ status: 'generating_docx' }))
+
+                // 8. Simulate doc:gen:success (docx)
+                await simulateOCREvent('doc:gen:success', { pageId: 'gen-p1', type: 'docx' })
+                expect(db.updatePage).toHaveBeenCalledWith('gen-p1', expect.objectContaining({ status: 'completed' }))
+                expect(store.pages[0]!.status).toBe('completed')
+            })
+
+            it('should verify DB-First strategy (pessimistic update)', async () => {
+                const store = usePagesStore()
+                store.setupDocGenEventListeners()
+                await store.addPage({ id: 'gen-p2', fileName: 'f2', origin: 'upload', status: 'ocr_success' } as any)
+
+                // Mock DB update to return a promise we can control
+                let resolveUpdate: (val: number) => void = () => { }
+                const updatePromise = new Promise<number>(resolve => { resolveUpdate = resolve })
+                vi.mocked(db.updatePage).mockReturnValue(updatePromise)
+
+                // Start update
+                const eventPromise = simulateOCREvent('doc:gen:queued', { pageId: 'gen-p2' })
+
+                // UI should NOT be updated yet
+                expect(store.pages[0]!.status).toBe('ocr_success')
+
+                // Resolve DB update
+                resolveUpdate(1)
+                await eventPromise
+
+                // Now UI should be updated
+                expect(store.pages[0]!.status).toBe('pending_gen')
+            })
+
+            it('should handle DB failure by marking as error on final state', async () => {
+                const store = usePagesStore()
+                store.setupDocGenEventListeners()
+                await store.addPage({ id: 'gen-p3', fileName: 'f3', origin: 'upload', status: 'generating_docx' } as any)
+
+                vi.mocked(db.updatePage).mockRejectedValue(new Error('Persistent Fail'))
+
+                await simulateOCREvent('doc:gen:success', { pageId: 'gen-p3', type: 'docx' })
+
+                // Should be error because it's a final state and DB failed
+                expect(store.pages[0]!.status).toBe('error')
+                expect(store.pages[0]!.logs.some(l => l.level === 'error')).toBe(true)
+            })
+        })
     })
 })

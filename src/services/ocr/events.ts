@@ -9,6 +9,7 @@ type OCREvents = {
     'ocr:error': { pageId: string; error: Error }
 
     // 文档生成阶段
+    'doc:gen:queued': { pageId: string }
     'doc:gen:start': { pageId: string; type: 'markdown' | 'pdf' | 'html' | 'docx' }
     'doc:gen:success': { pageId: string; type: string; url?: string }
     'doc:gen:error': { pageId: string; type: string; error: Error }
