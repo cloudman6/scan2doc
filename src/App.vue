@@ -27,28 +27,13 @@
           <template v-else>
             <!-- Page List with custom collapse trigger -->
             <n-layout-sider
+              v-model:collapsed="pageListCollapsed"
               :width="260"
               :collapsed-width="0"
               collapse-mode="width"
               bordered
               :show-trigger="false"
             >
-              <template #trigger="{ collapsed }">
-                <div class="custom-sider-trigger">
-                  <n-button
-                    size="small"
-                    circle
-                    quaternary
-                  >
-                    <template #icon>
-                      <n-icon>
-                        <ChevronBackOutline v-if="!collapsed" />
-                        <ChevronForwardOutline v-else />
-                      </n-icon>
-                    </template>
-                  </n-button>
-                </div>
-              </template>
               <div class="page-list-container">
                 <PageList
                   :pages="pagesStore.pages"
@@ -59,6 +44,29 @@
                 />
               </div>
             </n-layout-sider>
+            
+            <!-- Custom Page List Collapse Trigger (BTN-PL) - positioned outside sider -->
+            <div class="sider-trigger-container">
+              <n-tooltip :placement="pageListCollapsed ? 'right' : 'left'">
+                <template #trigger>
+                  <n-button
+                    size="small"
+                    circle
+                    quaternary
+                    class="sider-trigger-btn"
+                    @click="pageListCollapsed = !pageListCollapsed"
+                  >
+                    <template #icon>
+                      <n-icon>
+                        <ChevronBackOutline v-if="!pageListCollapsed" />
+                        <ChevronForwardOutline v-else />
+                      </n-icon>
+                    </template>
+                  </n-button>
+                </template>
+                {{ pageListCollapsed ? 'Expand Page List' : 'Collapse Page List' }}
+              </n-tooltip>
+            </div>
   
             <!-- Middle: Content area with PageViewer, Divider, and Preview -->
             <div class="content-area">
@@ -205,6 +213,7 @@ const { message, dialog } = createDiscreteApi(['message', 'dialog'], {
 })
 
 // Collapse state management
+const pageListCollapsed = ref(false)
 const pageViewerCollapsed = ref(false)
 const previewCollapsed = ref(false)
 
@@ -409,16 +418,16 @@ html, body {
   background-color: #f6f7f8 !important;
 }
 
-/* Custom Sider Trigger to match other buttons */
-.custom-sider-trigger {
-  position: absolute;
-  top: 50%;
-  right: -14px;
-  transform: translateY(-50%);
-  z-index: 10;
+/* Page List Collapse Trigger - positioned at sider edge */
+.sider-trigger-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  flex-shrink: 0;
 }
 
-.custom-sider-trigger .n-button {
+.sider-trigger-btn {
   background: white !important;
   border: 1px solid #d0d0d0 !important;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
@@ -428,14 +437,15 @@ html, body {
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
+  transition: all 0.2s;
 }
 
-.custom-sider-trigger .n-button:hover {
+.sider-trigger-btn:hover {
   border-color: #18a058 !important;
   box-shadow: 0 2px 6px rgba(24, 160, 88, 0.2);
 }
 
-.custom-sider-trigger .n-button .n-icon {
+.sider-trigger-btn .n-icon {
   font-size: 18px !important;
 }
 

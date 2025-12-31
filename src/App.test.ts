@@ -508,12 +508,20 @@ describe('App.vue', () => {
       const wrapper = mount(App)
       await flushPromises()
 
-      const triggerBtn = wrapper.find('.custom-sider-trigger button')
+      const triggerBtn = wrapper.find('.sider-trigger-container button')
       expect(triggerBtn.exists()).toBe(true)
 
+      // Initially expanded
+      expect((wrapper.vm as any).pageListCollapsed).toBe(false)
+
       await triggerBtn.trigger('click')
-      // No check possible on mock internal state easily without complex setup, 
-      // but triggering it covers the function.
+
+      // After click, should be collapsed
+      expect((wrapper.vm as any).pageListCollapsed).toBe(true)
+
+      // Click again to expand
+      await triggerBtn.trigger('click')
+      expect((wrapper.vm as any).pageListCollapsed).toBe(false)
     })
   })
 })
