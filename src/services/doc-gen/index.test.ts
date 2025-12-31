@@ -75,8 +75,9 @@ describe('DocumentService Integration', () => {
         const pageId = 'page1'
         const result: any = {
             success: true,
+
             text: 'test',
-            raw_text: '',
+            raw_text: 'test',
             boxes: [],
             image_dims: { w: 1, h: 1 },
             prompt_type: 'document'
@@ -92,8 +93,9 @@ describe('DocumentService Integration', () => {
         const pageId = 'page1'
         const result: any = {
             success: true,
+
             text: 'test',
-            raw_text: '',
+            raw_text: 'test',
             boxes: [],
             image_dims: { w: 1, h: 1 },
             prompt_type: 'document'
@@ -150,7 +152,7 @@ describe('DocumentService Integration', () => {
 
     it('should handle generateDocx failure', async () => {
         const pageId = 'page1'
-        const result: any = { success: true, text: 'test' }
+        const result: any = { success: true, text: 'test', raw_text: 'test' }
         vi.mocked(db.getPageImage).mockResolvedValue(new Blob(['image']) as any)
         vi.mocked(imageProcessor.sliceImages).mockResolvedValue(new Map())
 
@@ -166,7 +168,7 @@ describe('DocumentService Integration', () => {
 
     it('should handle generatePDF failure', async () => {
         const pageId = 'page1'
-        const result: any = { success: true, text: 'test' }
+        const result: any = { success: true, text: 'test', raw_text: 'test' }
         vi.mocked(db.getPageImage).mockResolvedValue(new Blob(['image']) as any)
         vi.mocked(imageProcessor.sliceImages).mockResolvedValue(new Map())
 

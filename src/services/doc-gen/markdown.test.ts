@@ -9,7 +9,7 @@ describe('MarkdownAssembler', () => {
         const ocrResult: OCRResult = {
             success: true,
             text: 'Hello World',
-            raw_text: '',
+            raw_text: 'Hello World',
             boxes: [],
             image_dims: { w: 100, h: 100 },
             prompt_type: 'document'
@@ -22,7 +22,7 @@ describe('MarkdownAssembler', () => {
         const ocrResult: OCRResult = {
             success: true,
             text: 'Content',
-            raw_text: '',
+            raw_text: 'Content',
             boxes: [
                 { box: [0, 0, 10, 10], label: 'text' },
                 { box: [10, 10, 20, 20], label: 'figure' }
@@ -44,7 +44,7 @@ describe('MarkdownAssembler', () => {
         const ocrResult: OCRResult = {
             success: true,
             text: '',
-            raw_text: '',
+            raw_text: 'raw',
             boxes: [],
             image_dims: { w: 1, h: 1 },
             prompt_type: 'document'
@@ -65,7 +65,7 @@ describe('MarkdownAssembler', () => {
         const ocrResult: OCRResult = {
             success: true,
             text: '',
-            raw_text: '',
+            raw_text: 'raw',
             boxes: [],
             image_dims: { w: 1, h: 1 },
             prompt_type: 'document'
@@ -74,5 +74,32 @@ describe('MarkdownAssembler', () => {
         const result = assembler.assemble(ocrResult, imageMap)
         expect(result).toContain('## Figures')
         expect(result).toContain('![Figure 1](scan2doc-img:id0)')
+    })
+    it('should clean raw_text by removing ref and det tags', () => {
+        const ocrResult: OCRResult = {
+            success: true,
+            text: 'table\nContent',
+            raw_text: '<|ref|>table<|/ref|><|det|>[[0,0,0,0]]<|/det|>\nContent',
+            boxes: [],
+            image_dims: { w: 1, h: 1 },
+            prompt_type: 'document'
+        }
+        const result = assembler.assemble(ocrResult, new Map())
+        expect(result).not.toContain('table')
+        expect(result).toContain('Content')
+        expect(result.trim()).toBe('Content')
+    })
+
+    it('should throw error if raw_text is missing', () => {
+        const ocrResult: OCRResult = {
+            success: true,
+            text: 'Fallback Text',
+            // @ts-expect-error -- testing missing raw_text
+            raw_text: null,
+            boxes: [],
+            image_dims: { w: 1, h: 1 },
+            prompt_type: 'document'
+        }
+        expect(() => assembler.assemble(ocrResult, new Map())).toThrow('OCR result missing raw_text')
     })
 })

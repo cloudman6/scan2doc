@@ -36,7 +36,7 @@ test.describe('Page Deleting', () => {
      * Upload test files and wait for all pages to be processed
      */
     async function uploadTestFiles(page: Page): Promise<number> {
-        const filePaths = TEST_FILES.map(f => path.resolve(`tests/e2e/fixtures/${f}`));
+        const filePaths = TEST_FILES.map(f => path.resolve(`tests/e2e/samples/${f}`));
 
         const fileChooserPromise = page.waitForEvent('filechooser');
         await page.locator('.app-header button').first().click();
