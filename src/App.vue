@@ -383,6 +383,10 @@ onMounted(async () => {
     }
   }
 
+  // Initialize event listeners for OCR and Document Generation
+  pagesStore.setupOCREventListeners()
+  pagesStore.setupDocGenEventListeners()
+
   // Resume any interrupted PDF processing
   try {
     const { pdfService } = await import('./services/pdf')

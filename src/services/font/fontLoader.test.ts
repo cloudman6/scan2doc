@@ -17,6 +17,9 @@ const createMockCanvas = (context: Partial<CanvasRenderingContext2D>) => ({
   getContext: () => context
 })
 
+// Mock fetch
+global.fetch = vi.fn()
+
 describe('FontLoaderService', () => {
   // Save original globals to restore after tests
   const originalFontFace = globalThis.FontFace
@@ -321,6 +324,66 @@ describe('FontLoaderService', () => {
       await service.preloadCommonFonts()
 
       expect(spy).toHaveBeenCalled()
+    })
+  })
+
+  describe('fetchFontBytes', () => {
+    it('should fetch and return font bytes', async () => {
+      const service = FontLoaderService.getInstance()
+      const mockBytes = new Uint8Array([1, 2, 3])
+      const mockResponse = {
+        ok: true,
+        arrayBuffer: vi.fn().mockResolvedValue(mockBytes.buffer)
+      }
+      vi.mocked(global.fetch).mockResolvedValue(mockResponse as any)
+
+      const result = await service.fetchFontBytes('https://example.com/font.ttf')
+
+      expect(global.fetch).toHaveBeenCalledWith('https://example.com/font.ttf')
+      expect(result).toEqual(mockBytes)
+    })
+
+    it('should return cached bytes if available', async () => {
+      const service = FontLoaderService.getInstance()
+      const mockBytes = new Uint8Array([1, 2, 3])
+      const mockResponse = {
+        ok: true,
+        arrayBuffer: vi.fn().mockResolvedValue(mockBytes.buffer)
+      }
+      vi.mocked(global.fetch).mockResolvedValue(mockResponse as any)
+
+      // First call
+      await service.fetchFontBytes('https://example.com/font.ttf')
+
+      // Second call
+      const result = await service.fetchFontBytes('https://example.com/font.ttf')
+
+      expect(global.fetch).toHaveBeenCalledTimes(1) // Should handle via cache? 
+      // Actually the current plan didn't explicitly say "cache cache specifically for this method" 
+      // but logic implies it should or we rely on browser cache. 
+      // Let's check the implementation plan. "fetch and cache font files as ArrayBuffers". 
+      // So yes, I should implement caching.
+      expect(result).toEqual(mockBytes)
+    })
+
+    it('should return null on fetch error', async () => {
+      const service = FontLoaderService.getInstance()
+      vi.mocked(global.fetch).mockResolvedValue({ ok: false } as any)
+
+      const result = await service.fetchFontBytes('https://wrong.url')
+
+      expect(result).toBeNull()
+      expect(pdfLogger.warn).toHaveBeenCalled()
+    })
+
+    it('should return null on network exception', async () => {
+      const service = FontLoaderService.getInstance()
+      vi.mocked(global.fetch).mockRejectedValue(new Error('Network error'))
+
+      const result = await service.fetchFontBytes('https://error.url')
+
+      expect(result).toBeNull()
+      expect(pdfLogger.warn).toHaveBeenCalled()
     })
   })
 })

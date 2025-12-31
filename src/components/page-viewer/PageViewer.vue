@@ -205,6 +205,8 @@ import { ref, computed, watch, onUnmounted } from 'vue'
 import { uiLogger } from '@/utils/logger'
 import { NCard, NSpace, NButton, NButtonGroup, NSpin, NEmpty, NResult, NText } from 'naive-ui'
 import { db } from '@/db'
+import { ocrService } from '@/services/ocr'
+import { useMessage } from 'naive-ui'
 
 import type { Page } from '@/stores/pages'
 
@@ -214,6 +216,8 @@ const props = defineProps<{
 
 
 
+
+const message = useMessage()
 const zoomLevel = ref(1)
 // const imageContainer = ref<HTMLElement>() // Unused ref removed
 const imageSize = ref<string>('')
@@ -383,7 +387,7 @@ function formatFileSize(bytes: number): string {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
 }
 
-function runOCR() {
+async function runOCR() {
   const isProcessing = status.value === 'recognizing' || 
                       status.value === 'pending_ocr' || 
                       status.value === 'rendering' || 
@@ -392,7 +396,23 @@ function runOCR() {
                       status.value.startsWith('generating_')
 
   if (!props.currentPage || isProcessing) return
-  uiLogger.info('Running OCR for page', props.currentPage.id)
+  
+  try {
+    const imageBlob = await db.getPageImage(props.currentPage.id)
+    
+    if (!imageBlob) {
+      message.error('Could not retrieve image data')
+      return
+    }
+
+    uiLogger.info('Adding page to OCR Queue:', props.currentPage.id)
+    message.info('Added to OCR Queue')
+    await ocrService.queueOCR(props.currentPage.id, imageBlob)
+
+  } catch (error) {
+    uiLogger.error('OCR Error:', error)
+    message.error('OCR Failed: ' + (error instanceof Error ? error.message : String(error)))
+  }
 }
 </script>
 

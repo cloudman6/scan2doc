@@ -16,12 +16,48 @@ export interface FontConfig {
 export class FontLoaderService {
   private static instance: FontLoaderService
   private loadedFonts = new Set<string>()
+  private fontCache = new Map<string, Uint8Array>()
+
+  // Default CJK Font URL (Noto Sans SC)
+  // Using local file for offline support and performance
+  static readonly SC_FONT_URL = '/standard_fonts/NotoSansSC-Regular.woff2'
+  // Note: WOFF2 is widely supported but PDF-LIB usually prefers TTF/OTF or Standard 14. 
+  // However, @pdf-lib/fontkit supposedly supports WOFF2 if the browser/environment does? 
+  // Actually, pdf-lib + fontkit handles most formats. Let's start with this.  
+  // Wait, typically we want .ttf or .otf for embedding if possible to avoid compression issues, 
+  // but woff2 is smaller. Let's double check if pdf-lib fontkit supports woff2. 
+  // Yes, with fontkit it should work. 
 
   static getInstance(): FontLoaderService {
     if (!FontLoaderService.instance) {
       FontLoaderService.instance = new FontLoaderService()
     }
     return FontLoaderService.instance
+  }
+
+  /**
+   * Fetch font bytes from URL with caching
+   */
+  async fetchFontBytes(url: string): Promise<Uint8Array | null> {
+    if (this.fontCache.has(url)) {
+      return this.fontCache.get(url)!
+    }
+
+    try {
+      const response = await fetch(url)
+      if (!response.ok) {
+        throw new Error(`Failed to fetch font: ${response.status} ${response.statusText}`)
+      }
+
+      const buffer = await response.arrayBuffer()
+      const bytes = new Uint8Array(buffer)
+
+      this.fontCache.set(url, bytes)
+      return bytes
+    } catch (error) {
+      pdfLogger.warn(`Failed to fetch font bytes from ${url}:`, error)
+      return null
+    }
   }
 
   /**

@@ -9,6 +9,20 @@ vi.mock('@/utils/logger', () => ({
   uiLogger: {
     info: vi.fn(),
     error: vi.fn()
+  },
+  queueLogger: {
+    info: vi.fn(),
+    error: vi.fn()
+  },
+  storeLogger: {
+    info: vi.fn(),
+    error: vi.fn()
+  }
+}))
+
+vi.mock('@/services/ocr', () => ({
+  ocrService: {
+    queueOCR: vi.fn()
   }
 }))
 
@@ -68,7 +82,13 @@ vi.mock('naive-ui', () => ({
     name: 'NDivider',
     props: ['vertical'],
     template: '<span class="n-divider"></span>'
-  }
+  },
+  useMessage: vi.fn(() => ({
+    error: vi.fn(),
+    success: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn()
+  }))
 }))
 
 // Mock db
@@ -260,26 +280,26 @@ describe('PageViewer.vue', () => {
     expect((wrapper.vm as any).imageError).toBe('Failed to load image')
   })
 
-  it('guards runOCR execution', () => {
+  it('guards runOCR execution', async () => {
     // 1. No current page
     const wrapper1 = mount(PageViewer, {
       props: { currentPage: null }
     })
-      ; (wrapper1.vm as any).runOCR() // Should return early
+      ; await (wrapper1.vm as any).runOCR() // Should return early
 
     // 2. Status is processing (mocked as recognizing in this context for guard check)
     const processingPage = { ...mockPage, status: 'recognizing' as const }
     const wrapper2 = mount(PageViewer, {
       props: { currentPage: processingPage }
     })
-      ; (wrapper2.vm as any).runOCR() // Should return early
+      ; await (wrapper2.vm as any).runOCR() // Should return early
 
     // 3. Normal execution
     const wrapper3 = mount(PageViewer, {
       props: { currentPage: mockPage }
     })
-      ; (wrapper3.vm as any).runOCR() // Should log/execute
-    expect(uiLogger.info).toHaveBeenCalledWith('Running OCR for page', mockPage.id)
+      ; await (wrapper3.vm as any).runOCR() // Should log/execute
+    expect(uiLogger.info).toHaveBeenCalledWith('Adding page to OCR Queue:', mockPage.id)
   })
 
   it('disables OCR button when status is not ready', async () => {
