@@ -158,7 +158,7 @@ import { ref, watch, onUnmounted } from 'vue'
 import { NTabs, NTabPane, NEmpty, NButton, NSpin, NSwitch } from 'naive-ui'
 import { renderAsync } from 'docx-preview'
 import MarkdownIt from 'markdown-it'
-// @ts-expect-error
+// @ts-expect-error -- @iktakahiro/markdown-it-katex does not have type definitions currently
 import MarkdownItKatex from '@iktakahiro/markdown-it-katex'
 import 'katex/dist/katex.min.css'
 import { db } from '@/db'

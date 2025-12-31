@@ -947,7 +947,7 @@ describe('Pages Store', () => {
             let attempts = 0
             while (attempts < 100) {
                 const calls = vi.mocked(pdfEvents.on).mock.calls
-                const queuedCall = calls.filter(c => c[0] === 'pdf:pages:queued')[0]
+                const queuedCall = calls.filter(c => (c[0] as string) === 'pdf:pages:queued')[0]
                 if (queuedCall && typeof queuedCall[1] === 'function') {
                     (queuedCall[1] as any)()
                     break

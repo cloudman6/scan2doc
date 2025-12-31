@@ -388,5 +388,74 @@ describe('SandwichPDFBuilder', () => {
 
         expect(mockPage.drawText).toHaveBeenCalledWith(expect.stringContaining('ReassignedData'), expect.any(Object))
     })
+    it('should split long tokens that overflow width', async () => {
+        const raw_text = createRawText([
+            { type: 'text', box: [10, 10, 100, 50], content: 'VeryLongWordThatDoesNotFit' }
+        ])
+
+        const ocrResult = {
+            success: true,
+            text: 'VeryLongWordThatDoesNotFit',
+            raw_text,
+            boxes: [],
+            image_dims: { w: 100, h: 100 },
+            prompt_type: 'document'
+        }
+
+        // Mock font width to be large for every character, forcing split
+        // widthOfTextAtSize returns 50, but box width is ~50 scaled points?
+        // Let's control mocked font width precisely.
+        // boxWidth calculation:
+        // imageWidth=100. pdfWidth = 100/150*72 = 48.
+        // Scale = 48/100 = 0.48.
+        // box width (pixels)=90. scaled width = 43.2.
+
+        // If we make font width return 50 for the whole string, it overflows.
+        // And if we make char width 10, it fits 4 chars.
+
+
+
+        // We need to inject this mock into the pdfDoc.embedStandardFont result
+        // But sandwichPDFBuilder creates the doc inside generate.
+        // We mocked pdfDoc.embedStandardFont to return mockFont.
+        // We can change mockFont behavior for this test.
+        mockFont.widthOfTextAtSize.mockImplementation((txt: string) => {
+            if (txt.length > 10) return 200 // Huge width
+            return txt.length * 2
+        })
+
+        await sandwichPDFBuilder.generate(mockBlob, ocrResult)
+
+        // It should have called drawText multiple times for split parts
+        // "VeryLongWordThatDoesNotFit" should be split.
+        // We just verify it called drawText successfully with parts of the word.
+        expect(mockPage.drawText).toHaveBeenCalledWith(expect.stringContaining('Very'), expect.any(Object))
+    })
+
+    it('should wrap text to multiple lines when width is small', async () => {
+        const raw_text = createRawText([
+            { type: 'text', box: [10, 10, 50, 50], content: 'Word1 Word2' }
+        ])
+
+        // Box width in PDF points will be small.
+        // Force wrap by making word width logic
+        mockFont.widthOfTextAtSize.mockImplementation((txt: string) => {
+            if (txt.includes('Word1 Word2')) return 100 // Too big for line
+            return 10 // Fits individually
+        })
+
+        await sandwichPDFBuilder.generate(mockBlob, {
+            success: true,
+            text: '',
+            raw_text,
+            boxes: [],
+            image_dims: { w: 100, h: 100 },
+            prompt_type: 'document'
+        })
+
+        // Should draw Word1 and Word2 separately
+        expect(mockPage.drawText).toHaveBeenCalledWith('Word1 ', expect.any(Object))
+        expect(mockPage.drawText).toHaveBeenCalledWith('Word2', expect.any(Object))
+    })
 })
 

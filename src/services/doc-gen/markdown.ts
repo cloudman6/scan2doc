@@ -96,9 +96,9 @@ export class MarkdownAssembler {
             }
 
             // 2. Process the match
-            const type = match[1].trim().toLowerCase()
-            const coordsStr = match[2]
-            const rawContent = match[3]
+            const type = match[1]!.trim().toLowerCase()
+            const coordsStr = match[2]!
+            const rawContent = match[3]!
             const coords = coordsStr.split(',').map(Number)
 
             if (coords.length === 4) {
@@ -117,7 +117,8 @@ export class MarkdownAssembler {
                 }
 
                 // Normalize box to absolute coordinates
-                const absBox = this.normalizeBox(coords, ocrResult.image_dims)
+
+                const absBox = this.normalizeBox(coords, ocrResult.image_dims!)
 
                 blocks.push({
                     type,
@@ -138,7 +139,8 @@ export class MarkdownAssembler {
                 blocks.push({
                     type: 'text',
                     content: tailText.trim(),
-                    box: [0, 0, ocrResult.image_dims.w, ocrResult.image_dims.h], // Assume bottom
+
+                    box: [0, 0, ocrResult.image_dims!.w, ocrResult.image_dims!.h], // Assume bottom
                     isImage: false
                 })
             }
@@ -151,7 +153,7 @@ export class MarkdownAssembler {
         if (blocks.length === 0) return []
 
         // Sort by Y1 (top)
-        const sorted = [...blocks].sort((a, b) => a.box[1] - b.box[1])
+        const sorted = [...blocks].sort((a, b) => (a.box[1] || 0) - (b.box[1] || 0))
         const rows: Row[] = []
 
         let currentRow: Row | null = null
@@ -160,20 +162,23 @@ export class MarkdownAssembler {
             // Ignore empty content blocks (e.g. just a placeholder ref with no text/image)
             if (!block.content && !block.isImage) continue
 
+            const bTop = block.box[1] || 0
+            const bBottom = block.box[3] || 0
+
             if (!currentRow) {
-                currentRow = { blocks: [block], top: block.box[1], bottom: block.box[3] }
+                currentRow = { blocks: [block], top: bTop, bottom: bBottom }
                 continue
             }
 
             // Calculate Vertical Intersection over Union (or just Intersection check)
             // Intersection
-            const y1 = Math.max(currentRow.top, block.box[1])
-            const y2 = Math.min(currentRow.bottom, block.box[3])
+            const y1 = Math.max(currentRow.top, bTop)
+            const y2 = Math.min(currentRow.bottom, bBottom)
             const intersection = Math.max(0, y2 - y1)
 
             // Compare intersection to heights
             const rowH = currentRow.bottom - currentRow.top
-            const blockH = block.box[3] - block.box[1]
+            const blockH = bBottom - bTop
             const minH = Math.min(rowH, blockH)
 
             // Threshold: if they overlap significantly (e.g. > 50% of the smaller item's height)
@@ -183,20 +188,20 @@ export class MarkdownAssembler {
                 // Add to row
                 currentRow.blocks.push(block)
                 // Expand row bounds
-                currentRow.top = Math.min(currentRow.top, block.box[1])
-                currentRow.bottom = Math.max(currentRow.bottom, block.box[3])
+                currentRow.top = Math.min(currentRow.top, bTop)
+                currentRow.bottom = Math.max(currentRow.bottom, bBottom)
             } else {
                 // Finish old row
                 // Sort blocks in row by X1
-                currentRow.blocks.sort((a, b) => a.box[0] - b.box[0])
+                currentRow.blocks.sort((a, b) => (a.box[0] || 0) - (b.box[0] || 0))
                 rows.push(currentRow)
                 // Start new row
-                currentRow = { blocks: [block], top: block.box[1], bottom: block.box[3] }
+                currentRow = { blocks: [block], top: bTop, bottom: bBottom }
             }
         }
 
         if (currentRow) {
-            currentRow.blocks.sort((a, b) => a.box[0] - b.box[0])
+            currentRow.blocks.sort((a, b) => (a.box[0] || 0) - (b.box[0] || 0))
             rows.push(currentRow)
         }
 
@@ -212,7 +217,7 @@ export class MarkdownAssembler {
 
             if (blocks.length === 1) {
                 // Normal paragraph
-                output += blocks[0].content + '\n\n'
+                output += blocks[0]!.content + '\n\n'
             } else {
                 // Multi-column layout -> HTML Table
                 // Calculate percentages
@@ -222,7 +227,7 @@ export class MarkdownAssembler {
                 // Relative to page is safer to preserve "gaps".
 
                 const cells = blocks.map(b => {
-                    const w = Math.max(1, b.box[2] - b.box[0])
+                    const w = Math.max(1, (b.box[2] || 0) - (b.box[0] || 0))
                     const pct = Math.round((w / pageW) * 100)
                     return { content: b.content, width: pct }
                 })
@@ -268,15 +273,16 @@ export class MarkdownAssembler {
         const maxCoord = Math.max(...coords)
         if (maxCoord <= 1000 && (dims.w > 1000 || dims.h > 1000)) {
             return [
-                (coords[0] / 1000) * dims.w,
-                (coords[1] / 1000) * dims.h,
-                (coords[2] / 1000) * dims.w,
-                (coords[3] / 1000) * dims.h,
+                (coords[0]! / 1000) * dims.w,
+                (coords[1]! / 1000) * dims.h,
+                (coords[2]! / 1000) * dims.w,
+                (coords[3]! / 1000) * dims.h,
             ]
         }
         return coords
     }
 
+    // eslint-disable-next-line complexity
     private findMatchingBoxIndex(
         targetCoords: number[],
         boxes: OCRBox[],
@@ -293,10 +299,10 @@ export class MarkdownAssembler {
         const candidates = [
             targetCoords,
             [
-                (targetCoords[0] / 1000) * imageDims.w,
-                (targetCoords[1] / 1000) * imageDims.h,
-                (targetCoords[2] / 1000) * imageDims.w,
-                (targetCoords[3] / 1000) * imageDims.h,
+                (targetCoords[0]! / 1000) * imageDims.w,
+                (targetCoords[1]! / 1000) * imageDims.h,
+                (targetCoords[2]! / 1000) * imageDims.w,
+                (targetCoords[3]! / 1000) * imageDims.h,
             ]
         ]
 
@@ -304,12 +310,12 @@ export class MarkdownAssembler {
 
         for (const coords of candidates) {
             for (let i = 0; i < boxes.length; i++) {
-                const box = boxes[i].box
+                const box = boxes[i]!.box
                 if (
-                    Math.abs(box[0] - coords[0]) <= DELTA &&
-                    Math.abs(box[1] - coords[1]) <= DELTA &&
-                    Math.abs(box[2] - coords[2]) <= DELTA &&
-                    Math.abs(box[3] - coords[3]) <= DELTA
+                    Math.abs(box[0] - (coords[0] || 0)) <= DELTA &&
+                    Math.abs(box[1] - (coords[1] || 0)) <= DELTA &&
+                    Math.abs(box[2] - (coords[2] || 0)) <= DELTA &&
+                    Math.abs(box[3] - (coords[3] || 0)) <= DELTA
                 ) {
                     return i
                 }

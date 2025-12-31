@@ -115,11 +115,13 @@ export function findMatchingBoxIndex(
     if (!imageDims || boxes.length === 0 || rawCoords.length !== 4) return -1
 
     // Normalize the raw coords to actual image dimensions for comparison
+    // Normalize the raw coords to actual image dimensions for comparison
+    const dims = imageDims!
     const normalizedCoords = [
-        (rawCoords[0] / 1000) * imageDims.w,
-        (rawCoords[1] / 1000) * imageDims.h,
-        (rawCoords[2] / 1000) * imageDims.w,
-        (rawCoords[3] / 1000) * imageDims.h,
+        (rawCoords[0]! / 1000) * dims.w,
+        (rawCoords[1]! / 1000) * dims.h,
+        (rawCoords[2]! / 1000) * dims.w,
+        (rawCoords[3]! / 1000) * dims.h,
     ]
 
     // Use a percentage-based tolerance (5% of image dimension)
@@ -133,18 +135,26 @@ export function findMatchingBoxIndex(
         const currentBox = boxes[i]
         if (!currentBox) continue
 
-        const box = currentBox.box
-        if (
-            Math.abs(box[0] - normalizedCoords[0]) <= toleranceX &&
-            Math.abs(box[1] - normalizedCoords[1]) <= toleranceY &&
-            Math.abs(box[2] - normalizedCoords[2]) <= toleranceX &&
-            Math.abs(box[3] - normalizedCoords[3]) <= toleranceY
-        ) {
+        if (isBoxMatching(currentBox.box, normalizedCoords, toleranceX, toleranceY)) {
             return i
         }
     }
 
     return -1
+}
+
+function isBoxMatching(
+    box1: [number, number, number, number],
+    box2: number[],
+    toleranceX: number,
+    toleranceY: number
+): boolean {
+    return (
+        Math.abs(box1[0] - (box2[0] || 0)) <= toleranceX &&
+        Math.abs(box1[1] - (box2[1] || 0)) <= toleranceY &&
+        Math.abs(box1[2] - (box2[2] || 0)) <= toleranceX &&
+        Math.abs(box1[3] - (box2[3] || 0)) <= toleranceY
+    )
 }
 
 /**
@@ -162,10 +172,10 @@ export function normalizeBox(coords: number[], dims: ImageDims | undefined): num
     const maxCoord = Math.max(...coords)
     if (maxCoord <= 1000 && (dims.w > 1000 || dims.h > 1000)) {
         return [
-            (coords[0] / 1000) * dims.w,
-            (coords[1] / 1000) * dims.h,
-            (coords[2] / 1000) * dims.w,
-            (coords[3] / 1000) * dims.h,
+            ((coords[0] || 0) / 1000) * dims.w,
+            ((coords[1] || 0) / 1000) * dims.h,
+            ((coords[2] || 0) / 1000) * dims.w,
+            ((coords[3] || 0) / 1000) * dims.h,
         ]
     }
     return coords
