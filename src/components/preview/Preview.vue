@@ -158,6 +158,9 @@ import { ref, watch, onUnmounted } from 'vue'
 import { NTabs, NTabPane, NEmpty, NButton, NSpin, NSwitch } from 'naive-ui'
 import { renderAsync } from 'docx-preview'
 import MarkdownIt from 'markdown-it'
+// @ts-expect-error
+import MarkdownItKatex from '@iktakahiro/markdown-it-katex'
+import 'katex/dist/katex.min.css'
 import { db } from '@/db'
 import { uiLogger } from '@/utils/logger'
 import 'github-markdown-css/github-markdown.css'
@@ -184,6 +187,15 @@ const mdRenderer = new MarkdownIt({
     linkify: true,
     typographer: true
 })
+mdRenderer.use(MarkdownItKatex)
+
+const processMarkdownMath = (markdown: string): string => {
+    // Replace \( ... \) with $ ... $
+    let processed = markdown.replace(/\\\((.*?)\\\)/g, '$$$1$$')
+    // Replace \[ ... \] with $$ ... $$
+    processed = processed.replace(/\\\[(.*?)\\\]/g, '$$$$$1$$$$')
+    return processed
+}
 
 // Custom render rule or post-process for scan2doc-img:
 // We'll use a simple regex replacement for now as it's efficient for this use case
@@ -360,14 +372,18 @@ async function loadMarkdown(pageId: string) {
         const record = await db.getPageMarkdown(pageId)
         if (record) {
             mdContent.value = record.content
-            const processedMd = await processMarkdownImages(record.content)
+            // 1. Process math delimiters
+            const withMath = processMarkdownMath(record.content)
+            // 2. Process images
+            const processedMd = await processMarkdownImages(withMath)
             renderedMd.value = mdRenderer.render(processedMd)
         } else {
             // Fallback to OCR text if no markdown yet?
             // Actually OCR text is in page object, but let's stick to DB or Page object
              // Page object has ocrText.
              mdContent.value = props.currentPage?.ocrText || ''
-             renderedMd.value = mdRenderer.render(mdContent.value)
+             const withMath = processMarkdownMath(mdContent.value)
+             renderedMd.value = mdRenderer.render(withMath)
         }
     } catch (error) {
         uiLogger.error('Failed to load markdown', error)
@@ -560,6 +576,12 @@ onUnmounted(() => {
   font-size: 16px;
   line-height: 1.5;
   color: #24292f;
+}
+
+/* Ensure KaTeX superscript layout is not messed up by global resets */
+:deep(.katex) {
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .pdf-container {

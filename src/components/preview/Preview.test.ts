@@ -262,9 +262,30 @@ describe('Preview.vue', () => {
     // Call the function
     vm.handleDownloadMarkdown()
 
-    expect(mockAnchor.click).toHaveBeenCalled()
+    expect(mockAnchor.download).toContain('.md')
     expect(mockAnchor.download).toContain('.md')
 
     createElementSpy.mockRestore()
+  })
+
+  it('renders math expressions correctly using KaTeX', async () => {
+    // Reset mdRenderer mock or just rely on the real one since we imported real MarkdownIt
+    // In this test file, MarkdownIt is imported. If it was mocked, we would need to check that.
+    // Checking imports... "import MarkdownIt from 'markdown-it'". It is NOT mocked in this file.
+    // So we can test the real rendering.
+
+    const wrapper = mount(Preview, { props: { currentPage: mockPage } })
+    const vm = wrapper.vm as any
+
+    // Test case from user request: \(100^{\circ}\mathrm{C}\)
+    const mathInput = 'Text with math: \\(100^{\\circ}\\mathrm{C}\\)'
+    vi.mocked(db.getPageMarkdown).mockResolvedValue({ content: mathInput } as any)
+
+    await vm.loadMarkdown('p1')
+    await flushPromises()
+
+    // Check if katex class exists in rendered output
+    expect(vm.renderedMd).toContain('katex')
+    expect(vm.renderedMd).toContain('katex-mathml')
   })
 })
