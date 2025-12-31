@@ -114,65 +114,62 @@ export class SandwichPDFBuilder {
 
     private overlayOcrText(page: PDFPage, blocks: ParsedBlock[], pdfHeight: number, scale: number, font: PDFFont) {
         for (const block of blocks) {
-            // Skip image blocks - we only want text
-            if (block.type === 'image' || block.type === 'figure') continue
-            if (!block.content) continue
+            if (block.type === 'image' || block.type === 'figure' || !block.content) continue
 
-            // Clean content: remove markdown formatting for PDF text layer
-            let cleanText = ''
-            if (block.type === 'table' || block.content.includes('<table')) {
-                cleanText = this.cleanTableHtml(block.content)
-            } else {
-                cleanText = this.cleanTextForPdf(block.content)
-            }
-
+            const cleanText = this.getCleanText(block)
             if (!cleanText) continue
 
-            // Scale coordinates from pixel space to PDF point space
-            const [x1, y1, x2, y2] = block.box
-            const scaledX = x1 * scale
-            const scaledY1 = y1 * scale
-            const boxWidth = (x2 - x1) * scale
-            const boxHeight = (y2 - y1) * scale
+            const { scaledX, scaledY1, boxWidth, boxHeight } = this.scaleBoxCoordinates(block.box, scale)
 
-            // DEBUG: Draw box border to visualize positioning
-            const pdfBoxY = pdfHeight - scaledY1 - boxHeight
-            page.drawRectangle({
-                x: scaledX,
-                y: pdfBoxY,
-                width: boxWidth,
-                height: boxHeight,
-                borderColor: rgb(0, 0, 1), // Blue border
-                borderWidth: 1,
-                opacity: 0 // DEBUG: Changed to 0 for invisible text layer (Use 1 for debug)
-            })
+            // DEBUG: Draw box border
+            // this.drawDebugBox(page, scaledX, scaledY1, boxWidth, boxHeight, pdfHeight)
 
-            // Find optimal font size using binary search to fit text in box
             const { fontSize, lines } = this.fitTextToBox(cleanText, boxWidth, boxHeight, font)
+            this.drawTextLines(page, lines, scaledX, scaledY1, boxHeight, pdfHeight, fontSize, font)
+        }
+    }
 
-            const lineHeight = fontSize * 1.2
-            // Positioning adjustment: shift slightly up from the baseline (ascender adjustment)
-            const baselineOffset = fontSize * 0.1
-            let currentY = pdfHeight - scaledY1 - fontSize + baselineOffset
-            const bottomLimit = pdfHeight - scaledY1 - boxHeight
+    private getCleanText(block: ParsedBlock): string {
+        if (block.type === 'table' || block.content.includes('<table')) {
+            return this.cleanTableHtml(block.content)
+        }
+        return this.cleanTextForPdf(block.content)
+    }
 
-            for (const line of lines) {
-                if (currentY < bottomLimit) break // Don't draw below box
+    private scaleBoxCoordinates(box: [number, number, number, number], scale: number) {
+        const [x1, y1, x2, y2] = box
+        return {
+            scaledX: x1 * scale,
+            scaledY1: y1 * scale,
+            boxWidth: (x2 - x1) * scale,
+            boxHeight: (y2 - y1) * scale
+        }
+    }
 
-                try {
-                    page.drawText(line, {
-                        x: scaledX,
-                        y: currentY,
-                        size: fontSize,
-                        color: rgb(1, 0, 0), // DEBUG: Red color for visibility
-                        opacity: 1, // DEBUG: Fully visible for debugging
-                        font: font
-                    })
-                } catch (e) {
-                    console.warn('[SandwichPDFBuilder] Failed to draw text line:', line.substring(0, 20), e)
-                }
-                currentY -= lineHeight
+
+
+    private drawTextLines(
+        page: PDFPage, lines: string[],
+        x: number, y1: number,
+        h: number,
+        pdfHeight: number, fontSize: number, font: PDFFont
+    ) {
+        const lineHeight = fontSize * 1.2
+        const baselineOffset = fontSize * 0.1
+        let currentY = pdfHeight - y1 - fontSize + baselineOffset
+        const bottomLimit = pdfHeight - y1 - h
+
+        for (const line of lines) {
+            if (currentY < bottomLimit) break
+            try {
+                page.drawText(line, {
+                    x, y: currentY, size: fontSize,
+                    color: rgb(1, 0, 0), opacity: 1, font: font
+                })
+            } catch (e) {
+                console.warn('[SandwichPDFBuilder] Failed to draw text line:', line.substring(0, 20), e)
             }
+            currentY -= lineHeight
         }
     }
 
@@ -219,7 +216,8 @@ export class SandwichPDFBuilder {
         // Let's use space for <br> inside a cell to keep cell content "together" relative to the row
         text = text.replace(/<br\s*\/?>/gi, ' ')
         // 4. Strip all other HTML tags
-        text = text.replace(/<[^>]+>/g, '')
+        // eslint-disable-next-line sonarjs/slow-regex
+        text = text.replace(/<[^>]*>/g, '')
         // 5. Decode basic HTML entities (common in tables)
         text = text.replace(/&nbsp;/g, ' ')
             .replace(/&lt;/g, '<')
@@ -243,66 +241,71 @@ export class SandwichPDFBuilder {
         const paragraphs = text.split('\n')
 
         for (const paragraph of paragraphs) {
-            const lines: string[] = []
-            let currentLine = ''
-
-            // Tokenize by words and whitespace to preserve explicit spacing
-            // "Cell1  Cell2" -> ["Cell1", "  ", "Cell2"]
-            const tokens = paragraph.match(/(\S+|\s+)/g) || []
-
-            for (const token of tokens) {
-                // If token is purely whitespace, just attempt to add it
-                const isWhitespace = /^\s+$/.test(token)
-
-                // For PDF Text layer, we just append blindly if it fits?
-                // But wait, if we append "   ", widthOfTextAtSize might return 0 for some fonts or small width
-                // Generally we treat it as text.
-
-                const trialLine = currentLine + token
-                const trialWidth = font.widthOfTextAtSize(trialLine, fontSize)
-
-                if (trialWidth <= maxWidth) {
-                    currentLine = trialLine
-                } else {
-                    // Overflow
-                    if (isWhitespace) {
-                        // Trailing whitespace overflow is ignored or kept (invisible layer)
-                        // Keeping it is safer for copy-paste structure
-                        currentLine = trialLine
-                    } else {
-                        // Word overflow
-                        if (currentLine) {
-                            lines.push(currentLine)
-                            currentLine = ''
-                        }
-
-                        // Check if word itself fits
-                        if (font.widthOfTextAtSize(token, fontSize) > maxWidth) {
-                            // Split characters
-                            let fragment = ''
-                            for (const char of token) {
-                                if (font.widthOfTextAtSize(fragment + char, fontSize) > maxWidth) {
-                                    if (fragment) lines.push(fragment)
-                                    fragment = char
-                                } else {
-                                    fragment += char
-                                }
-                            }
-                            currentLine = fragment
-                        } else {
-                            currentLine = token
-                        }
-                    }
-                }
-            }
-            if (currentLine) lines.push(currentLine)
-
+            const lines = this.processParagraph(paragraph, maxWidth, font, fontSize)
             if (lines.length > 0) {
                 allLines.push(...lines)
             }
         }
 
+
         return allLines.length > 0 ? allLines : [text]
+    }
+
+    private processParagraph(paragraph: string, maxWidth: number, font: PDFFont, fontSize: number): string[] {
+        const lines: string[] = []
+        let currentLine = ''
+        const tokens = paragraph.match(/(\S+|\s+)/g) || []
+
+        for (const token of tokens) {
+            const trialLine = currentLine + token
+            const trialWidth = font.widthOfTextAtSize(trialLine, fontSize)
+
+            if (trialWidth <= maxWidth) {
+                currentLine = trialLine
+            } else {
+                currentLine = this.handleOverflow(token, currentLine, maxWidth, font, fontSize, lines)
+            }
+        }
+        if (currentLine) lines.push(currentLine)
+        return lines
+    }
+
+    private handleOverflow(
+        token: string,
+        currentLine: string,
+        maxWidth: number,
+        font: PDFFont,
+        fontSize: number,
+        lines: string[]
+    ): string {
+        const isWhitespace = /^\s+$/.test(token)
+
+        if (isWhitespace) {
+            return currentLine + token
+        }
+
+        if (currentLine) {
+            lines.push(currentLine)
+        }
+
+        if (font.widthOfTextAtSize(token, fontSize) > maxWidth) {
+            return this.splitLongToken(token, maxWidth, font, fontSize, lines)
+        }
+
+        return token
+    }
+
+    private splitLongToken(token: string, maxWidth: number, font: PDFFont, fontSize: number, lines: string[]): string {
+        let fragment = ''
+        for (const char of token) {
+            if (font.widthOfTextAtSize(fragment + char, fontSize) > maxWidth) {
+                if (fragment) lines.push(fragment)
+                fragment = char
+            } else {
+                fragment += char
+            }
+        }
+        return fragment
     }
 
     private cleanTextForPdf(content: string): string {

@@ -387,15 +387,18 @@ function formatFileSize(bytes: number): string {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
 }
 
-async function runOCR() {
-  const isProcessing = status.value === 'recognizing' || 
-                      status.value === 'pending_ocr' || 
-                      status.value === 'rendering' || 
-                      status.value === 'pending_render' ||
-                      status.value === 'pending_gen' ||
-                      status.value.startsWith('generating_')
+const isPageProcessing = computed(() => {
+  const s = status.value
+  return s === 'recognizing' || 
+         s === 'pending_ocr' || 
+         s === 'rendering' || 
+         s === 'pending_render' ||
+         s === 'pending_gen' ||
+         s.startsWith('generating_')
+})
 
-  if (!props.currentPage || isProcessing) return
+async function runOCR() {
+  if (!props.currentPage || isPageProcessing.value) return
   
   try {
     const imageBlob = await db.getPageImage(props.currentPage.id)
