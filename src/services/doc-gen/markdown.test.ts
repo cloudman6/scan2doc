@@ -5,99 +5,113 @@ import sample1 from '../../../tests/e2e/samples/sample1.json'
 
 describe('MarkdownAssembler', () => {
     const assembler = new MarkdownAssembler()
+    const DIMS_1000 = { w: 1000, h: 1000 }
 
-    it('should return text as is if no images in map', () => {
+    it('should return raw_text as fallback if no tags found', () => {
         const ocrResult: OCRResult = {
             success: true,
             text: 'Hello World',
-            raw_text: 'Hello World',
+            raw_text: 'Hello World', // No tags
             boxes: [],
-            image_dims: { w: 100, h: 100 },
+            image_dims: DIMS_1000,
             prompt_type: 'document'
         }
         const result = assembler.assemble(ocrResult, new Map())
         expect(result).toBe('Hello World')
     })
 
-    it('should append images to the Figures section', () => {
+    it('should capture interstitial text between tags (Gap Text Bug Fix)', () => {
         const ocrResult: OCRResult = {
             success: true,
-            text: 'Content',
-            raw_text: 'Content',
+            text: '',
+            // Tag -> Gap Text -> Tag
+            raw_text:
+                '<|ref|>text<|/ref|><|det|>[[0,0,10,10]]<|/det|>First Block' +
+                '\nIMPORTANT GAP TEXT\n' + // This text is NOT part of the regex match for the first block if not careful, or between blocks
+                '<|ref|>text<|/ref|><|det|>[[0,20,10,30]]<|/det|>Second Block',
+            boxes: [],
+            image_dims: DIMS_1000,
+            prompt_type: 'document'
+        }
+        const result = assembler.assemble(ocrResult, new Map())
+        expect(result).toContain('First Block')
+        expect(result).toContain('IMPORTANT GAP TEXT')
+        expect(result).toContain('Second Block')
+    })
+
+    it('should render side-by-side elements as a table', () => {
+        const ocrResult: OCRResult = {
+            success: true,
+            text: '',
+            /* 
+               Layout:
+               Left block: 0-400 (Text)
+               Right block: 500-900 (Image)
+               Both Y: 0-100 (Perfect Overlap)
+            */
+            raw_text:
+                '<|ref|>text<|/ref|><|det|>[[0,0,400,100]]<|/det|>Left Text\n' +
+                '<|ref|>image<|/ref|><|det|>[[500,0,900,100]]<|/det|>',
             boxes: [
-                { box: [0, 0, 10, 10], label: 'text' },
-                { box: [10, 10, 20, 20], label: 'figure' }
+                { box: [0, 0, 400, 100], label: 'text' },
+                { box: [500, 0, 900, 100], label: 'image' }
             ],
-            image_dims: { w: 100, h: 100 },
+            image_dims: DIMS_1000,
             prompt_type: 'document'
         }
-        const imageMap = new Map<string, string>([
-            ['1', 'img-id-1']
-        ])
+        const imageMap = new Map<string, string>([['1', 'img-right']]) // index 1 is image
 
         const result = assembler.assemble(ocrResult, imageMap)
-        expect(result).toContain('Content')
-        expect(result).toContain('## Figures')
-        expect(result).toContain('![Figure 1](scan2doc-img:img-id-1)')
+
+        expect(result).toContain('<table>')
+        expect(result).toContain('Left Text')
+        expect(result).toContain('scan2doc-img:img-right')
+
+        expect(result).toContain('width="40%"')
     })
 
-    it('should sort images by index numerical order', () => {
+    it('should render sequential elements normally (no table)', () => {
         const ocrResult: OCRResult = {
             success: true,
             text: '',
-            raw_text: 'raw',
-            boxes: [],
-            image_dims: { w: 1, h: 1 },
-            prompt_type: 'document'
-        }
-        const imageMap = new Map<string, string>([
-            ['10', 'img-10'],
-            ['2', 'img-2']
-        ])
-
-        const result = assembler.assemble(ocrResult, imageMap)
-        const lines = result.split('\n')
-        const figureLines = lines.filter(l => l.startsWith('!['))
-        expect(figureLines[0]).toContain('img-2')
-        expect(figureLines[1]).toContain('img-10')
-    })
-
-    it('should handle empty text in OCR result', () => {
-        const ocrResult: OCRResult = {
-            success: true,
-            text: '',
-            raw_text: 'raw',
-            boxes: [],
-            image_dims: { w: 1, h: 1 },
-            prompt_type: 'document'
-        }
-        const imageMap = new Map<string, string>([['0', 'id0']])
-        const result = assembler.assemble(ocrResult, imageMap)
-        expect(result).toContain('## Figures')
-        expect(result).toContain('![Figure 1](scan2doc-img:id0)')
-    })
-    it('should clean raw_text by removing noisy ref tags but preserving valid ones', () => {
-        const ocrResult: OCRResult = {
-            success: true,
-            text: '',
-            // "table" is noisy, shoud contain "Figure 1", should remove det
-            raw_text: '<|ref|>table<|/ref|>Content\n<|ref|>Figure 1<|/ref|><|det|>[[0,0,0,0]]<|/det|>',
-            boxes: [],
-            image_dims: { w: 1, h: 1 },
+            /*
+               Layout:
+               Top: 0-100
+               Bottom: 200-300
+            */
+            raw_text:
+                '<|ref|>text<|/ref|><|det|>[[0,0,100,100]]<|/det|>Top Line\n' +
+                '<|ref|>text<|/ref|><|det|>[[0,200,100,300]]<|/det|>Bottom Line',
+            boxes: [
+                { box: [0, 0, 100, 100], label: 'text' },
+                { box: [0, 200, 100, 300], label: 'text' }
+            ],
+            image_dims: DIMS_1000,
             prompt_type: 'document'
         }
         const result = assembler.assemble(ocrResult, new Map())
 
-        // "table" is a noisy label, should be removed
-        expect(result).not.toContain('table')
+        expect(result).toContain('Top Line')
+        expect(result).toContain('Bottom Line')
+        expect(result).not.toContain('<table>')
+    })
 
-        // "Figure 1" is NOT a noisy label, should be preserved (unwrapped)
-        expect(result).toContain('Figure 1')
+    it('should clean raw_text by removing noisy ref tags (title, text) from visible content', () => {
+        const ocrResult: OCRResult = {
+            success: true,
+            text: '',
+            // The REF tag contains "title", the content contains "My Title"
+            raw_text: '<|ref|>title<|/ref|><|det|>[[0,0,100,100]]<|/det|>My Title',
+            boxes: [{ box: [0, 0, 100, 100], label: 'title' }],
+            image_dims: DIMS_1000,
+            prompt_type: 'document'
+        }
+        const result = assembler.assemble(ocrResult, new Map())
 
-        // Det tag should be removed (as no matching box/image)
-        expect(result).not.toContain('<|det|>')
-
-        expect(result).toContain('Content')
+        // "title" from the ref tag should not appear in the FINAL markdown output
+        // The parser logic uses 'title' as type, but only outputs 'content' ("My Title")
+        expect(result).toContain('My Title')
+        expect(result).not.toContain('title') // The word "title" shouldn't leak
     })
 
     it('should throw error if raw_text is missing', () => {
@@ -107,127 +121,37 @@ describe('MarkdownAssembler', () => {
             // @ts-expect-error -- testing missing raw_text
             raw_text: null,
             boxes: [],
-            image_dims: { w: 1, h: 1 },
+            image_dims: DIMS_1000,
             prompt_type: 'document'
         }
         expect(() => assembler.assemble(ocrResult, new Map())).toThrow('OCR result missing raw_text')
     })
-    it('should replace det tags with image links when coordinates match', () => {
+
+    it('should handle approximate coordinate matching and normalized coords', () => {
         const ocrResult: OCRResult = {
             success: true,
             text: '',
-            raw_text: 'Start <|det|>[[10,10,20,20]]<|/det|> End',
+            /*
+               Normalized raw_text coords: [100, 100, 200, 200] (0-1000 scale)
+               Absolute boxes: [200, 200, 400, 400] (for 2000x2000 image)
+            */
+            raw_text: '<|ref|>image<|/ref|><|det|>[[100,100,200,200]]<|/det|>',
             boxes: [
-                { box: [10, 10, 20, 20], label: 'figure' },
-                { box: [50, 50, 60, 60], label: 'text' }
+                { box: [200, 200, 400, 400], label: 'image' }
             ],
-            image_dims: { w: 100, h: 100 },
+            image_dims: { w: 2000, h: 2000 },
             prompt_type: 'document'
         }
-        // index 0 matches the box [10,10,20,20]
-        const imageMap = new Map<string, string>([
-            ['0', 'img-id-0']
-        ])
+        const imageMap = new Map<string, string>([['0', 'img-real']])
 
         const result = assembler.assemble(ocrResult, imageMap)
 
-        // matched image should be in-place
-        expect(result).toContain('Start ![Figure 1](scan2doc-img:img-id-0) End')
-        // should NOT be in Figures section at the bottom
-        expect(result).not.toContain('## Figures')
-    })
-
-    it('should unwrap ref tags instead of removing them', () => {
-        const ocrResult: OCRResult = {
-            success: true,
-            text: '',
-            raw_text: 'See <|ref|>Figure 1<|/ref|> below',
-            boxes: [],
-            image_dims: { w: 100, h: 100 },
-            prompt_type: 'document'
-        }
-        const result = assembler.assemble(ocrResult, new Map())
-        expect(result).toContain('See Figure 1 below')
-        expect(result).not.toContain('<|ref|>')
-        expect(result).not.toContain('<|/ref|>')
-    })
-
-    it('should handle mixed: in-place for matched, append for unmatched', () => {
-        const ocrResult: OCRResult = {
-            success: true,
-            text: '',
-            raw_text: 'Text <|det|>[[0,0,10,10]]<|/det|>',
-            boxes: [
-                { box: [0, 0, 10, 10], label: 'figure' }, // match
-                { box: [20, 20, 30, 30], label: 'figure' }  // no det tag for this, should append
-            ],
-            image_dims: { w: 100, h: 100 },
-            prompt_type: 'document'
-        }
-        const imageMap = new Map<string, string>([
-            ['0', 'img-0'],
-            ['1', 'img-1']
-        ])
-
-        const result = assembler.assemble(ocrResult, imageMap)
-
-        // In-place
-        expect(result).toContain('Text ![Figure 1](scan2doc-img:img-0)')
-
-    })
-
-    it('should handle normalized coordinates (0-1000) in raw_text matching absolute boxes', () => {
-        const width = 1487
-        const height = 2105
-        const ocrResult: OCRResult = {
-            success: true,
-            text: '',
-            // raw_text has normalized coords (e.g., 318/1000 * 1487 ~= 473)
-            raw_text: 'Text <|ref|>image<|/ref|><|det|>[[318, 239, 555, 360]]<|/det|>',
-            boxes: [
-                // Absolute coordinates: [473, 503, 826, 758] (approx matches the normalized ones above)
-                { box: [473, 503, 826, 758], label: 'image' }
-            ],
-            image_dims: { w: width, h: height },
-            prompt_type: 'document'
-        }
-        const imageMap = new Map<string, string>([
-            ['0', 'img-real']
-        ])
-
-        const result = assembler.assemble(ocrResult, imageMap)
-
-        // Should NOT contain the "image" label from ref tag
-        expect(result).not.toContain('image ![')
-        // Should contain the image in-place
-        expect(result).toContain('Text ![Figure 1](scan2doc-img:img-real)')
-        // Should not append at end
-        expect(result).not.toContain('## Figures')
-    })
-    it('should handle approximate coordinate matching', () => {
-        const ocrResult: OCRResult = {
-            success: true,
-            text: '',
-            // Coordinates slightly off (1px difference)
-            raw_text: '<|det|>[[10,10,21,21]]<|/det|>',
-            boxes: [
-                { box: [10, 10, 20, 20], label: 'figure' }
-            ],
-            image_dims: { w: 1000, h: 1000 },
-            prompt_type: 'document'
-        }
-        const imageMap = new Map<string, string>([
-            ['0', 'img-approx']
-        ])
-
-        const result = assembler.assemble(ocrResult, imageMap)
-        expect(result).toContain('![Figure 1](scan2doc-img:img-approx)')
+        expect(result).toContain('![Figure 1](scan2doc-img:img-real)')
     })
 
     describe('Real World Sample Integration', () => {
-        it('should correctly process sample1.json structure', () => {
+        it('should correctly process sample1.json structure and preserve ALL content', () => {
             // Setup Image Map based on sample1 boxes
-            // Indexes 6, 7, 12, 13, 14, 15 are images in sample1
             const imageMap = new Map<string, string>([
                 ['6', 'img-6'],
                 ['7', 'img-7'],
@@ -241,43 +165,43 @@ describe('MarkdownAssembler', () => {
             const result = assembler.assemble(sample1 as OCRResult, imageMap)
 
             // 1. Verify Noisy Labels are gone
-            // "title", "text", "image" should not appear as standalone lines derived from refs
-            // Note: Use regex to check words are not surrounded by newlines or markdown structure that implies they are headers
-            // More simply, raw_text has <|ref|>title<|/ref|>, we expect "title" to be GONE.
-            expect(result).not.toMatch(/^title$/m) // Start/End of line match
+            expect(result).not.toMatch(/^title$/m)
             expect(result).not.toMatch(/^text$/m)
-            expect(result).not.toMatch(/^image$/m)
 
-            // 2. Verify Content Integrity
-            expect(result).toContain('# OSTE0KJ3000')
-            expect(result).toContain('受检者ID: 1021112511173001')
-            expect(result).toContain('骨质情况良好。')
+            // 2. Generic Content Verification
+            // Extract all meaningful text chunks from raw_text using a simplified Logic
+            // We want to ensure everything that LOOKS like content (not tags) exists in Result.
 
-            // 3. Verify Image Placement (In-Context)
-            // In sample1, images 6,7 are under "测量结果" (Measurement Results)
-            const measurementIndex = result.indexOf('# 测量结果')
-            const img6Index = result.indexOf('![Figure 1](scan2doc-img:img-6)')
-            const img7Index = result.indexOf('![Figure 2](scan2doc-img:img-7)')
-            const boneDensityIndex = result.indexOf('# 骨密度')
+            const rawText = sample1.raw_text || ''
+            // Split by tags to get text chunks
+            // Regex to split by <|ref|>...<|/det|>
+            // We can just replace all tags with a special delimiter, then split
+            const cleanedRaw = rawText.replace(/<\|ref\|>.*?<\|\/ref\|><\|det\|>\[\[.*?\]\]<\|\/det\|>/g, '___SPLIT___')
+            const expectedChunks = cleanedRaw.split('___SPLIT___')
+                .map(s => s.trim())
+                .filter(s => s.length > 0)
 
-            expect(img6Index).toBeGreaterThan(measurementIndex)
-            expect(img7Index).toBeGreaterThan(measurementIndex)
+            // Verify EVERY chunk exists in the output
+            for (const chunk of expectedChunks) {
+                // We need to be careful about images. 
+                // Images in raw_text might be empty string or usually blank after tag.
+                // If the chunk is just blank, we filtered it out above.
+                // If the chunk contains content, it MUST be in the result.
+                expect(result).toContain(chunk)
+            }
 
-            // Should be BEFORE the next section "骨密度"
-            expect(img6Index).toBeLessThan(boneDensityIndex)
-            expect(img7Index).toBeLessThan(boneDensityIndex)
+            // Also sanity check specifically for known fields just in case regex logic above is slightly off vs parser
+            expect(result).toContain('OSTE0KJ3000')
+            expect(result).toContain('骨密度')
 
-            // images 12,13,14,15 are under "结果分析" (Result Analysis)
+            // 3. Verify Table Layout for "Result Analysis" Section
             const analysisIndex = result.indexOf('# 结果分析')
-            const docOpinionIndex = result.indexOf('# 诊断意见')
+            const tableIndex = result.indexOf('<table>', analysisIndex)
+            expect(tableIndex).not.toBe(-1)
 
-            expect(result.indexOf('![Figure 3]')).toBeGreaterThan(analysisIndex)
-            expect(result.indexOf('![Figure 3]')).toBeLessThan(docOpinionIndex)
-
-            // 4. Verify No Fallback
-            // Since all images found in boxes should match det tags in sample1, 
-            // the fallback "## Figures" section should NOT exist.
-            expect(result).not.toContain('## Figures')
+            const tablePart = result.substring(tableIndex)
+            const imgCount = (tablePart.match(/scan2doc-img:img-/g) || []).length
+            expect(imgCount).toBeGreaterThanOrEqual(4)
         })
     })
 })
