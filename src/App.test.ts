@@ -31,6 +31,8 @@ interface MockStore {
   undoDelete: ReturnType<typeof vi.fn>
   clearSelection: ReturnType<typeof vi.fn>
   addFiles: ReturnType<typeof vi.fn>
+  setupOCREventListeners: ReturnType<typeof vi.fn>
+  setupDocGenEventListeners: ReturnType<typeof vi.fn>
 }
 
 interface MockDiscreteApi {
@@ -117,7 +119,9 @@ const mockStore: MockStore = reactive({
   deletePagesFromDB: vi.fn(),
   undoDelete: vi.fn(),
   clearSelection: vi.fn(),
-  addFiles: vi.fn()
+  addFiles: vi.fn(),
+  setupOCREventListeners: vi.fn(),
+  setupDocGenEventListeners: vi.fn()
 })
 
 vi.mock('./stores/pages', () => ({

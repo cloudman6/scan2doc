@@ -65,7 +65,10 @@ test.describe('Page Reordering', () => {
         const sourceItem = pageItems.nth(sourceIndex);
         const targetItem = pageItems.nth(targetIndex);
 
-        // Get bounding boxes for more precise drag
+        // Ensure elements are visible
+        await sourceItem.scrollIntoViewIfNeeded();
+        await targetItem.scrollIntoViewIfNeeded();
+
         const sourceBBox = await sourceItem.boundingBox();
         const targetBBox = await targetItem.boundingBox();
 
@@ -79,14 +82,19 @@ test.describe('Page Reordering', () => {
         const targetX = targetBBox.x + targetBBox.width / 2;
         const targetY = targetBBox.y + targetBBox.height / 2;
 
-        // Perform drag using mouse events
+        // Perform drag using manual mouse events with improved timing
         await page.mouse.move(sourceX, sourceY);
         await page.mouse.down();
-        await page.waitForTimeout(300); // Wait for drag handle to activate
-        await page.mouse.move(targetX, targetY, { steps: 20 }); // Smoother and slower movement
-        await page.waitForTimeout(300); // Wait for sorting logic to react
+        await page.waitForTimeout(500); // Wait for drag initiation
+
+        // Move slowly to target
+        await page.mouse.move(targetX, targetY, { steps: 50 });
+
+        // Wait for reorder animation/logic
+        await page.waitForTimeout(500);
+
         await page.mouse.up();
-        await page.waitForTimeout(500); // Wait for UI to stabilize
+        await page.waitForTimeout(1000); // Wait for settle
     }
 
     test('should reorder pages after all pages are ready and persist after reload', async ({ page, browserName }) => {
