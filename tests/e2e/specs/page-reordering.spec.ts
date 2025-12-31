@@ -12,8 +12,8 @@ test.describe('Page Reordering', () => {
      */
     async function uploadTestFiles(page: Page, waitForAll = false): Promise<number> {
         // Use sample3.pdf (multi-page) and sample.png
-        const pdfPath = path.resolve('tests/e2e/fixtures/sample3.pdf');
-        const pngPath = path.resolve('tests/e2e/fixtures/sample.png');
+        const pdfPath = path.resolve('tests/e2e/samples/sample3.pdf');
+        const pngPath = path.resolve('tests/e2e/samples/sample.png');
 
         const pdfPageCount = await getPdfPageCount(pdfPath);
         const expectedCount = pdfPageCount + 1; // PDF pages + 1 PNG

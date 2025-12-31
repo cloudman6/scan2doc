@@ -10,7 +10,11 @@ export class MarkdownAssembler {
      * @returns The generated Markdown string
      */
     assemble(ocrResult: OCRResult, imageMap: Map<string, string>): string {
-        let content = ocrResult.text || ''
+        if (!ocrResult.raw_text) {
+            throw new Error('OCR result missing raw_text')
+        }
+
+        let content = this.cleanRawText(ocrResult.raw_text)
 
         // Check if we have any images to append
         if (imageMap.size === 0) {
@@ -48,6 +52,17 @@ export class MarkdownAssembler {
         }
 
         return content
+    }
+
+    private cleanRawText(rawText: string): string {
+        // Remove <|ref|>...<|/ref|> blocks (labels)
+        // Remove <|det|>...<|/det|> blocks (coordinates)
+        // Remove <|box|>...<|/box|> blocks (if any)
+        return rawText
+            .replace(/<\|ref\|>[\s\S]*?<\|\/ref\|>/g, '')
+            .replace(/<\|det\|>[\s\S]*?<\|\/det\|>/g, '')
+            .replace(/<\|box\|>[\s\S]*?<\|\/box\|>/g, '')
+            .trim()
     }
 }
 

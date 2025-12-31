@@ -10,7 +10,7 @@ test.describe('Persistence', () => {
         await page.goto('/');
 
         // 1. Upload sample.pdf (6 pages) to verify PDF.js FontLoader fix
-        const filePath = path.resolve('tests/e2e/fixtures/sample.pdf');
+        const filePath = path.resolve('tests/e2e/samples/sample.pdf');
         const expectedPageCount = await getPdfPageCount(filePath);
 
         const fileChooserPromise = page.waitForEvent('filechooser');
@@ -57,7 +57,7 @@ test.describe('Persistence', () => {
         await page.goto('/');
 
         // 1. Upload sample3.pdf (20-30 pages)
-        const filePath = path.resolve('tests/e2e/fixtures/sample3.pdf');
+        const filePath = path.resolve('tests/e2e/samples/sample3.pdf');
         const expectedPageCount = await getPdfPageCount(filePath);
 
         const fileChooserPromise = page.waitForEvent('filechooser');

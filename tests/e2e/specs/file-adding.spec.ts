@@ -8,7 +8,7 @@ test.describe('File Adding', () => {
         await page.goto('/');
 
         // Prepare path
-        const filePath = path.resolve('tests/e2e/fixtures/sample.pdf');
+        const filePath = path.resolve('tests/e2e/samples/sample.pdf');
         const expectedPageCount = await getPdfPageCount(filePath);
 
         // Setup file chooser
@@ -35,9 +35,9 @@ test.describe('File Adding', () => {
     test('should process multiple files uploaded simultaneously', async ({ page }) => {
         await page.goto('/');
 
-        const pdfPath = path.resolve('tests/e2e/fixtures/sample.pdf');
-        const pngPath = path.resolve('tests/e2e/fixtures/sample.png');
-        const jpgPath = path.resolve('tests/e2e/fixtures/sample.jpg');
+        const pdfPath = path.resolve('tests/e2e/samples/sample.pdf');
+        const pngPath = path.resolve('tests/e2e/samples/sample.png');
+        const jpgPath = path.resolve('tests/e2e/samples/sample.jpg');
 
         const pdfPageCount = await getPdfPageCount(pdfPath);
         const expectedTotalCount = pdfPageCount + 1 + 1; // 1 for PNG, 1 for JPG
@@ -70,7 +70,7 @@ test.describe('File Adding', () => {
     test('should handle repeated upload of the same file', async ({ page }) => {
         await page.goto('/');
 
-        const filePath = path.resolve('tests/e2e/fixtures/sample.pdf');
+        const filePath = path.resolve('tests/e2e/samples/sample.pdf');
         const singleFilePageCount = await getPdfPageCount(filePath);
 
         // First upload
@@ -107,8 +107,8 @@ test.describe('File Adding', () => {
     test('should sync selection when adding two images sequentially', async ({ page }) => {
         await page.goto('/');
 
-        const pngPath = path.resolve('tests/e2e/fixtures/sample.png');
-        const jpgPath = path.resolve('tests/e2e/fixtures/sample.jpg');
+        const pngPath = path.resolve('tests/e2e/samples/sample.png');
+        const jpgPath = path.resolve('tests/e2e/samples/sample.jpg');
 
         // 1. Add first image (PNG)
         const fileChooserPromise1 = page.waitForEvent('filechooser');

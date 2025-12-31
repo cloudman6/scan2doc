@@ -53,7 +53,7 @@ test.describe('Panel Collapse States', () => {
      * Upload a test file to ensure panels are visible
      */
     async function uploadTestFile(page: Page): Promise<void> {
-        const filePath = path.resolve('tests/e2e/fixtures/sample.png');
+        const filePath = path.resolve('tests/e2e/samples/sample.png');
         const fileChooserPromise = page.waitForEvent('filechooser');
         await page.locator('.app-header button').first().click();
         const fileChooser = await fileChooserPromise;

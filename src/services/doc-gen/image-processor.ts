@@ -13,7 +13,7 @@ export class ImageProcessor {
      */
     async sliceImages(pageId: string, imageBlob: Blob, boxes: OCRBox[]): Promise<Map<string, string>> {
         const resultMap = new Map<string, string>()
-        const targetLabels = ['image', 'table', 'figure']
+        const targetLabels = ['image', 'figure']
 
         // Filter relevant boxes first to avoid unnecessary bitmap creation if no images
         const relevantBoxes = boxes.map((box, index) => ({ box, index }))

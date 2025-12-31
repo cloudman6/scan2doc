@@ -3,8 +3,8 @@ import { getPdfPageCount } from '../utils/pdf-utils';
 import path from 'path';
 
 test.describe('Order Integrity (Mixed Files)', () => {
-    const pngPath = path.resolve('tests/e2e/fixtures/sample.png');
-    const pdfPath = path.resolve('tests/e2e/fixtures/sample.pdf');
+    const pngPath = path.resolve('tests/e2e/samples/sample.png');
+    const pdfPath = path.resolve('tests/e2e/samples/sample.pdf');
 
     test.beforeEach(async ({ page }) => {
         // 1. Clear IndexedDB using native API
@@ -104,8 +104,8 @@ test.describe('Order Integrity (Mixed Files)', () => {
     });
 
     test('should maintain order: Two Images (Consecutive)', async ({ page }) => {
-        const pngPath = path.resolve('tests/e2e/fixtures/sample.png');
-        const pngPath2 = path.resolve('tests/e2e/fixtures/sample1.png');
+        const pngPath = path.resolve('tests/e2e/samples/sample.png');
+        const pngPath2 = path.resolve('tests/e2e/samples/sample1.png');
 
         // 1. Upload first Image
         const fileChooserPromise1 = page.waitForEvent('filechooser');
@@ -130,7 +130,7 @@ test.describe('Order Integrity (Mixed Files)', () => {
         test.skip(browserName === 'webkit', 'Skip webkit due to blob issues');
         test.setTimeout(90000);
 
-        const pdfPath2 = path.resolve('tests/e2e/fixtures/sample2.pdf');
+        const pdfPath2 = path.resolve('tests/e2e/samples/sample2.pdf');
         const pdfPageCount1 = await getPdfPageCount(pdfPath);
         const pdfPageCount2 = await getPdfPageCount(pdfPath2);
         const expectedTotal = pdfPageCount1 + pdfPageCount2;
@@ -237,7 +237,7 @@ test.describe('Order Integrity (Mixed Files)', () => {
 
         // Extract all order values directly from DB via evaluate (most precise)
         const dbOrders = await page.evaluate(async () => {
-            // @ts-expect-error - access Dexie db from window if exposed, or just use the UI if we trust it
+            // access Dexie db from window if exposed, or just use the UI if we trust it
             // Here we'll just check the UI sequence since it's sorted by order
             return Array.from(document.querySelectorAll('.page-item')).length;
         });

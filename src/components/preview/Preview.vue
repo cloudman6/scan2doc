@@ -160,6 +160,7 @@ import { renderAsync } from 'docx-preview'
 import MarkdownIt from 'markdown-it'
 import { db } from '@/db'
 import { uiLogger } from '@/utils/logger'
+import 'github-markdown-css/github-markdown.css'
 
 import type { Page } from '@/stores/pages'
 
@@ -559,41 +560,6 @@ onUnmounted(() => {
   font-size: 16px;
   line-height: 1.5;
   color: #24292f;
-}
-
-.markdown-render-area :deep(h1) {
-  padding-bottom: 0.3em;
-  font-size: 2em;
-  border-bottom: 1px solid #d0d7de;
-  margin-top: 24px;
-  margin-bottom: 16px;
-  font-weight: 600;
-}
-
-.markdown-render-area :deep(h2) {
-  padding-bottom: 0.3em;
-  font-size: 1.5em;
-  border-bottom: 1px solid #d0d7de;
-  margin-top: 24px;
-  margin-bottom: 16px;
-  font-weight: 600;
-}
-
-.markdown-render-area :deep(p) {
-    margin-top: 0;
-    margin-bottom: 16px;
-}
-
-.markdown-render-area :deep(img) {
-    max-width: 100%;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    border-radius: 4px;
-    margin: 10px 0;
-}
-
-.markdown-render-area :deep(ul), .markdown-render-area :deep(ol) {
-    padding-left: 2em;
-    margin-bottom: 16px;
 }
 
 .pdf-container {
