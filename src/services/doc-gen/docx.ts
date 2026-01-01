@@ -238,6 +238,7 @@ export class DocxGenerator {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     private async createParagraphChildren(inlineToken: Token): Promise<(TextRun | ImageRun | any)[]> {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const runs: (TextRun | ImageRun | any)[] = []
         if (!inlineToken.children) {
             runs.push(new TextRun(inlineToken.content))
