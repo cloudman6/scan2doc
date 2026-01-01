@@ -68,7 +68,7 @@ describe('MarkdownAssembler', () => {
         expect(result).toContain('Left Text')
         expect(result).toContain('scan2doc-img:img-right')
 
-        expect(result).toContain('width="40%"')
+        expect(result).toContain('width="50%"')
     })
 
     it('should render sequential elements normally (no table)', () => {

@@ -62,25 +62,32 @@ export class DocxGenerator {
         const children: (Paragraph | Table)[] = []
 
         let i = 0
+        let prevWasTable = false
         while (i < tokens.length) {
             const token = tokens[i]!
 
             if (token.type === 'heading_open') {
                 const result = this.processHeading(tokens, i)
                 children.push(result.paragraph)
+                prevWasTable = false
                 i = result.nextIndex
             } else if (token.type === 'paragraph_open') {
-                const result = await this.processParagraph(tokens, i)
+                const result = await this.processParagraph(tokens, i, prevWasTable)
                 if (result.paragraph) children.push(result.paragraph)
+                prevWasTable = false
                 i = result.nextIndex
             } else if (token.type === 'html_block') {
-                const table = this.processHtmlBlockToken(token)
-                if (table) children.push(table)
+                const table = await this.processHtmlBlockToken(token)
+                if (table) {
+                    children.push(table)
+                    prevWasTable = true
+                }
                 i++
             } else if (token.type === 'math_block') {
                 // Handle Block Math: $$ ... $$
                 const mathObj = this.processMathBlock(token)
                 children.push(mathObj)
+                prevWasTable = false
                 i++
             } else {
                 i++
@@ -120,37 +127,45 @@ export class DocxGenerator {
         })
     }
 
-    private processHtmlBlockToken(token: Token): Table | null {
+    private async processHtmlBlockToken(token: Token): Promise<Table | null> {
         // Simple HTML Table parser
         const content = token.content
+        consola.info('[DocxGenerator] Processing table HTML (full):', content)
         if (!content.includes('<table')) return null
 
         const rows: TableRow[] = []
         const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/g
+        consola.info('[DocxGenerator] Testing rowRegex on content')
         let rowMatch
 
         while ((rowMatch = rowRegex.exec(content)) !== null) {
+            consola.info('[DocxGenerator] Found row, content length:', rowMatch[1]!.length)
             const rowContent = rowMatch[1]!
             const cells: TableCell[] = []
 
-            // Match td or th
-            const cellRegex = /<(td|th)[^>]*>([\s\S]*?)<\/\1>/g
+            // Match td or th with attributes
+            const cellRegex = /<(td|th)([^>]*)>([\s\S]*?)<\/\1>/g
             let cellMatch
             while ((cellMatch = cellRegex.exec(rowContent)) !== null) {
-                // eslint-disable-next-line sonarjs/slow-regex -- Input is trusted local content, simple parsing needed
-                const cellText = cellMatch[2]!.replace(/<[^>]+>/g, '').trim()
-                const isHeader = cellMatch[1].toLowerCase() === 'th'
+                const tagName = cellMatch[1]!
+                const attributes = cellMatch[2]!
+                const cellContent = cellMatch[3]!.trim()
+                const isHeader = tagName.toLowerCase() === 'th'
+
+                // Parse width attribute
+                const widthMatch = attributes.match(/width="(\d+)%?"/)
+                const cellWidth = widthMatch ? parseInt(widthMatch[1]) : null
+
+                // Parse cell content as Markdown to support images and formatting
+                consola.debug('[DocxGenerator] Parsing cell content:', cellContent.substring(0, 100))
+                const children = await this.parseCellContent(cellContent, isHeader)
+                consola.debug('[DocxGenerator] Parsed cell paragraphs:', children.length)
+
                 cells.push(new TableCell({
-                    children: [new Paragraph({
-                        children: [new TextRun({
-                            text: cellText,
-                            bold: isHeader,
-                        })]
-                    })],
-                    width: {
-                        size: 100 / 2, // Assume 2 columns for now
-                        type: WidthType.PERCENTAGE
-                    },
+                    children: children,
+                    width: cellWidth
+                        ? { size: cellWidth, type: WidthType.PERCENTAGE }
+                        : { size: 0, type: WidthType.AUTO },
                     borders: {
                         top: { style: BorderStyle.SINGLE, size: 1 },
                         bottom: { style: BorderStyle.SINGLE, size: 1 },
@@ -164,8 +179,12 @@ export class DocxGenerator {
             }
         }
 
-        if (rows.length === 0) return null
+        if (rows.length === 0) {
+            consola.warn('[DocxGenerator] No rows found in table')
+            return null
+        }
 
+        consola.info(`[DocxGenerator] Created table with ${rows.length} rows`)
         return new Table({
             rows: rows,
             width: {
@@ -203,7 +222,7 @@ export class DocxGenerator {
         }
     }
 
-    private async processParagraph(tokens: Token[], index: number) {
+    private async processParagraph(tokens: Token[], index: number, prevWasTable = false) {
         const contentToken = tokens[index + 1]!
         let paragraph: Paragraph | null = null
 
@@ -216,19 +235,20 @@ export class DocxGenerator {
                     paragraph = await this.createImageParagraph(imageId)
                 }
             } else {
-                paragraph = await this.createParagraph(contentToken)
+                paragraph = await this.createParagraph(contentToken, prevWasTable)
             }
         }
 
         return { paragraph, nextIndex: index + 3 }
     }
 
-    private async createParagraph(inlineToken: Token): Promise<Paragraph> {
+    private async createParagraph(inlineToken: Token, prevWasTable = false): Promise<Paragraph> {
         const children = await this.createParagraphChildren(inlineToken)
 
         return new Paragraph({
             children: children,
             spacing: {
+                before: prevWasTable ? 360 : undefined,  // Extra spacing after table
                 after: 240,
                 line: 240,
                 lineRule: 'auto',
@@ -356,6 +376,65 @@ export class DocxGenerator {
         const chineseCount = chineseMatches ? chineseMatches.length : 0
 
         return (chineseCount / totalLength) > 0.2
+    }
+
+    private async parseCellContent(content: string, isHeader: boolean): Promise<Paragraph[]> {
+        // Convert HTML img tags back to Markdown syntax for parsing
+        // This handles images that were converted to HTML in markdown.ts for preview compatibility
+        const markdownContent = content.replace(
+            /<img\s+src="scan2doc-img:([a-zA-Z0-9_-]+)"[^>]*alt="([^"]*)"[^>]*>/g,
+            '![$2](scan2doc-img:$1)'
+        ).replace(
+            /<img\s+src="scan2doc-img:([a-zA-Z0-9_-]+)"[^>]*>/g,
+            '![Figure](scan2doc-img:$1)'
+        )
+
+        // Parse the cell content as Markdown to support images and formatting
+        const tokens = this.md.parse(markdownContent, {})
+        consola.debug('[DocxGenerator] Parsed tokens:', tokens.map(t => t.type).join(', '))
+        const paragraphs: Paragraph[] = []
+
+        let i = 0
+        while (i < tokens.length) {
+            const token = tokens[i]!
+
+            if (token.type === 'paragraph_open') {
+                const inlineToken = tokens[i + 1]
+                if (inlineToken && inlineToken.type === 'inline') {
+                    const children = await this.createParagraphChildren(inlineToken)
+
+                    // Apply bold style if this is a header cell
+                    const styledChildren = isHeader
+                        ? children.map(child => {
+                            if (child instanceof TextRun) {
+                                return new TextRun({ text: child.text, bold: true })
+                            }
+                            return child
+                        })
+                        : children
+
+                    paragraphs.push(new Paragraph({ children: styledChildren }))
+                }
+                i += 3 // Skip paragraph_open, inline, paragraph_close
+            } else {
+                i++
+            }
+        }
+
+        // If no paragraphs were created, return fallback text
+        if (paragraphs.length === 0) {
+            paragraphs.push(new Paragraph({
+                children: [new TextRun({
+                    /* eslint-disable sonarjs/slow-regex */
+                    text: content.replace(/<[^>]*>/g, '').trim(),
+                    /* eslint-enable sonarjs/slow-regex */
+                    bold: isHeader
+                })]
+            }))
+        }
+
+        consola.debug('[DocxGenerator] parseCellContent returning', paragraphs.length, 'paragraphs')
+        return paragraphs
     }
 }
 

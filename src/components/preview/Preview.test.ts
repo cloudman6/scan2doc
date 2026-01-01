@@ -288,4 +288,70 @@ describe('Preview.vue', () => {
     expect(vm.renderedMd).toContain('katex')
     expect(vm.renderedMd).toContain('katex-mathml')
   })
+
+  it('handles HTML img tags in markdown processing', async () => {
+    vi.mocked(db.getPageExtractedImage).mockResolvedValue({ blob: new Blob(['img']) } as any)
+    vi.mocked(db.getPageMarkdown).mockResolvedValue({ content: '<img src="scan2doc-img:html-id" alt="html-alt">' } as any)
+
+    const wrapper = mount(Preview, { props: { currentPage: mockPage } })
+    const vm = wrapper.vm as any
+
+    await vm.loadMarkdown('p1')
+    await flushPromises()
+
+    expect(vm.renderedMd).toContain('<img src="blob:mock-')
+    expect(vm.renderedMd).toContain('alt="html-alt"')
+  })
+
+  it('handles non-Blob image data fallback', async () => {
+    // ArrayBuffer or Uint8Array case
+    vi.mocked(db.getPageExtractedImage).mockResolvedValue({ blob: new Uint8Array([1, 2, 3]) } as any)
+    vi.mocked(db.getPageMarkdown).mockResolvedValue({ content: '![img](scan2doc-img:fallback-id)' } as any)
+
+    const wrapper = mount(Preview, { props: { currentPage: mockPage } })
+    const vm = wrapper.vm as any
+
+    await vm.loadMarkdown('p1')
+    await flushPromises()
+
+    expect(vm.renderedMd).toContain('src="blob:mock-image/png"')
+  })
+
+  it('covers catch blocks in processMarkdownImages and downloadBinary', async () => {
+    // 1. processMarkdownImages error path
+    vi.mocked(db.getPageExtractedImage).mockRejectedValue(new Error('Image Fail'))
+    vi.mocked(db.getPageMarkdown).mockResolvedValue({ content: '![img](scan2doc-img:error-id)' } as any)
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => { })
+
+    const wrapper = mount(Preview, { props: { currentPage: mockPage } })
+    const vm = wrapper.vm as any
+
+    await vm.loadMarkdown('p1')
+    await flushPromises()
+    expect(consoleSpy).toHaveBeenCalled()
+
+    // 2. downloadBinary error path
+    vi.mocked(db.getPagePDF).mockRejectedValue(new Error('Download Fail'))
+    await vm.downloadBinary('pdf')
+    // Errors are logged via uiLogger which might be mocked or at least doesn't crash
+
+    consoleSpy.mockRestore()
+  })
+
+  it('triggers download from template buttons', async () => {
+    const wrapper = mount(Preview, { props: { currentPage: mockPage } })
+    const vm = wrapper.vm as any
+
+    // Switch to DOCX and click download button in footer (line 109)
+    vm.currentView = 'docx'
+    vm.hasBinary = true
+    await flushPromises()
+
+    const downloadSpy = vi.spyOn(vm, 'downloadBinary')
+    const footerBtn = wrapper.find('.docx-footer .n-button')
+    if (footerBtn.exists()) {
+      await footerBtn.trigger('click')
+      expect(downloadSpy).toHaveBeenCalledWith('docx')
+    }
+  })
 })

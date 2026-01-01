@@ -213,48 +213,64 @@ const isChineseDominant = computed(() => {
 
 // Custom render rule or post-process for scan2doc-img:
 // We'll use a simple regex replacement for now as it's efficient for this use case
-const processMarkdownImages = async (markdown: string): Promise<string> => {
-    // Regex to find ![alt](scan2doc-img:ID)
-    const regex = /!\[(.*?)\]\(scan2doc-img:([a-zA-Z0-9_-]+)\)/g
-    let match
-    let processed = markdown
-    
-    while ((match = regex.exec(markdown)) !== null) {
-        const [fullMatch, alt, imageId] = match
-        if (!imageId) continue
+const fetchAndCreateImageUrl = async (imageId: string): Promise<string | null> => {
+    try {
+        const image = await db.getPageExtractedImage(imageId)
+        if (!image) return null
         
-        try {
-            const image = await db.getPageExtractedImage(imageId)
-            if (image) {
-                // Ensure Blob
-                 let blob: Blob
-                 if (image.blob instanceof Blob) {
-                     blob = image.blob
-                 } else {
-                     blob = new Blob([image.blob], { type: 'image/png' })
-                 }
-                 const url = URL.createObjectURL(blob)
-                 
-                 // Simpler: Replace protocol in string
-                 // Note: if multiple same images exist, this simple replace might fetch multiple times or replace all at once?
-                 // But replacing by full match string is safer if alt text differs, 
-                 // but here imageId is what matters. 
-                 // Actually replace only the first occurrence or use split/join? 
-                 // replace(string, string) only replaces first occurrence. 
-                 // We are iterating via regex.exec, so we should be careful.
-                 // Ideally we should build a new string.
-                 
-                 // Let's use string replacement for the exact match we just found.
-                 const replacement = `![${alt}](${url})`
-                 processed = processed.replace(fullMatch, replacement)
-                 
-                 // Add to cleanup list
-                 previewObjectUrls.push(url)
+        const blob = image.blob instanceof Blob 
+            ? image.blob 
+            : new Blob([image.blob], { type: 'image/png' })
+            
+        const url = URL.createObjectURL(blob)
+        previewObjectUrls.push(url)
+        return url
+    } catch (e) {
+        uiLogger.error('Failed to load image for MD preview', imageId, e)
+        return null
+    }
+}
+
+const processMdSyntaxImages = async (markdown: string): Promise<string> => {
+    let processed = markdown
+    const mdRegex = /!\[(.*?)\]\(scan2doc-img:([a-zA-Z0-9_-]+)\)/g
+    
+    // We use a separate string for regex matching to avoid issues with processed replacements
+    const matches = Array.from(markdown.matchAll(mdRegex))
+    for (const m of matches) {
+        const [fullMatch, alt, imageId] = m
+        if (imageId) {
+            const url = await fetchAndCreateImageUrl(imageId)
+            if (url) {
+                processed = processed.replace(fullMatch, `![${alt}](${url})`)
             }
-        } catch (e) {
-            console.error('Failed to load image for MD preview', imageId, e)
         }
     }
+    return processed
+}
+
+const processHtmlImgImages = async (markdown: string): Promise<string> => {
+    let processed = markdown
+    const htmlRegex = /<img\s+src="scan2doc-img:([a-zA-Z0-9_-]+)"([^>]*)>/g
+    
+    const matches = Array.from(markdown.matchAll(htmlRegex))
+    for (const m of matches) {
+        const [fullMatch, imageId, otherAttrs] = m
+        if (imageId) {
+            const url = await fetchAndCreateImageUrl(imageId)
+            if (url) {
+                processed = processed.replace(fullMatch, `<img src="${url}"${otherAttrs}>`)
+            }
+        }
+    }
+    return processed
+}
+
+// Custom render rule or post-process for scan2doc-img:
+// We'll use a simple regex replacement for now as it's efficient for this use case
+const processMarkdownImages = async (markdown: string): Promise<string> => {
+    let processed = await processMdSyntaxImages(markdown)
+    processed = await processHtmlImgImages(processed)
     return processed
 }
 const previewObjectUrls: string[] = []
@@ -593,7 +609,6 @@ onUnmounted(() => {
 
 :deep(.markdown-render-area table) {
   border-collapse: collapse !important;
-  width: 100% !important;
   margin-bottom: 1rem !important;
   border: 1px solid #d1d5db !important;
 }

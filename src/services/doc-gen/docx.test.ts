@@ -14,9 +14,24 @@ vi.mock('@/db', () => ({
 // We do NOT mock '@hungknguyen/docx-math-converter' anymore because we want to test
 // the real 'convertMathMl2Math' function which works, unlike 'convertLatex2Math'.
 
+const TableCellSpy = vi.fn()
+vi.mock('docx', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('docx')>()
+    return {
+        ...actual,
+        TableCell: class extends actual.TableCell {
+            constructor(options: any) {
+                super(options)
+                TableCellSpy(options)
+            }
+        }
+    }
+})
+
 describe('DocxGenerator', () => {
     beforeEach(() => {
         vi.clearAllMocks()
+        TableCellSpy.mockClear()
     })
 
     it('should generate a DOCX blob from a simple Markdown string', async () => {
@@ -151,5 +166,28 @@ End of table.
         const markdown = '$$ \\invalidcommandthatcrashes $$'
         const blob = await docxGenerator.generate(markdown)
         expect(blob.size).toBeGreaterThan(0)
+    })
+
+
+    it('should use AUTO width for table cells to allow content-based sizing', async () => {
+        const markdown = `
+<table>
+  <tr>
+    <td>短</td>
+    <td>这是一个很长的内容列</td>
+  </tr>
+</table>
+`
+        await docxGenerator.generate(markdown)
+
+        expect(TableCellSpy).toHaveBeenCalledTimes(2)
+
+        const calls = TableCellSpy.mock.calls
+        const widths = calls.map((c: any) => c[0].width)
+
+        // All cells should use AUTO width
+        widths.forEach(width => {
+            expect(width.type).toBe('auto')
+        })
     })
 })

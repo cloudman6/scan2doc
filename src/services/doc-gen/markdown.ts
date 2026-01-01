@@ -150,10 +150,6 @@ export class MarkdownAssembler {
     }
 
     private cleanContent(text: string): string {
-        // Debug logging for LaTeX detection
-        if (text.includes('\\(') || text.includes('\\[')) {
-            console.log('[Markdown] Found LaTeX delimiters in text:', text.substring(0, 100) + '...')
-        }
 
         // Normalize LaTeX delimiters
         // \( -> $
@@ -165,10 +161,6 @@ export class MarkdownAssembler {
             .replace(/\\\)/g, '$')
             .replace(/\\\[/g, '$$$$')
             .replace(/\\\]/g, '$$$$')
-
-        if (text !== cleaned) {
-            console.log('[Markdown] Normalized LaTeX:', { original: text.substring(0, 50), cleaned: cleaned.substring(0, 50) })
-        }
 
         return cleaned
     }
@@ -256,15 +248,21 @@ export class MarkdownAssembler {
                     return { content: b.content, width: pct }
                 })
 
-                // If total > 100, scale down?
+                // Normalize widths to always sum to 100%
                 const totalPct = cells.reduce((sum, c) => sum + c.width, 0)
-                if (totalPct > 100) {
-                    cells.forEach(c => c.width = Math.floor(c.width / totalPct * 100))
+                if (totalPct > 0) {
+                    cells.forEach(c => c.width = Math.round(c.width / totalPct * 100))
                 }
-                // If total < 90, maybe expand or leave gaps? 
-                // Let's just use the widths as calculated, browser handles the rest or we force width.
 
-                output += '<table>\n<tr>\n'
+                // Convert Markdown images to HTML for table cells (HTML doesn't parse MD syntax)
+                cells.forEach(c => {
+                    c.content = c.content.replace(
+                        /!\[([^\]]*)\]\(scan2doc-img:([^)]+)\)/g,
+                        '<img src="scan2doc-img:$2" alt="$1" />'
+                    )
+                })
+
+                output += '<table><tr>'
                 cells.forEach(c => {
                     // Convert content to HTML? No, Markdown inside HTML is tricky.
                     // Common Markdown parsers support Markdown in block HTML if empty lines present?
@@ -278,9 +276,9 @@ export class MarkdownAssembler {
 
                     // We can also use "display: flex" div? But user accepted Table plan.
 
-                    output += `<td width="${c.width}%">\n\n${c.content}\n\n</td>\n`
+                    output += `<td width="${c.width}%">${c.content}</td>`
                 })
-                output += '</tr>\n</table>\n\n'
+                output += '</tr></table>\n\n'
             }
         }
 
