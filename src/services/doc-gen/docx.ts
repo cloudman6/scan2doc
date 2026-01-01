@@ -49,6 +49,7 @@ const convertLatexToDocxMath = (latex: string) => {
 
 export class DocxGenerator {
     private md: MarkdownIt
+    private isChineseDoc = false
 
     constructor() {
         this.md = new MarkdownIt({
@@ -58,6 +59,7 @@ export class DocxGenerator {
     }
 
     async generate(markdown: string): Promise<Blob> {
+        this.isChineseDoc = this.detectDominantLanguage(markdown)
         const tokens = this.md.parse(markdown, {})
         const children: (Paragraph | Table)[] = []
 
@@ -94,15 +96,13 @@ export class DocxGenerator {
             }
         }
 
-        const isChinese = this.detectDominantLanguage(markdown)
-
         const doc = new Document({
             styles: {
                 default: {
                     document: {
                         run: {
-                            font: isChinese ? 'Microsoft YaHei' : 'Arial',
-                            characterSpacing: isChinese ? 20 : 0,
+                            font: this.isChineseDoc ? 'Microsoft YaHei' : 'Arial',
+                            characterSpacing: this.isChineseDoc ? 20 : 0,
                         },
                     },
                 },
@@ -123,23 +123,25 @@ export class DocxGenerator {
         // Wrap in a paragraph
         return new Paragraph({
             children: Array.isArray(mathChildren) ? mathChildren : [mathChildren],
-            spacing: { after: 240 }
+            spacing: {
+                before: 240,
+                after: this.isChineseDoc ? 0 : 240,
+                line: 360,
+                lineRule: 'auto'
+            }
         })
     }
 
     private async processHtmlBlockToken(token: Token): Promise<Table | null> {
         // Simple HTML Table parser
         const content = token.content
-        consola.info('[DocxGenerator] Processing table HTML (full):', content)
         if (!content.includes('<table')) return null
 
         const rows: TableRow[] = []
         const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/g
-        consola.info('[DocxGenerator] Testing rowRegex on content')
         let rowMatch
 
         while ((rowMatch = rowRegex.exec(content)) !== null) {
-            consola.info('[DocxGenerator] Found row, content length:', rowMatch[1]!.length)
             const rowContent = rowMatch[1]!
             const cells: TableCell[] = []
 
@@ -157,9 +159,7 @@ export class DocxGenerator {
                 const cellWidth = widthMatch ? parseInt(widthMatch[1]) : null
 
                 // Parse cell content as Markdown to support images and formatting
-                consola.debug('[DocxGenerator] Parsing cell content:', cellContent.substring(0, 100))
                 const children = await this.parseCellContent(cellContent, isHeader)
-                consola.debug('[DocxGenerator] Parsed cell paragraphs:', children.length)
 
                 cells.push(new TableCell({
                     children: children,
@@ -184,7 +184,6 @@ export class DocxGenerator {
             return null
         }
 
-        consola.info(`[DocxGenerator] Created table with ${rows.length} rows`)
         return new Table({
             rows: rows,
             width: {
@@ -216,7 +215,13 @@ export class DocxGenerator {
             paragraph: new Paragraph({
                 text: inlineToken.content,
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                heading: headingLevel as any
+                heading: headingLevel as any,
+                spacing: {
+                    before: 240,
+                    after: this.isChineseDoc ? 0 : 240,
+                    line: 360,
+                    lineRule: 'auto'
+                }
             }),
             nextIndex: index + 3
         }
@@ -247,10 +252,11 @@ export class DocxGenerator {
 
         return new Paragraph({
             children: children,
+            indent: this.isChineseDoc ? { firstLine: 480 } : undefined, // 2 chars indent for Chinese (24pt = 480 twips)
             spacing: {
                 before: prevWasTable ? 360 : undefined,  // Extra spacing after table
-                after: 240,
-                line: 240,
+                after: this.isChineseDoc ? 0 : 240,
+                line: 360,
                 lineRule: 'auto',
             }
         })
@@ -391,7 +397,6 @@ export class DocxGenerator {
 
         // Parse the cell content as Markdown to support images and formatting
         const tokens = this.md.parse(markdownContent, {})
-        consola.debug('[DocxGenerator] Parsed tokens:', tokens.map(t => t.type).join(', '))
         const paragraphs: Paragraph[] = []
 
         let i = 0
@@ -433,7 +438,6 @@ export class DocxGenerator {
             }))
         }
 
-        consola.debug('[DocxGenerator] parseCellContent returning', paragraphs.length, 'paragraphs')
         return paragraphs
     }
 }

@@ -195,7 +195,8 @@ mdRenderer.use(MarkdownItKatex)
 import { computed } from 'vue'
 
 const isChineseDominant = computed(() => {
-    const text = mdContent.value || ''
+    // 优先使用 Markdown 内容检测，如果没有则回退到 OCR 文本
+    const text = mdContent.value || props.currentPage?.ocrText || ''
     /* eslint-disable sonarjs/slow-regex */
     const cleanText = text.replace(/!\[[^\]]*\]\([^)]*\)/g, '')
                           .replace(/\[[^\]]*\]\([^)]*\)/g, '')
@@ -208,7 +209,7 @@ const isChineseDominant = computed(() => {
     const chineseMatches = cleanText.match(/[\u4e00-\u9fa5]/g)
     const chineseCount = chineseMatches ? chineseMatches.length : 0
 
-    return (chineseCount / totalLength) > 0.2
+    return (chineseCount / totalLength) > 0.1 // 降低阈值到 10%，更敏感
 })
 
 // Custom render rule or post-process for scan2doc-img:
@@ -348,6 +349,19 @@ async function checkBinaryStatus(pageId: string, type: 'docx' | 'pdf') {
         URL.revokeObjectURL(pdfPreviewUrl.value)
         pdfPreviewUrl.value = ''
     }
+    
+    // Pre-load Markdown content for language detection even in DOCX/PDF view
+    // This ensures isChineseDominant is computed correctly when switching pages
+    // Always reload to handle page switching correctly
+    try {
+        mdContent.value = '' // Clear first to trigger reactivity
+        const record = await db.getPageMarkdown(pageId)
+        if (record) {
+            mdContent.value = record.content
+        }
+    } catch (e) {
+        uiLogger.warn('[Preview] Could not pre-load markdown for language detection', e)
+    }
 
     try {
         const blob = type === 'docx' 
@@ -391,9 +405,77 @@ async function renderDocx() {
         ignoreWidth: false,
         breakPages: true
     })
+    
+    // Force override inline styles set by docx-preview
+    // CSS cannot override inline styles, so we must use JavaScript
+    applyPreviewStyleOverrides()
+    
   } catch (error) {
     uiLogger.error('[Preview] Failed to render DOCX', error)
   }
+}
+
+/**
+ * Force override inline styles set by docx-preview.
+ * This is necessary because docx-preview injects inline `style` attributes
+ * which have higher priority than any CSS selector (even with !important).
+ */
+function applyPreviewStyleOverrides() {
+    if (!wordPreviewContainer.value) return
+    
+    const isChinese = isChineseDominant.value
+    // Use a larger line-height value to make the effect more visible
+    // 1.5 might not be visually distinct enough for Chinese fonts
+    const lineHeight = '2.0'  // Increased from 1.5 for testing
+    const textIndent = isChinese ? '2em' : '0'
+    const marginBottom = isChinese ? '0' : '24px'
+    
+    // Helper to check if element is inside a table
+    const isInsideTable = (el: Element): boolean => {
+        return el.closest('table') !== null
+    }
+    
+    // First, set line-height on the container itself
+    const container = wordPreviewContainer.value.querySelector('.docx-preview-output') as HTMLElement
+    if (container) {
+        container.style.setProperty('line-height', lineHeight, 'important')
+    }
+    
+    // AGGRESSIVE: Override ALL elements within the preview, not just specific tags
+    // But SKIP elements inside tables to preserve table formatting
+    const allElements = wordPreviewContainer.value.querySelectorAll('.docx-preview-output *')
+    allElements.forEach((element: Element) => {
+        // Skip table cells and their children
+        if (isInsideTable(element)) return
+        
+        const el = element as HTMLElement
+        // Force line-height on every single element
+        el.style.setProperty('line-height', lineHeight, 'important')
+    })
+    
+    // Override paragraph-like elements with indent and margin (skip tables)
+    const paragraphs = wordPreviewContainer.value.querySelectorAll('.docx-preview-output p, .docx-preview-output [class*="paragraph"]')
+    paragraphs.forEach((p: Element) => {
+        // Skip paragraphs inside tables
+        if (isInsideTable(p)) return
+        
+        const el = p as HTMLElement
+        el.style.setProperty('text-indent', textIndent, 'important')
+        el.style.setProperty('margin-bottom', marginBottom, 'important')
+        el.style.setProperty('margin-top', '0', 'important')
+    })
+    
+    // Headings should not be indented (skip tables)
+    const headings = wordPreviewContainer.value.querySelectorAll('.docx-preview-output h1, .docx-preview-output h2, .docx-preview-output h3, .docx-preview-output h4, .docx-preview-output [class*="heading"]')
+    headings.forEach((h: Element) => {
+        if (isInsideTable(h)) return
+        
+        const el = h as HTMLElement
+        el.style.setProperty('text-indent', '0', 'important')
+        el.style.setProperty('margin-bottom', isChinese ? '0.5em' : '1em', 'important')
+        el.style.setProperty('margin-top', '1em', 'important')
+    })
+    
 }
 
 async function loadMarkdown(pageId: string) {
@@ -655,26 +737,7 @@ onUnmounted(() => {
 :deep(.docx-preview-output table) {
   border: 1px solid black !important;
   border-collapse: collapse !important;
-  margin-bottom: 16px !important; /* Add spacing after table */
-}
-
-/* Fix preview: ensure line-height is readable even if DOCX uses single spacing */
-:deep(.docx-preview-output) {
-    line-height: 1.6 !important;
-}
-
-:deep(.docx-preview-output p) {
-    margin-bottom: 16px !important;
-    line-height: 1.6 !important; /* Force readable line height */
-}
-
-:deep(.docx-preview-output) {
-    line-height: 1.6 !important;
-}
-
-/* Force line-height on spans too, as docx-preview wraps text runs */
-:deep(.docx-preview-output span) {
-    line-height: 1.6 !important;
+  margin-bottom: 16px !important;
 }
 
 :deep(.docx-preview-output td),
@@ -682,13 +745,20 @@ onUnmounted(() => {
   border: 1px solid black !important;
 }
 
-/* Dynamic spacing for Chinese content */
+/*
+ * NOTE: docx-preview uses inline styles that cannot be overridden by CSS.
+ * All text formatting (line-height, text-indent, margin) is handled by
+ * JavaScript in applyPreviewStyleOverrides() after rendering.
+ * The CSS rules below only set font properties which are NOT overridden inline.
+ */
+
+/* Font styling for Chinese content */
 .word-container.spacing-zh :deep(.docx-preview-output) {
-    letter-spacing: 1px !important; /* reduced from 1.5px to match DOCX 20 units */
+    letter-spacing: 1px !important;
     font-family: "Microsoft YaHei" !important;
 }
 
-/* Override default for mixed content if not Chinese dominant */
+/* Font styling for English content */
 .word-container:not(.spacing-zh) :deep(.docx-preview-output) {
     letter-spacing: normal !important;
     font-family: Arial, sans-serif !important;

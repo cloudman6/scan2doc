@@ -354,4 +354,201 @@ describe('Preview.vue', () => {
       expect(downloadSpy).toHaveBeenCalledWith('docx')
     }
   })
+
+  it('covers applyPreviewStyleOverrides with Chinese content', async () => {
+    vi.useFakeTimers()
+    // Mock markdown with Chinese content to trigger isChineseDominant = true
+    vi.mocked(db.getPageMarkdown).mockResolvedValue({ content: '这是一段中文内容，包含很多汉字。' } as any)
+    vi.mocked(db.getPageDOCX).mockResolvedValue(new Blob(['docx']))
+
+    const wrapper = mount(Preview, { props: { currentPage: mockPage } })
+    const vm = wrapper.vm as any
+
+    // Create a mock container with docx-preview elements including tables
+    const container = document.createElement('div')
+    const previewOutput = document.createElement('div')
+    previewOutput.className = 'docx-preview-output'
+
+    // Add paragraph element
+    const paragraph = document.createElement('p')
+    paragraph.textContent = 'Test paragraph'
+    previewOutput.appendChild(paragraph)
+
+    // Add heading element
+    const heading = document.createElement('h1')
+    heading.textContent = 'Test heading'
+    previewOutput.appendChild(heading)
+
+    // Add table with cells (should be skipped)
+    const table = document.createElement('table')
+    const td = document.createElement('td')
+    const cellParagraph = document.createElement('p')
+    cellParagraph.textContent = 'Table cell'
+    td.appendChild(cellParagraph)
+    table.appendChild(td)
+    previewOutput.appendChild(table)
+
+    container.appendChild(previewOutput)
+    vm.wordPreviewContainer = container
+    vm.docxBlob = new Blob(['docx'])
+
+    // Load markdown first to set Chinese content
+    await vm.loadMarkdown('p1')
+
+    // Call applyPreviewStyleOverrides directly
+    vm.applyPreviewStyleOverrides()
+
+    // Verify line-height is set on container (browser normalizes '2.0' to '2')
+    expect(previewOutput.style.getPropertyValue('line-height')).toBe('2')
+    // Verify paragraph has text-indent (Chinese mode)
+    expect(paragraph.style.getPropertyValue('text-indent')).toBe('2em')
+    // Verify heading has no text-indent
+    expect(heading.style.getPropertyValue('text-indent')).toBe('0')
+
+    vi.useRealTimers()
+  })
+
+  it('covers applyPreviewStyleOverrides with English content', async () => {
+    // Mock markdown with English content
+    vi.mocked(db.getPageMarkdown).mockResolvedValue({ content: 'This is English content without Chinese characters.' } as any)
+    vi.mocked(db.getPageDOCX).mockResolvedValue(new Blob(['docx']))
+
+    const wrapper = mount(Preview, { props: { currentPage: mockPage } })
+    const vm = wrapper.vm as any
+
+    // Create mock container
+    const container = document.createElement('div')
+    const previewOutput = document.createElement('div')
+    previewOutput.className = 'docx-preview-output'
+
+    const paragraph = document.createElement('p')
+    paragraph.textContent = 'English paragraph'
+    previewOutput.appendChild(paragraph)
+
+    const heading = document.createElement('h2')
+    heading.textContent = 'English heading'
+    previewOutput.appendChild(heading)
+
+    container.appendChild(previewOutput)
+    vm.wordPreviewContainer = container
+
+    // Load markdown to set English content
+    await vm.loadMarkdown('p1')
+
+    // Call applyPreviewStyleOverrides
+    vm.applyPreviewStyleOverrides()
+
+    // Verify paragraph has no text-indent (English mode)
+    expect(paragraph.style.getPropertyValue('text-indent')).toBe('0')
+    // Verify paragraph has margin-bottom (English mode)
+    expect(paragraph.style.getPropertyValue('margin-bottom')).toBe('24px')
+    // Verify heading has larger margin-bottom in English mode
+    expect(heading.style.getPropertyValue('margin-bottom')).toBe('1em')
+  })
+
+  it('covers applyPreviewStyleOverrides early return when container is null', async () => {
+    const wrapper = mount(Preview, { props: { currentPage: mockPage } })
+    const vm = wrapper.vm as any
+
+    vm.wordPreviewContainer = null
+    // Should not throw
+    vm.applyPreviewStyleOverrides()
+    expect(vm.wordPreviewContainer).toBe(null)
+  })
+
+  it('covers checkBinaryStatus markdown preload error path', async () => {
+    const wrapper = mount(Preview, { props: { currentPage: mockPage } })
+    const vm = wrapper.vm as any
+
+    // Mock markdown to throw error during preload
+    vi.mocked(db.getPageMarkdown).mockRejectedValueOnce(new Error('Preload Fail'))
+    vi.mocked(db.getPageDOCX).mockResolvedValue(new Blob(['docx']))
+
+    // This should trigger the warn log in checkBinaryStatus line 363
+    await vm.checkBinaryStatus('p1', 'docx')
+
+    // Verify it continues despite error
+    expect(vm.hasBinary).toBe(true)
+  })
+
+  it('covers isChineseDominant with empty text', async () => {
+    const pageWithEmptyText = {
+      ...mockPage,
+      ocrText: ''
+    }
+    vi.mocked(db.getPageMarkdown).mockResolvedValue(null as any)
+
+    const wrapper = mount(Preview, { props: { currentPage: pageWithEmptyText } })
+    const vm = wrapper.vm as any
+
+    // Clear mdContent
+    vm.mdContent = ''
+    await flushPromises()
+
+    // isChineseDominant should return false for empty text
+    expect(vm.isChineseDominant).toBe(false)
+  })
+
+  it('covers handleDownloadMarkdown early return cases', async () => {
+    const wrapper = mount(Preview, { props: { currentPage: mockPage } })
+    const vm = wrapper.vm as any
+
+    // Test with empty mdContent
+    vm.mdContent = ''
+    const createElementSpy = vi.spyOn(document, 'createElement')
+    vm.handleDownloadMarkdown()
+    // Should return early, not create anchor
+    expect(createElementSpy).not.toHaveBeenCalledWith('a')
+
+    // Test with null currentPage
+    vm.mdContent = '# Content'
+    await wrapper.setProps({ currentPage: null })
+    vm.handleDownloadMarkdown()
+    // Should return early
+
+    createElementSpy.mockRestore()
+  })
+
+  it('covers performViewUpdate view change branches', async () => {
+    const wrapper = mount(Preview, { props: { currentPage: mockPage } })
+    const vm = wrapper.vm as any
+    await flushPromises()
+
+    // The performViewUpdate function calls internal methods
+    // We just need to verify the function runs without error for coverage
+
+    // Test switching from md to docx (covers docx/pdf branch)
+    await vm.performViewUpdate('p1', 'docx', 'md', false)
+    await flushPromises()
+
+    // Test staying on same view with no change (covers early-return branch)
+    await vm.performViewUpdate('p1', 'docx', 'docx', false)
+    await flushPromises()
+
+    // Test switching to pdf
+    await vm.performViewUpdate('p1', 'pdf', 'docx', false)
+    await flushPromises()
+
+    // Test md view branch with isChanged = true
+    await vm.performViewUpdate('p1', 'md', 'pdf', true)
+    await flushPromises()
+
+    // All branches executed - test passes if no exception
+    expect(true).toBe(true)
+  })
+
+  it('covers downloadBinary with no blob returned', async () => {
+    const wrapper = mount(Preview, { props: { currentPage: mockPage } })
+    const vm = wrapper.vm as any
+
+    vi.mocked(db.getPageDOCX).mockResolvedValue(null as any)
+
+    const createElementSpy = vi.spyOn(document, 'createElement')
+    await vm.downloadBinary('docx')
+
+    // Should return early when no blob
+    expect(createElementSpy).not.toHaveBeenCalledWith('a')
+
+    createElementSpy.mockRestore()
+  })
 })

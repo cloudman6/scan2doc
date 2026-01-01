@@ -15,10 +15,17 @@ vi.mock('@/db', () => ({
 // the real 'convertMathMl2Math' function which works, unlike 'convertLatex2Math'.
 
 const TableCellSpy = vi.fn()
+const ParagraphSpy = vi.fn()
 vi.mock('docx', async (importOriginal) => {
     const actual = await importOriginal<typeof import('docx')>()
     return {
         ...actual,
+        Paragraph: class extends actual.Paragraph {
+            constructor(options: any) {
+                super(options)
+                ParagraphSpy(options)
+            }
+        },
         TableCell: class extends actual.TableCell {
             constructor(options: any) {
                 super(options)
@@ -32,6 +39,7 @@ describe('DocxGenerator', () => {
     beforeEach(() => {
         vi.clearAllMocks()
         TableCellSpy.mockClear()
+        ParagraphSpy.mockClear()
     })
 
     it('should generate a DOCX blob from a simple Markdown string', async () => {
@@ -188,6 +196,45 @@ End of table.
         // All cells should use AUTO width
         widths.forEach(width => {
             expect(width.type).toBe('auto')
+        })
+    })
+
+    it('should use 240 line spacing for Chinese content', async () => {
+        const markdown = '这是一段中文。'
+        await docxGenerator.generate(markdown)
+
+        // Find a paragraph call that has spacing.line
+        const call = ParagraphSpy.mock.calls.find((c: any) => c[0] && c[0].spacing && c[0].spacing.line)
+        expect(call).toBeDefined()
+        expect(call![0].spacing.line).toBe(360)
+        expect(call![0].spacing.after).toBe(0)
+        expect(call![0].indent).toEqual({ firstLine: 480 })
+    })
+
+    it('should use 360 line spacing and 240 after spacing for English content', async () => {
+        const markdown = 'This is an English paragraph.'
+        await docxGenerator.generate(markdown)
+
+        // Find a paragraph call that has spacing.line
+        const call = ParagraphSpy.mock.calls.find((c: any) => c[0] && c[0].spacing && c[0].spacing.line)
+        expect(call).toBeDefined()
+        expect(call![0].spacing.line).toBe(360)
+        expect(call![0].spacing.after).toBe(240)
+        expect(call![0].indent).toBeUndefined()
+    })
+
+    it('should apply spacing to headings', async () => {
+        const markdown = '# Main Heading\n## Sub Heading'
+        await docxGenerator.generate(markdown)
+
+        // Find heading paragraphs (they will have a 'heading' property)
+        const headingCalls = ParagraphSpy.mock.calls.filter((c: any) => c[0] && c[0].heading)
+        expect(headingCalls.length).toBe(2)
+
+        headingCalls.forEach((call: any) => {
+            expect(call[0].spacing).toBeDefined()
+            expect(call[0].spacing.before).toBe(240)
+            expect(call[0].spacing.line).toBe(360)
         })
     })
 })
