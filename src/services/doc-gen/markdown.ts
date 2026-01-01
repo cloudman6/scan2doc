@@ -89,7 +89,7 @@ export class MarkdownAssembler {
             if (gapText.trim()) {
                 blocks.push({
                     type: 'text',
-                    content: gapText.trim(),
+                    content: this.cleanContent(gapText.trim()),
                     box: [0, 0, ocrResult.image_dims.w, 0], // Unknown position, assume top
                     isImage: false
                 })
@@ -107,7 +107,7 @@ export class MarkdownAssembler {
                 const imageId = matchedIndex !== -1 ? imageMap.get(matchedIndex.toString()) : undefined
 
                 let isImage = (type === 'image' || type === 'figure')
-                let content = rawContent.trim()
+                let content = this.cleanContent(rawContent.trim())
 
                 // If we have an image ID, force treat as image and generate Markdown link
                 if (imageId) {
@@ -138,7 +138,7 @@ export class MarkdownAssembler {
             if (tailText.trim()) {
                 blocks.push({
                     type: 'text',
-                    content: tailText.trim(),
+                    content: this.cleanContent(tailText.trim()),
 
                     box: [0, 0, ocrResult.image_dims!.w, ocrResult.image_dims!.h], // Assume bottom
                     isImage: false
@@ -147,6 +147,30 @@ export class MarkdownAssembler {
         }
 
         return blocks
+    }
+
+    private cleanContent(text: string): string {
+        // Debug logging for LaTeX detection
+        if (text.includes('\\(') || text.includes('\\[')) {
+            console.log('[Markdown] Found LaTeX delimiters in text:', text.substring(0, 100) + '...')
+        }
+
+        // Normalize LaTeX delimiters
+        // \( -> $
+        // \) -> $
+        // \[ -> $$
+        // \] -> $$
+        const cleaned = text
+            .replace(/\\\(/g, '$')
+            .replace(/\\\)/g, '$')
+            .replace(/\\\[/g, '$$$$')
+            .replace(/\\\]/g, '$$$$')
+
+        if (text !== cleaned) {
+            console.log('[Markdown] Normalized LaTeX:', { original: text.substring(0, 50), cleaned: cleaned.substring(0, 50) })
+        }
+
+        return cleaned
     }
 
     private groupIntoRows(blocks: Block[]): Row[] {

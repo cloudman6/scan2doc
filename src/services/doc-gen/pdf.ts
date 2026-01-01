@@ -3,6 +3,7 @@ import fontkit from '@pdf-lib/fontkit'
 import type { OCRResult } from '@/services/ocr'
 import { fontLoader, FontLoaderService } from '@/services/font/fontLoader'
 import { parseRawText, type ParsedBlock } from './ocr-parser'
+import { LatexToUnicodeConverter } from './latex-unicode'
 
 // Assumed DPI for scanned documents (150 DPI is common for document scanning)
 // This converts pixel dimensions to PDF points (72 points = 1 inch)
@@ -164,7 +165,7 @@ export class SandwichPDFBuilder {
             try {
                 page.drawText(line, {
                     x, y: currentY, size: fontSize,
-                    color: rgb(1, 0, 0), opacity: 1, font: font
+                    color: rgb(1, 0, 0), opacity: 1, font: font // Visible debug layer
                 })
             } catch (e) {
                 console.warn('[SandwichPDFBuilder] Failed to draw text line:', line.substring(0, 20), e)
@@ -311,14 +312,23 @@ export class SandwichPDFBuilder {
     private cleanTextForPdf(content: string): string {
         // Remove markdown headers (# ## ###)
         let text = content.replace(/^#+\s*/gm, '')
-        // Remove markdown bold/italic
-        text = text.replace(/\*\*/g, '').replace(/\*/g, '')
         // Remove markdown image syntax ![...](...) - simple loop approach
         text = this.removeMarkdownLinks(text, true)
         // Remove markdown links [...](...)
         text = this.removeMarkdownLinks(text, false)
         // Trim and collapse whitespace
         text = text.replace(/\s+/g, ' ').trim()
+
+        // Normalize LaTeX delimiters and convert simple formulas to Unicode
+        // \( ... \) -> converted text
+        text = text.replace(/\\\((.*?)\\\)/g, (_, latex) => {
+            return LatexToUnicodeConverter.convert(latex)
+        })
+        // \[ ... \] -> converted text (treat same as inline for text layer)
+        text = text.replace(/\\\[(.*?)\\\]/g, (_, latex) => {
+            return LatexToUnicodeConverter.convert(latex)
+        })
+
         return text
     }
 

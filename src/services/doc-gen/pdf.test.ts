@@ -150,8 +150,55 @@ describe('SandwichPDFBuilder', () => {
         // Coordinates are scaled from pixels to PDF points (100px / 150dpi * 72pt = 48pt)
         // Original x=10 becomes 10 * (48/100) = 4.8
         expect(mockPage.drawText).toHaveBeenCalledWith('Hello World', expect.objectContaining({
-            opacity: 1 // Updated to 1 for visual verification
+            opacity: 1 // Visible debug layer
         }))
+    })
+
+    it('should normalize LaTeX delimiters in text layer', async () => {
+        const raw_text = createRawText([
+            { type: 'text', box: [10, 10, 50, 30], content: 'Start \\( E=mc^2 \\) Middle \\[ F=ma \\] End' }
+        ])
+
+        const ocrResult = {
+            success: true,
+            text: 'Start \\( E=mc^2 \\) Middle \\[ F=ma \\] End',
+            raw_text,
+            boxes: [],
+            image_dims: { w: 100, h: 100 },
+            prompt_type: 'document'
+        }
+
+        await sandwichPDFBuilder.generate(mockBlob, ocrResult)
+
+        // Expect the text to be converted to Unicode: Start E=mc² Middle F=ma End
+        // Note: The spaces around equations might be trimmed or kept by the converter or replacement logic.
+        // The replacement logic: text.replace(..., (_, latex) => convert(latex))
+        // 'Start \( E=mc^2 \) Middle' -> 'Start ' + convert(' E=mc^2 ') + ' Middle'
+        // LatexToUnicodeConverter preserves text but trims result.
+        // ' E=mc^2 ' -> 'E=mc²'
+        expect(mockPage.drawText).toHaveBeenCalledWith('Start E=mc² Middle F=ma End', expect.objectContaining({
+            opacity: 1
+        }))
+    })
+
+    it('should preserve LaTeX math characters in text layer', async () => {
+        const raw_text = createRawText([
+            { type: 'text', box: [10, 10, 50, 30], content: 'Math: $x^2 + y_0 = z^*$' }
+        ])
+
+        const ocrResult = {
+            success: true,
+            text: 'Math: $x^2 + y_0 = z^*$',
+            raw_text,
+            boxes: [],
+            image_dims: { w: 100, h: 100 },
+            prompt_type: 'document'
+        }
+
+        await sandwichPDFBuilder.generate(mockBlob, ocrResult)
+
+        // Expect the text to be preserved as is
+        expect(mockPage.drawText).toHaveBeenCalledWith('Math: $x^2 + y_0 = z^*$', expect.any(Object))
     })
 
     it('should attempt to load and embed Chinese font', async () => {
@@ -381,13 +428,9 @@ describe('SandwichPDFBuilder', () => {
         // The logic should have moved "ReassignedData" to the first block (table)
         // cleanTableHtml will process it.
         // We verify that drawText was called with "ReassignedData".
-        // AND importantly, it should NOT be drawn at the caption position if possible to check?
-        // Checking just content presence is enough to verify the transfer logic ran.
-        // If content wasn't transferred, the first block would be skipped (empty), 
-        // and if it wasn't removed from second, it might be drawn there (but we strip it).
-
         expect(mockPage.drawText).toHaveBeenCalledWith(expect.stringContaining('ReassignedData'), expect.any(Object))
     })
+
     it('should split long tokens that overflow width', async () => {
         const raw_text = createRawText([
             { type: 'text', box: [10, 10, 100, 50], content: 'VeryLongWordThatDoesNotFit' }
@@ -402,23 +445,7 @@ describe('SandwichPDFBuilder', () => {
             prompt_type: 'document'
         }
 
-        // Mock font width to be large for every character, forcing split
-        // widthOfTextAtSize returns 50, but box width is ~50 scaled points?
-        // Let's control mocked font width precisely.
-        // boxWidth calculation:
-        // imageWidth=100. pdfWidth = 100/150*72 = 48.
-        // Scale = 48/100 = 0.48.
-        // box width (pixels)=90. scaled width = 43.2.
-
-        // If we make font width return 50 for the whole string, it overflows.
-        // And if we make char width 10, it fits 4 chars.
-
-
-
-        // We need to inject this mock into the pdfDoc.embedStandardFont result
-        // But sandwichPDFBuilder creates the doc inside generate.
-        // We mocked pdfDoc.embedStandardFont to return mockFont.
-        // We can change mockFont behavior for this test.
+        // Mock font width behavior
         mockFont.widthOfTextAtSize.mockImplementation((txt: string) => {
             if (txt.length > 10) return 200 // Huge width
             return txt.length * 2
@@ -427,8 +454,6 @@ describe('SandwichPDFBuilder', () => {
         await sandwichPDFBuilder.generate(mockBlob, ocrResult)
 
         // It should have called drawText multiple times for split parts
-        // "VeryLongWordThatDoesNotFit" should be split.
-        // We just verify it called drawText successfully with parts of the word.
         expect(mockPage.drawText).toHaveBeenCalledWith(expect.stringContaining('Very'), expect.any(Object))
     })
 
@@ -437,8 +462,6 @@ describe('SandwichPDFBuilder', () => {
             { type: 'text', box: [10, 10, 50, 50], content: 'Word1 Word2' }
         ])
 
-        // Box width in PDF points will be small.
-        // Force wrap by making word width logic
         mockFont.widthOfTextAtSize.mockImplementation((txt: string) => {
             if (txt.includes('Word1 Word2')) return 100 // Too big for line
             return 10 // Fits individually
@@ -457,5 +480,28 @@ describe('SandwichPDFBuilder', () => {
         expect(mockPage.drawText).toHaveBeenCalledWith('Word1 ', expect.any(Object))
         expect(mockPage.drawText).toHaveBeenCalledWith('Word2', expect.any(Object))
     })
-})
 
+    it('should preserve LaTeX math characters in text layer', async () => {
+        const latex = '$E = mc^2 * \\sqrt{x}$'
+        const raw_text = createRawText([
+            { type: 'text', box: [10, 10, 200, 50], content: latex }
+        ])
+
+        const ocrResult = {
+            success: true,
+            text: latex,
+            raw_text,
+            boxes: [],
+            image_dims: { w: 100, h: 100 },
+            prompt_type: 'document'
+        }
+
+        // Just ensure width doesn't cause split
+        mockFont.widthOfTextAtSize.mockReturnValue(10)
+
+        await sandwichPDFBuilder.generate(mockBlob, ocrResult)
+
+        // Expect exactly the latex string
+        expect(mockPage.drawText).toHaveBeenCalledWith(latex, expect.any(Object))
+    })
+})

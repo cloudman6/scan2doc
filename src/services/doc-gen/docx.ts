@@ -1,8 +1,51 @@
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, ImageRun, Table, TableRow, TableCell, WidthType, BorderStyle } from 'docx'
+import {
+    Document,
+    Packer,
+    Paragraph,
+    TextRun,
+    HeadingLevel,
+    ImageRun,
+    Table,
+    TableRow,
+    TableCell,
+    WidthType,
+    BorderStyle
+} from 'docx'
 import { db } from '@/db'
 import { consola } from 'consola'
 import MarkdownIt from 'markdown-it'
-import type Token from 'markdown-it/lib/token.mjs'
+// @ts-expect-error -- No types for this specific plugin
+import MarkdownItKatex from '@iktakahiro/markdown-it-katex'
+import type Token from 'markdown-it/lib/token'
+import { convertMathMl2Math } from '@hungknguyen/docx-math-converter'
+import katex from 'katex'
+
+// Helper to convert LaTeX to Docx Math object using KaTeX -> MathML -> OMML
+// This avoids the broken 'tex2mml' dependency in convertLatex2Math
+const convertLatexToDocxMath = (latex: string) => {
+    try {
+        // 1. Convert LaTeX to MathML using KaTeX
+        const mathml = katex.renderToString(latex, {
+            output: 'mathml',
+            throwOnError: false,
+            displayMode: true // Ensure block display for correct OMML structure
+        })
+
+        // 2. Extract strictly the MathML part if KaTeX wraps it (KaTeX output is HTML + MathML usually)
+        const mathMatch = mathml.match(/<math[\s\S]*?<\/math>/)
+        if (!mathMatch) return [new TextRun(latex)]
+
+        let cleanMathml = mathMatch[0]
+        // Remove annotation tags which cause warnings in docx-math-converter
+        cleanMathml = cleanMathml.replace(/<annotation[\s\S]*?<\/annotation>/g, '')
+
+        // 3. Convert MathML to OMML
+        return convertMathMl2Math(cleanMathml)
+    } catch (e) {
+        consola.error('Failed to convert latex to math', e)
+        return [new TextRun(latex)]
+    }
+}
 
 export class DocxGenerator {
     private md: MarkdownIt
@@ -11,18 +54,9 @@ export class DocxGenerator {
         this.md = new MarkdownIt({
             html: true
         })
+        this.md.use(MarkdownItKatex)
     }
 
-    /**
-     * Generate a DOCX blob from a Markdown string.
-     * 
-     * @param markdown The Markdown content
-     * @param options Additional options for document styling
-     * @returns A promise that resolves to a DOCX Blob
-     */
-    /**
-     * Generate a DOCX blob from a Markdown string.
-     */
     async generate(markdown: string): Promise<Blob> {
         const tokens = this.md.parse(markdown, {})
         const children: (Paragraph | Table)[] = []
@@ -40,17 +74,13 @@ export class DocxGenerator {
                 if (result.paragraph) children.push(result.paragraph)
                 i = result.nextIndex
             } else if (token.type === 'html_block') {
-                const table = this.processHtmlBlock(token.content)
-                if (table) {
-                    children.push(table)
-                    // Add an empty paragraph after table to ensure spacing
-                    children.push(new Paragraph({
-                        text: '',
-                        spacing: {
-                            after: 240, // 12pt
-                        }
-                    }))
-                }
+                const table = this.processHtmlBlockToken(token)
+                if (table) children.push(table)
+                i++
+            } else if (token.type === 'math_block') {
+                // Handle Block Math: $$ ... $$
+                const mathObj = this.processMathBlock(token)
+                children.push(mathObj)
                 i++
             } else {
                 i++
@@ -65,7 +95,7 @@ export class DocxGenerator {
                     document: {
                         run: {
                             font: isChinese ? 'Microsoft YaHei' : 'Arial',
-                            characterSpacing: isChinese ? 20 : 0, // Reduced from 40 to 20
+                            characterSpacing: isChinese ? 20 : 0,
                         },
                     },
                 },
@@ -76,15 +106,101 @@ export class DocxGenerator {
             }]
         })
 
-        return await Packer.toBlob(doc)
+        return Packer.toBlob(doc)
+    }
+
+    private processMathBlock(token: Token): Paragraph {
+        // Use new converter
+        const mathChildren = convertLatexToDocxMath(token.content)
+
+        // Wrap in a paragraph
+        return new Paragraph({
+            children: Array.isArray(mathChildren) ? mathChildren : [mathChildren],
+            spacing: { after: 240 }
+        })
+    }
+
+    private processHtmlBlockToken(token: Token): Table | null {
+        // Simple HTML Table parser
+        const content = token.content
+        if (!content.includes('<table')) return null
+
+        const rows: TableRow[] = []
+        const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/g
+        let rowMatch
+
+        while ((rowMatch = rowRegex.exec(content)) !== null) {
+            const rowContent = rowMatch[1]!
+            const cells: TableCell[] = []
+
+            // Match td or th
+            const cellRegex = /<(td|th)[^>]*>([\s\S]*?)<\/\1>/g
+            let cellMatch
+            while ((cellMatch = cellRegex.exec(rowContent)) !== null) {
+                // eslint-disable-next-line sonarjs/slow-regex -- Input is trusted local content, simple parsing needed
+                const cellText = cellMatch[2]!.replace(/<[^>]+>/g, '').trim()
+                const isHeader = cellMatch[1].toLowerCase() === 'th'
+                cells.push(new TableCell({
+                    children: [new Paragraph({
+                        children: [new TextRun({
+                            text: cellText,
+                            bold: isHeader,
+                        })]
+                    })],
+                    width: {
+                        size: 100 / 2, // Assume 2 columns for now
+                        type: WidthType.PERCENTAGE
+                    },
+                    borders: {
+                        top: { style: BorderStyle.SINGLE, size: 1 },
+                        bottom: { style: BorderStyle.SINGLE, size: 1 },
+                        left: { style: BorderStyle.SINGLE, size: 1 },
+                        right: { style: BorderStyle.SINGLE, size: 1 },
+                    }
+                }))
+            }
+            if (cells.length > 0) {
+                rows.push(new TableRow({ children: cells }))
+            }
+        }
+
+        if (rows.length === 0) return null
+
+        return new Table({
+            rows: rows,
+            width: {
+                size: 100,
+                type: WidthType.PERCENTAGE
+            },
+            borders: {
+                top: { style: BorderStyle.SINGLE, size: 1 },
+                bottom: { style: BorderStyle.SINGLE, size: 1 },
+                left: { style: BorderStyle.SINGLE, size: 1 },
+                right: { style: BorderStyle.SINGLE, size: 1 },
+                insideHorizontal: { style: BorderStyle.SINGLE, size: 1 },
+                insideVertical: { style: BorderStyle.SINGLE, size: 1 },
+            }
+        })
     }
 
     private processHeading(tokens: Token[], index: number) {
-        const token = tokens[index]!
-        const level = parseInt(token.tag.slice(1)) || 1
-        const contentToken = tokens[index + 1]!
-        const paragraph = this.createHeading(contentToken.content, level)
-        return { paragraph, nextIndex: index + 3 } // open, inline, close
+        const openToken = tokens[index]!
+        const inlineToken = tokens[index + 1]!
+
+        const level = parseInt(openToken.tag.replace('h', ''))
+        let headingLevel = HeadingLevel.HEADING_1
+        if (level === 2) headingLevel = HeadingLevel.HEADING_2
+        if (level === 3) headingLevel = HeadingLevel.HEADING_3
+        if (level >= 4) headingLevel = HeadingLevel.HEADING_4
+
+        return {
+            paragraph: new Paragraph({
+                text: inlineToken.content,
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                heading: headingLevel as any
+            }),
+            nextIndex: index + 3
+        }
     }
 
     private async processParagraph(tokens: Token[], index: number) {
@@ -93,68 +209,107 @@ export class DocxGenerator {
 
         if (contentToken.type === 'inline') {
             const imageToken = contentToken.children?.find(c => c.type === 'image')
-            if (imageToken) {
+            // If only one child and it's image
+            if (contentToken.children?.length === 1 && imageToken) {
                 const imageId = imageToken.attrGet('src')?.split(':')[1]
                 if (imageId) {
                     paragraph = await this.createImageParagraph(imageId)
                 }
             } else {
-                paragraph = this.createParagraph(contentToken)
+                paragraph = await this.createParagraph(contentToken)
             }
         }
 
-        return { paragraph, nextIndex: index + 3 } // open, inline, close
+        return { paragraph, nextIndex: index + 3 }
     }
 
-    private createHeading(text: string, level: number): Paragraph {
-        let headingLevel: string = HeadingLevel.HEADING_1
-        if (level === 2) headingLevel = HeadingLevel.HEADING_2
-        if (level === 3) headingLevel = HeadingLevel.HEADING_3
-        if (level === 4) headingLevel = HeadingLevel.HEADING_4
-        if (level === 5) headingLevel = HeadingLevel.HEADING_5
-        if (level === 6) headingLevel = HeadingLevel.HEADING_6
+    private async createParagraph(inlineToken: Token): Promise<Paragraph> {
+        const children = await this.createParagraphChildren(inlineToken)
 
         return new Paragraph({
-            text,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            heading: headingLevel as any
-        })
-    }
-
-    private createParagraph(inlineToken: Token): Paragraph {
-        const textRuns: TextRun[] = []
-
-        if (inlineToken.children) {
-            let bold = false
-            let italic = false
-
-            for (const child of inlineToken.children) {
-                if (child.type === 'strong_open') bold = true
-                else if (child.type === 'strong_close') bold = false
-                else if (child.type === 'em_open') italic = true
-                else if (child.type === 'em_close') italic = false
-                else if (child.type === 'text') {
-                    textRuns.push(new TextRun({
-                        text: child.content,
-                        bold,
-                        italics: italic
-                    }))
-                } else if (child.type === 'softbreak' || child.type === 'hardbreak') {
-                    textRuns.push(new TextRun({ text: '', break: 1 }))
-                }
-            }
-        } else {
-            textRuns.push(new TextRun(inlineToken.content))
-        }
-
-        return new Paragraph({
-            children: textRuns,
+            children: children,
             spacing: {
-                after: 240, // 12pt
-                line: 240, // 1 line
+                after: 240,
+                line: 240,
                 lineRule: 'auto',
             }
         })
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    private async createParagraphChildren(inlineToken: Token): Promise<(TextRun | ImageRun | any)[]> {
+        const runs: (TextRun | ImageRun | any)[] = []
+        if (!inlineToken.children) {
+            runs.push(new TextRun(inlineToken.content))
+            return runs
+        }
+
+        let style = { bold: false, italic: false }
+
+        for (const child of inlineToken.children) {
+            if (this.updateStyle(child, style)) continue
+
+            const result = await this.processInlineChild(child, style)
+            if (result) {
+                if (Array.isArray(result)) runs.push(...result)
+                else runs.push(result)
+            }
+        }
+        return runs
+    }
+
+    private updateStyle(child: Token, style: { bold: boolean, italic: boolean }): boolean {
+        if (child.type === 'strong_open') { style.bold = true; return true }
+        if (child.type === 'strong_close') { style.bold = false; return true }
+        if (child.type === 'em_open') { style.italic = true; return true }
+        if (child.type === 'em_close') { style.italic = false; return true }
+        return false
+    }
+
+    private async processInlineChild(child: Token, style: { bold: boolean, italic: boolean }) {
+        if (child.type === 'text') {
+            return new TextRun({
+                text: child.content,
+                bold: style.bold,
+                italics: style.italic
+            })
+        }
+
+        if (child.type === 'softbreak' || child.type === 'hardbreak') {
+            return new TextRun({ text: '', break: 1 })
+        }
+
+        if (child.type === 'image') {
+            return this.createInlineImageRun(child)
+        }
+
+        if (child.type === 'math_inline') {
+            return convertLatexToDocxMath(child.content)
+        }
+
+        return null
+    }
+
+    private async createInlineImageRun(child: Token): Promise<ImageRun | TextRun> {
+        const imageId = child.attrGet('src')?.split(':')[1]
+        if (!imageId) return new TextRun("[Missing Image ID]")
+
+        try {
+            const image = await db.getPageExtractedImage(imageId)
+            if (image) {
+                const buffer = image.blob instanceof Blob
+                    ? await image.blob.arrayBuffer()
+                    : image.blob
+                return new ImageRun({
+                    data: buffer,
+                    type: 'png',
+                    transformation: { width: 100, height: 100 }
+                })
+            }
+        } catch (e) {
+            consola.error(`[DocxGenerator] Failed to create inline image for ${imageId}`, e)
+        }
+        return new TextRun("[Missing Image]")
     }
 
     private async createImageParagraph(imageId: string): Promise<Paragraph | null> {
@@ -172,8 +327,8 @@ export class DocxGenerator {
                         data: buffer,
                         type: 'png',
                         transformation: {
-                            width: 400, // Fixed width: Maintain aspect ratio or use box info in future
-                            height: 300,
+                            width: 600,
+                            height: 600
                         },
                     }),
                 ],
@@ -184,75 +339,12 @@ export class DocxGenerator {
         }
     }
 
-
-    private processHtmlBlock(htmlContent: string): Table | null {
-        try {
-            const parser = new DOMParser()
-            const doc = parser.parseFromString(htmlContent, 'text/html')
-            const tableElement = doc.querySelector('table')
-
-            if (!tableElement) return null
-
-            const rows: TableRow[] = []
-            const trElements = Array.from(tableElement.querySelectorAll('tr'))
-
-            for (const tr of trElements) {
-                const cells: TableCell[] = []
-                const tdElements = Array.from(tr.querySelectorAll('td, th'))
-
-                for (const td of tdElements) {
-                    const textContent = td.textContent || ''
-                    // Basic styling for header cells (th)
-                    const isHeader = td.tagName.toLowerCase() === 'th'
-
-                    cells.push(new TableCell({
-                        children: [new Paragraph({
-                            children: [new TextRun({
-                                text: textContent.trim(),
-                                bold: isHeader,
-                            })]
-                        })],
-                        width: {
-                            size: 100 / tdElements.length, // Distribute width evenly for now
-                            type: WidthType.PERCENTAGE,
-                        },
-                    }))
-                }
-
-                rows.push(new TableRow({
-                    children: cells
-                }))
-            }
-
-            if (rows.length === 0) return null
-
-            return new Table({
-                rows: rows,
-                width: {
-                    size: 100,
-                    type: WidthType.PERCENTAGE,
-                },
-                borders: {
-                    top: { style: BorderStyle.SINGLE, size: 1 },
-                    bottom: { style: BorderStyle.SINGLE, size: 1 },
-                    left: { style: BorderStyle.SINGLE, size: 1 },
-                    right: { style: BorderStyle.SINGLE, size: 1 },
-                    insideHorizontal: { style: BorderStyle.SINGLE, size: 1 },
-                    insideVertical: { style: BorderStyle.SINGLE, size: 1 },
-                }
-            })
-        } catch (error) {
-            consola.error('[DocxGenerator] Failed to parse HTML table', error)
-            return null
-        }
-    }
-
     private detectDominantLanguage(text: string): boolean {
-        // Remove common markdown syntax to avoid skewing results (optional, but good for accuracy)
+        // Remove common markdown syntax
         /* eslint-disable sonarjs/slow-regex */
-        const cleanText = text.replace(/!\[[^\]]*\]\([^)]*\)/g, '') // Remove images
-            .replace(/\[[^\]]*\]\([^)]*\)/g, '') // Remove links
-            .replace(/[#*`~>+\-=_]/g, '') // Remove symbols
+        const cleanText = text.replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+            .replace(/\[[^\]]*\]\([^)]*\)/g, '')
+            .replace(/[#*`~> +\-=_]/g, '')
         /* eslint-enable sonarjs/slow-regex */
 
         const totalLength = cleanText.length
@@ -262,8 +354,6 @@ export class DocxGenerator {
         const chineseMatches = cleanText.match(/[\u4e00-\u9fa5]/g)
         const chineseCount = chineseMatches ? chineseMatches.length : 0
 
-        // If more than 20% is Chinese, treat as Chinese dominant (threshold can be adjusted)
-        // Using 20% because technical docs often have a lot of English code/keywords
         return (chineseCount / totalLength) > 0.2
     }
 }

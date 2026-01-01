@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { MarkdownAssembler } from './markdown'
 import type { OCRResult } from '@/services/ocr'
 import sample1 from '../../../tests/e2e/samples/sample1.json'
+import sample4 from '../../../tests/e2e/samples/sample4.json'
 
 describe('MarkdownAssembler', () => {
     const assembler = new MarkdownAssembler()
@@ -203,5 +204,37 @@ describe('MarkdownAssembler', () => {
             const imgCount = (tablePart.match(/scan2doc-img:img-/g) || []).length
             expect(imgCount).toBeGreaterThanOrEqual(4)
         })
+    })
+    it('should normalize LaTeX delimiters from \\(..\\) and \\[..\\] to $..$ and $$..$$', () => {
+        const ocrResult: OCRResult = {
+            success: true,
+            text: '',
+            // Input has mixed or non-standard delimiters for markdown-it
+            raw_text: '<|ref|>text<|/ref|><|det|>[[0,0,100,100]]<|/det|>Inline: \\(E=mc^2\\) and Block: \\[x^2 + y^2 = z^2\\]',
+            boxes: [{ box: [0, 0, 100, 100], label: 'text' }],
+            image_dims: DIMS_1000,
+            prompt_type: 'document'
+        }
+        const result = assembler.assemble(ocrResult, new Map())
+
+        // Expect normalization
+        expect(result).toContain('$E=mc^2$')
+        expect(result).toContain('$$x^2 + y^2 = z^2$$')
+
+        // Should NOT contain the old delimiters
+        expect(result).not.toContain('\\(E=mc^2\\)')
+        expect(result).not.toContain('\\[x^2')
+    })
+
+    it('should correctly process sample4.json containing LaTeX formulas', () => {
+        // @ts-expect-error -- importing json as any/unknown
+        const result = assembler.assemble(sample4 as OCRResult, new Map())
+
+        // The processed output MUST contain $..$ formulas
+        expect(result).toContain('$100^{\\circ}\\mathrm{C}$')
+        expect(result).toContain('$50^{\\circ}\\mathrm{C}$')
+
+        // Should not contain the original \( ... \)
+        expect(result).not.toContain('\\(100^{\\circ}\\mathrm{C}\\)')
     })
 })

@@ -277,8 +277,8 @@ describe('Preview.vue', () => {
     const wrapper = mount(Preview, { props: { currentPage: mockPage } })
     const vm = wrapper.vm as any
 
-    // Test case from user request: \(100^{\circ}\mathrm{C}\)
-    const mathInput = 'Text with math: \\(100^{\\circ}\\mathrm{C}\\)'
+    // Test case from user request: \(100^{\circ}\mathrm{C}\) -> Normalized to $...$
+    const mathInput = 'Text with math: $100^{\\circ}\\mathrm{C}$'
     vi.mocked(db.getPageMarkdown).mockResolvedValue({ content: mathInput } as any)
 
     await vm.loadMarkdown('p1')
