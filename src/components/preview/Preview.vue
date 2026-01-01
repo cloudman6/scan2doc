@@ -100,6 +100,7 @@
           <div
             ref="wordPreviewContainer"
             class="word-container"
+            :class="{ 'spacing-zh': isChineseDominant }"
           />
           <div class="docx-footer">
             <n-button
@@ -188,6 +189,27 @@ const mdRenderer = new MarkdownIt({
     typographer: true
 })
 mdRenderer.use(MarkdownItKatex)
+
+mdRenderer.use(MarkdownItKatex)
+
+import { computed } from 'vue'
+
+const isChineseDominant = computed(() => {
+    const text = mdContent.value || ''
+    /* eslint-disable sonarjs/slow-regex */
+    const cleanText = text.replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+                          .replace(/\[[^\]]*\]\([^)]*\)/g, '')
+                          .replace(/[#*`~>+\-=_]/g, '')
+    /* eslint-enable sonarjs/slow-regex */
+    
+    const totalLength = cleanText.length
+    if (totalLength === 0) return false
+
+    const chineseMatches = cleanText.match(/[\u4e00-\u9fa5]/g)
+    const chineseCount = chineseMatches ? chineseMatches.length : 0
+
+    return (chineseCount / totalLength) > 0.2
+})
 
 const processMarkdownMath = (markdown: string): string => {
     // Replace \( ... \) with $ ... $
@@ -544,6 +566,7 @@ onUnmounted(() => {
   padding: 40px !important;
   background: white !important;
   margin: 0 auto !important;
+  /* letter-spacing removed from base class, controlled by .spacing-zh modifier */
 }
 
 .download-info {
@@ -578,6 +601,24 @@ onUnmounted(() => {
   color: #24292f;
 }
 
+:deep(.markdown-render-area table) {
+  border-collapse: collapse !important;
+  width: 100% !important;
+  margin-bottom: 1rem !important;
+  border: 1px solid #d1d5db !important;
+}
+
+:deep(.markdown-render-area th),
+:deep(.markdown-render-area td) {
+  border: 1px solid #d1d5db !important;
+  padding: 8px !important;
+}
+
+:deep(.markdown-render-area th) {
+  background-color: #f3f4f6 !important;
+  font-weight: 600 !important;
+}
+
 /* Ensure KaTeX superscript layout is not messed up by global resets */
 :deep(.katex) {
   line-height: 1.2;
@@ -603,5 +644,48 @@ onUnmounted(() => {
     border-top: 1px solid #eee;
     display: flex;
     justify-content: flex-end;
+}
+
+/* Force borders for docx-preview output */
+:deep(.docx-preview-output table) {
+  border: 1px solid black !important;
+  border-collapse: collapse !important;
+  margin-bottom: 16px !important; /* Add spacing after table */
+}
+
+/* Fix preview: ensure line-height is readable even if DOCX uses single spacing */
+:deep(.docx-preview-output) {
+    line-height: 1.6 !important;
+}
+
+:deep(.docx-preview-output p) {
+    margin-bottom: 16px !important;
+    line-height: 1.6 !important; /* Force readable line height */
+}
+
+:deep(.docx-preview-output) {
+    line-height: 1.6 !important;
+}
+
+/* Force line-height on spans too, as docx-preview wraps text runs */
+:deep(.docx-preview-output span) {
+    line-height: 1.6 !important;
+}
+
+:deep(.docx-preview-output td),
+:deep(.docx-preview-output th) {
+  border: 1px solid black !important;
+}
+
+/* Dynamic spacing for Chinese content */
+.word-container.spacing-zh :deep(.docx-preview-output) {
+    letter-spacing: 1px !important; /* reduced from 1.5px to match DOCX 20 units */
+    font-family: "Microsoft YaHei" !important;
+}
+
+/* Override default for mixed content if not Chinese dominant */
+.word-container:not(.spacing-zh) :deep(.docx-preview-output) {
+    letter-spacing: normal !important;
+    font-family: Arial, sans-serif !important;
 }
 </style>

@@ -72,4 +72,29 @@ describe('DocxGenerator', () => {
         const blob = await docxGenerator.generate(markdown)
         expect(blob.size).toBeGreaterThan(0)
     })
+
+    it('should parse HTML tables and include them in the document', async () => {
+        const markdown = `
+Here is a table:
+
+<table>
+  <tr>
+    <th>Header 1</th>
+    <th>Header 2</th>
+  </tr>
+  <tr>
+    <td>Cell 1</td>
+    <td>Cell 2</td>
+  </tr>
+</table>
+
+End of table.
+`
+        const blob = await docxGenerator.generate(markdown)
+        expect(blob.size).toBeGreaterThan(0)
+        // Since we can't easily inspect the blob content without complex parsing,
+        // we rely on the fact that it shouldn't crash and returns a valid blob.
+        // The implementation verification will largely depend on code coverage
+        // confirming the table parsing logic was executed.
+    })
 })

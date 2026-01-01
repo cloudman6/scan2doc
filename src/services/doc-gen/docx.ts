@@ -1,5 +1,6 @@
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, ImageRun } from 'docx'
+import { Document, Packer, Paragraph, TextRun, HeadingLevel, ImageRun, Table, TableRow, TableCell, WidthType, BorderStyle } from 'docx'
 import { db } from '@/db'
+import { consola } from 'consola'
 import MarkdownIt from 'markdown-it'
 import type Token from 'markdown-it/lib/token.mjs'
 
@@ -7,7 +8,9 @@ export class DocxGenerator {
     private md: MarkdownIt
 
     constructor() {
-        this.md = new MarkdownIt()
+        this.md = new MarkdownIt({
+            html: true
+        })
     }
 
     /**
@@ -22,7 +25,7 @@ export class DocxGenerator {
      */
     async generate(markdown: string): Promise<Blob> {
         const tokens = this.md.parse(markdown, {})
-        const children: Paragraph[] = []
+        const children: (Paragraph | Table)[] = []
 
         let i = 0
         while (i < tokens.length) {
@@ -36,12 +39,37 @@ export class DocxGenerator {
                 const result = await this.processParagraph(tokens, i)
                 if (result.paragraph) children.push(result.paragraph)
                 i = result.nextIndex
+            } else if (token.type === 'html_block') {
+                const table = this.processHtmlBlock(token.content)
+                if (table) {
+                    children.push(table)
+                    // Add an empty paragraph after table to ensure spacing
+                    children.push(new Paragraph({
+                        text: '',
+                        spacing: {
+                            after: 240, // 12pt
+                        }
+                    }))
+                }
+                i++
             } else {
                 i++
             }
         }
 
+        const isChinese = this.detectDominantLanguage(markdown)
+
         const doc = new Document({
+            styles: {
+                default: {
+                    document: {
+                        run: {
+                            font: isChinese ? 'Microsoft YaHei' : 'Arial',
+                            characterSpacing: isChinese ? 20 : 0, // Reduced from 40 to 20
+                        },
+                    },
+                },
+            },
             sections: [{
                 properties: {},
                 children: children
@@ -120,7 +148,12 @@ export class DocxGenerator {
         }
 
         return new Paragraph({
-            children: textRuns
+            children: textRuns,
+            spacing: {
+                after: 240, // 12pt
+                line: 240, // 1 line
+                lineRule: 'auto',
+            }
         })
     }
 
@@ -146,9 +179,92 @@ export class DocxGenerator {
                 ],
             })
         } catch (error) {
-            console.error(`[DocxGenerator] Failed to create image paragraph for ${imageId}`, error)
+            consola.error(`[DocxGenerator] Failed to create image paragraph for ${imageId}`, error)
             return null
         }
+    }
+
+
+    private processHtmlBlock(htmlContent: string): Table | null {
+        try {
+            const parser = new DOMParser()
+            const doc = parser.parseFromString(htmlContent, 'text/html')
+            const tableElement = doc.querySelector('table')
+
+            if (!tableElement) return null
+
+            const rows: TableRow[] = []
+            const trElements = Array.from(tableElement.querySelectorAll('tr'))
+
+            for (const tr of trElements) {
+                const cells: TableCell[] = []
+                const tdElements = Array.from(tr.querySelectorAll('td, th'))
+
+                for (const td of tdElements) {
+                    const textContent = td.textContent || ''
+                    // Basic styling for header cells (th)
+                    const isHeader = td.tagName.toLowerCase() === 'th'
+
+                    cells.push(new TableCell({
+                        children: [new Paragraph({
+                            children: [new TextRun({
+                                text: textContent.trim(),
+                                bold: isHeader,
+                            })]
+                        })],
+                        width: {
+                            size: 100 / tdElements.length, // Distribute width evenly for now
+                            type: WidthType.PERCENTAGE,
+                        },
+                    }))
+                }
+
+                rows.push(new TableRow({
+                    children: cells
+                }))
+            }
+
+            if (rows.length === 0) return null
+
+            return new Table({
+                rows: rows,
+                width: {
+                    size: 100,
+                    type: WidthType.PERCENTAGE,
+                },
+                borders: {
+                    top: { style: BorderStyle.SINGLE, size: 1 },
+                    bottom: { style: BorderStyle.SINGLE, size: 1 },
+                    left: { style: BorderStyle.SINGLE, size: 1 },
+                    right: { style: BorderStyle.SINGLE, size: 1 },
+                    insideHorizontal: { style: BorderStyle.SINGLE, size: 1 },
+                    insideVertical: { style: BorderStyle.SINGLE, size: 1 },
+                }
+            })
+        } catch (error) {
+            consola.error('[DocxGenerator] Failed to parse HTML table', error)
+            return null
+        }
+    }
+
+    private detectDominantLanguage(text: string): boolean {
+        // Remove common markdown syntax to avoid skewing results (optional, but good for accuracy)
+        /* eslint-disable sonarjs/slow-regex */
+        const cleanText = text.replace(/!\[[^\]]*\]\([^)]*\)/g, '') // Remove images
+            .replace(/\[[^\]]*\]\([^)]*\)/g, '') // Remove links
+            .replace(/[#*`~>+\-=_]/g, '') // Remove symbols
+        /* eslint-enable sonarjs/slow-regex */
+
+        const totalLength = cleanText.length
+        if (totalLength === 0) return false
+
+        // Count Chinese characters
+        const chineseMatches = cleanText.match(/[\u4e00-\u9fa5]/g)
+        const chineseCount = chineseMatches ? chineseMatches.length : 0
+
+        // If more than 20% is Chinese, treat as Chinese dominant (threshold can be adjusted)
+        // Using 20% because technical docs often have a lot of English code/keywords
+        return (chineseCount / totalLength) > 0.2
     }
 }
 
