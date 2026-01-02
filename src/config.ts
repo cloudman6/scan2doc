@@ -4,8 +4,8 @@ export interface AppConfig {
 }
 
 export const config: AppConfig = {
-    // ocrApiEndpoint: 'https://ocr.cloudmantools.top/ocr'
-    // eslint-disable-next-line sonarjs/no-clear-text-protocols
-    ocrApiEndpoint: 'http://192.168.1.14:8001/ocr'
+     
+    ocrApiEndpoint: 'https://ocr.cloudmantools.top/ocr'
+    // ocrApiEndpoint: 'http://192.168.1.14:8001/ocr'
 
 }
