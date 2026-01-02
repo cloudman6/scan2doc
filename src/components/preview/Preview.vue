@@ -430,51 +430,45 @@ function applyPreviewStyleOverrides() {
     const marginBottom = isChinese ? '0' : '24px'
     
     // Helper to check if element is inside a table
-    const isInsideTable = (el: Element): boolean => {
-        return el.closest('table') !== null
+    const isInsideTable = (el: Element): boolean => el.closest('table') !== null
+
+    // Helper to force set important styles
+    const forceStyle = (el: HTMLElement, prop: string, value: string) => {
+        el.style.setProperty(prop, value, 'important')
     }
     
     // First, set line-height on the container itself
     const container = wordPreviewContainer.value.querySelector('.docx-preview-output') as HTMLElement
     if (container) {
-        container.style.setProperty('line-height', lineHeight, 'important')
+        forceStyle(container, 'line-height', lineHeight)
     }
     
-    // AGGRESSIVE: Override ALL elements within the preview, not just specific tags
-    // But SKIP elements inside tables to preserve table formatting
+    // AGGRESSIVE: Override ALL elements within the preview
     const allElements = wordPreviewContainer.value.querySelectorAll('.docx-preview-output *')
     allElements.forEach((element: Element) => {
-        // Skip table cells and their children
         if (isInsideTable(element)) return
-        
-        const el = element as HTMLElement
-        // Force line-height on every single element
-        el.style.setProperty('line-height', lineHeight, 'important')
+        forceStyle(element as HTMLElement, 'line-height', lineHeight)
     })
     
-    // Override paragraph-like elements with indent and margin (skip tables)
+    // Override paragraph-like elements with indent and margin
     const paragraphs = wordPreviewContainer.value.querySelectorAll('.docx-preview-output p, .docx-preview-output [class*="paragraph"]')
     paragraphs.forEach((p: Element) => {
-        // Skip paragraphs inside tables
         if (isInsideTable(p)) return
-        
         const el = p as HTMLElement
-        el.style.setProperty('text-indent', textIndent, 'important')
-        el.style.setProperty('margin-bottom', marginBottom, 'important')
-        el.style.setProperty('margin-top', '0', 'important')
+        forceStyle(el, 'text-indent', textIndent)
+        forceStyle(el, 'margin-bottom', marginBottom)
+        forceStyle(el, 'margin-top', '0')
     })
     
-    // Headings should not be indented (skip tables)
+    // Headings should not be indented
     const headings = wordPreviewContainer.value.querySelectorAll('.docx-preview-output h1, .docx-preview-output h2, .docx-preview-output h3, .docx-preview-output h4, .docx-preview-output [class*="heading"]')
     headings.forEach((h: Element) => {
         if (isInsideTable(h)) return
-        
         const el = h as HTMLElement
-        el.style.setProperty('text-indent', '0', 'important')
-        el.style.setProperty('margin-bottom', isChinese ? '0.5em' : '1em', 'important')
-        el.style.setProperty('margin-top', '1em', 'important')
+        forceStyle(el, 'text-indent', '0')
+        forceStyle(el, 'margin-bottom', isChinese ? '0.5em' : '1em')
+        forceStyle(el, 'margin-top', '1em')
     })
-    
 }
 
 async function loadMarkdown(pageId: string) {
@@ -483,14 +477,11 @@ async function loadMarkdown(pageId: string) {
         const record = await db.getPageMarkdown(pageId)
         if (record) {
             mdContent.value = record.content
-            mdContent.value = record.content
             // 2. Process images
             const processedMd = await processMarkdownImages(record.content)
             renderedMd.value = mdRenderer.render(processedMd)
         } else {
-            // Fallback to OCR text if no markdown yet?
-            // Actually OCR text is in page object, but let's stick to DB or Page object
-             // Page object has ocrText.
+            // Fallback to OCR text if no markdown yet
              mdContent.value = props.currentPage?.ocrText || ''
              renderedMd.value = mdRenderer.render(mdContent.value)
         }
@@ -506,16 +497,10 @@ async function handleDownloadMarkdown() {
     if (!mdContent.value || !props.currentPage) return
     
     try {
-        // Create a minimal Page object for export
-        const pageForExport = {
-            id: props.currentPage.id!,
-            fileName: props.currentPage.fileName,
-            pageNumber: props.currentPage.pageNumber || 1
-        }
-        
         // Use ExportService to handle image replacement
+        // props.currentPage is of type Page, which matches exportToMarkdown's first argument type (Page[])
         const result = await exportService.exportToMarkdown(
-            [pageForExport as any],
+            [props.currentPage],
             { format: 'markdown', includeImages: true }
         )
         

@@ -156,7 +156,7 @@ import { CloseCircleOutline, TimeOutline } from '@vicons/ionicons5'
 const store = usePagesStore()
 const { message } = createDiscreteApi(['message'])
 
-const emit = defineEmits<{
+defineEmits<{
   (e: 'close'): void
 }>()
 
