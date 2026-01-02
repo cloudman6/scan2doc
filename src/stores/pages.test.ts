@@ -744,6 +744,67 @@ describe('Pages Store', () => {
         })
     })
 
+    describe('Queue Management', () => {
+        beforeEach(() => {
+            vi.mock('@/services/queue', () => ({
+                queueManager: {
+                    cancelOCR: vi.fn(),
+                    addOCRTask: vi.fn()
+                }
+            }))
+        })
+
+        it('activeOCRTasks should return recognizing pages', async () => {
+            const store = usePagesStore()
+            await store.addPage({ id: 'active', status: 'recognizing' } as any)
+            await store.addPage({ id: 'queued', status: 'pending_ocr' } as any)
+
+            expect(store.activeOCRTasks).toHaveLength(1)
+            expect(store.activeOCRTasks[0]!.id).toBe('active')
+        })
+
+        it('queuedOCRTasks should return pending_ocr pages sorted by updatedAt', async () => {
+            vi.useFakeTimers()
+            const store = usePagesStore()
+
+            // Add 'early' task
+            vi.setSystemTime(new Date(2023, 1, 1, 10, 0, 0))
+            await store.addPage({ id: 'early', status: 'pending_ocr' } as any)
+
+            // Add 'late' task
+            vi.setSystemTime(new Date(2023, 1, 1, 11, 0, 0))
+            await store.addPage({ id: 'late', status: 'pending_ocr' } as any)
+
+            expect(store.queuedOCRTasks).toHaveLength(2)
+            expect(store.queuedOCRTasks[0]!.id).toBe('early')
+            expect(store.queuedOCRTasks[1]!.id).toBe('late')
+            vi.useRealTimers()
+        })
+
+        it('ocrTaskCount should return total of active, queued, and pending rendering pages', async () => {
+            const store = usePagesStore()
+            await store.addPage({ id: 'p1', status: 'recognizing' } as any)
+            await store.addPage({ id: 'p2', status: 'pending_ocr' } as any)
+            await store.addPage({ id: 'p3', status: 'ready' } as any)
+
+            expect(store.ocrTaskCount).toBe(2)
+        })
+
+        it('cancelOCRTasks should cancel tasks and revert status to ready', async () => {
+            const store = usePagesStore()
+            await store.addPage({ id: 'p1', status: 'pending_ocr' } as any)
+            await store.addPage({ id: 'p2', status: 'recognizing' } as any)
+
+            await store.cancelOCRTasks(['p1', 'p2'])
+
+            expect(store.pages.find(p => p.id === 'p1')!.status).toBe('ready')
+            expect(store.pages.find(p => p.id === 'p2')!.status).toBe('ready')
+
+            // Verify logs added
+            expect(store.pages[0]!.logs.some(l => l.message.includes('cancelled'))).toBe(true)
+        })
+    })
+
     describe('OCR Persistence', () => {
         it('should persist OCR status and result to DB', async () => {
             const store = usePagesStore()

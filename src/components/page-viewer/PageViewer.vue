@@ -206,7 +206,7 @@ import { uiLogger } from '@/utils/logger'
 import { NCard, NSpace, NButton, NButtonGroup, NSpin, NEmpty, NResult, NText } from 'naive-ui'
 import { db } from '@/db'
 import { ocrService } from '@/services/ocr'
-import { useMessage } from 'naive-ui'
+import { useMessage, useNotification } from 'naive-ui'
 
 import type { Page } from '@/stores/pages'
 
@@ -218,6 +218,7 @@ const props = defineProps<{
 
 
 const message = useMessage()
+const notification = useNotification()
 const zoomLevel = ref(1)
 // const imageContainer = ref<HTMLElement>() // Unused ref removed
 const imageSize = ref<string>('')
@@ -409,7 +410,10 @@ async function runOCR() {
     }
 
     uiLogger.info('Adding page to OCR Queue:', props.currentPage.id)
-    message.info('Added to OCR Queue')
+    notification.success({
+      content: 'Added to OCR Queue',
+      duration: 2500
+    })
     await ocrService.queueOCR(props.currentPage.id, imageBlob)
 
   } catch (error) {

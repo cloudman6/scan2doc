@@ -276,6 +276,68 @@ export const usePagesStore = defineStore('pages', () => {
     deleteAllPages()
   }
 
+  // Queue Management Getters
+  const activeOCRTasks = computed(() =>
+    pages.value.filter(page => page.status === 'recognizing')
+  )
+
+  const queuedOCRTasks = computed(() => {
+    return pages.value
+      .filter(page => page.status === 'pending_ocr')
+      .sort((a, b) => new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime())
+  })
+
+  const ocrTaskCount = computed(() =>
+    activeOCRTasks.value.length + queuedOCRTasks.value.length
+  )
+
+  // Queue Management Actions
+  async function cancelOCRTasks(pageIds: string[]) {
+    // 1. Cancel in QueueManager (Logic Layer)
+    // This stops the processing if running, or prevents it from starting if queued
+    pageIds.forEach(id => {
+      // Import queueManager dynamically or use the imported instance
+      // Using the one imported at module level
+      import('@/services/queue').then(({ queueManager }) => {
+        queueManager.cancelOCR(id)
+      })
+    })
+
+    // 2. Update Store Status (UI Layer)
+    // We revert status to 'ready' so user can try again
+    const updates = pageIds.map(id => ({
+      id,
+      status: 'ready' as PageStatus,
+      progress: 0,
+      updatedAt: new Date()
+    }))
+
+    for (const update of updates) {
+      updatePage(update.id, {
+        status: update.status,
+        progress: update.progress
+      })
+
+      // Add log
+      addPageLog(update.id, {
+        level: 'warning',
+        message: 'OCR task cancelled by user'
+      })
+    }
+
+    // 3. Update Database (Persistence Layer)
+    try {
+      // We can use a loop for now, or add a batch update method to DB later if needed
+      await Promise.all(updates.map(u => db.updatePage(u.id, {
+        status: u.status,
+        progress: u.progress,
+        updatedAt: u.updatedAt
+      })))
+    } catch (error) {
+      storeLogger.error('[Pages Store] Failed to update DB after cancellation:', error)
+    }
+  }
+
   // Database actions
   async function loadPagesFromDB() {
     try {
@@ -676,6 +738,11 @@ export const usePagesStore = defineStore('pages', () => {
     addFiles,
     setupPDFEventListeners,
     setupOCREventListeners,
-    setupDocGenEventListeners
+    setupDocGenEventListeners,
+    // Queue Management
+    activeOCRTasks,
+    queuedOCRTasks,
+    ocrTaskCount,
+    cancelOCRTasks
   }
 })

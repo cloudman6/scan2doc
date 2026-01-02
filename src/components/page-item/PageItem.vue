@@ -138,7 +138,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { NButton, NTag, NCheckbox, NSpin, NIcon, useMessage } from 'naive-ui'
+import { NButton, NTag, NCheckbox, NSpin, NIcon, useMessage, useNotification } from 'naive-ui'
 import { TrashOutline, DocumentTextOutline } from '@vicons/ionicons5'
 import { usePagesStore } from '@/stores/pages'
 import type { Page } from '@/stores/pages'
@@ -166,6 +166,7 @@ const emit = defineEmits<Emits>()
 // Store and reactive state
 const pagesStore = usePagesStore()
 const message = useMessage() // Access Naive UI message
+const notification = useNotification()
 const isDeleteHovered = ref(false)
 const isScanHovered = ref(false)
 const isPageHovered = ref(false)
@@ -203,7 +204,10 @@ async function handleScan() {
       return
     }
 
-    message.info('Added to OCR Queue')
+    notification.success({
+      content: 'Added to OCR Queue',
+      duration: 2500
+    })
     await ocrService.queueOCR(props.page.id, imageBlob)
 
   } catch (error) {
