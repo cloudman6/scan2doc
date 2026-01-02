@@ -1,193 +1,195 @@
 <template>
   <n-message-provider>
-    <n-dialog-provider>
-      <n-layout
-        class="app-container"
-        @drop="handleDrop"
-        @dragover="handleDragOver"
-      >
-        <!-- Header -->
-        <AppHeader 
-          :page-count="pagesStore.pages.length"
-          @add-files="handleFileAdd"
-        />
-
-        <!-- Main Content -->
+    <n-notification-provider placement="bottom-left">
+      <n-dialog-provider>
         <n-layout
-          has-sider
-          class="app-main"
+          class="app-container"
+          @drop="handleDrop"
+          @dragover="handleDragOver"
         >
-          <div
-            v-if="pagesStore.pages.length === 0"
-            style="width: 100%; height: 100%"
+          <!-- Header -->
+          <AppHeader 
+            :page-count="pagesStore.pages.length"
+            @add-files="handleFileAdd"
+          />
+
+          <!-- Main Content -->
+          <n-layout
+            has-sider
+            class="app-main"
           >
-            <EmptyState @add-files="handleFileAdd" />
-          </div>
-      
-          <template v-else>
-            <!-- Page List with custom collapse trigger -->
-            <n-layout-sider
-              v-model:collapsed="pageListCollapsed"
-              :width="260"
-              :collapsed-width="0"
-              collapse-mode="width"
-              bordered
-              :show-trigger="false"
+            <div
+              v-if="pagesStore.pages.length === 0"
+              style="width: 100%; height: 100%"
             >
-              <div class="page-list-container">
-                <PageList
-                  :pages="pagesStore.pages"
-                  :selected-id="selectedPageId"
-                  @page-selected="handlePageSelected"
-                  @page-deleted="handlePageDeleted"
-                  @batch-deleted="handleBatchDeleted"
-                />
-              </div>
-            </n-layout-sider>
+              <EmptyState @add-files="handleFileAdd" />
+            </div>
+      
+            <template v-else>
+              <!-- Page List with custom collapse trigger -->
+              <n-layout-sider
+                v-model:collapsed="pageListCollapsed"
+                :width="260"
+                :collapsed-width="0"
+                collapse-mode="width"
+                bordered
+                :show-trigger="false"
+              >
+                <div class="page-list-container">
+                  <PageList
+                    :pages="pagesStore.pages"
+                    :selected-id="selectedPageId"
+                    @page-selected="handlePageSelected"
+                    @page-deleted="handlePageDeleted"
+                    @batch-deleted="handleBatchDeleted"
+                  />
+                </div>
+              </n-layout-sider>
             
-            <!-- Custom Page List Collapse Trigger (BTN-PL) - positioned outside sider -->
-            <div class="sider-trigger-container">
-              <n-tooltip :placement="pageListCollapsed ? 'right' : 'left'">
-                <template #trigger>
-                  <n-button
-                    size="small"
-                    circle
-                    quaternary
-                    class="sider-trigger-btn"
-                    @click="pageListCollapsed = !pageListCollapsed"
-                  >
-                    <template #icon>
-                      <n-icon>
-                        <ChevronBackOutline v-if="!pageListCollapsed" />
-                        <ChevronForwardOutline v-else />
-                      </n-icon>
-                    </template>
-                  </n-button>
-                </template>
-                {{ pageListCollapsed ? 'Expand Page List' : 'Collapse Page List' }}
-              </n-tooltip>
-            </div>
+              <!-- Custom Page List Collapse Trigger (BTN-PL) - positioned outside sider -->
+              <div class="sider-trigger-container">
+                <n-tooltip :placement="pageListCollapsed ? 'right' : 'left'">
+                  <template #trigger>
+                    <n-button
+                      size="small"
+                      circle
+                      quaternary
+                      class="sider-trigger-btn"
+                      @click="pageListCollapsed = !pageListCollapsed"
+                    >
+                      <template #icon>
+                        <n-icon>
+                          <ChevronBackOutline v-if="!pageListCollapsed" />
+                          <ChevronForwardOutline v-else />
+                        </n-icon>
+                      </template>
+                    </n-button>
+                  </template>
+                  {{ pageListCollapsed ? 'Expand Page List' : 'Collapse Page List' }}
+                </n-tooltip>
+              </div>
   
-            <!-- Middle: Content area with PageViewer, Divider, and Preview -->
-            <div class="content-area">
-              <!-- PageViewer -->
-              <div
-                v-if="!pageViewerCollapsed"
-                class="panel page-viewer-panel"
-                :style="{ width: pageViewerWidth }"
-              >
-                <div class="page-viewer-container">
-                  <PageViewer
-                    :current-page="currentPage"
-                  />
+              <!-- Middle: Content area with PageViewer, Divider, and Preview -->
+              <div class="content-area">
+                <!-- PageViewer -->
+                <div
+                  v-if="!pageViewerCollapsed"
+                  class="panel page-viewer-panel"
+                  :style="{ width: pageViewerWidth }"
+                >
+                  <div class="page-viewer-container">
+                    <PageViewer
+                      :current-page="currentPage"
+                    />
+                  </div>
+                </div>
+
+                <!-- Panel Divider (only show when both panels are visible or PageViewer collapsed) -->
+                <div
+                  v-if="!previewCollapsed"
+                  class="panel-divider"
+                >
+                  <!-- PageViewer collapse: show when both expanded -->
+                  <n-tooltip
+                    v-if="!pageViewerCollapsed"
+                    placement="right"
+                  >
+                    <template #trigger>
+                      <n-button
+                        size="small"
+                        circle
+                        quaternary
+                        @click="pageViewerCollapsed = true"
+                      >
+                        <template #icon>
+                          <n-icon><ChevronBackOutline /></n-icon>
+                        </template>
+                      </n-button>
+                    </template>
+                    Collapse Viewer
+                  </n-tooltip>
+
+                  <!-- PageViewer expand: show when PV collapsed -->
+                  <n-tooltip
+                    v-if="pageViewerCollapsed"
+                    placement="right"
+                  >
+                    <template #trigger>
+                      <n-button
+                        size="small"
+                        circle
+                        quaternary
+                        @click="pageViewerCollapsed = false"
+                      >
+                        <template #icon>
+                          <n-icon><ChevronForwardOutline /></n-icon>
+                        </template>
+                      </n-button>
+                    </template>
+                    Expand Viewer
+                  </n-tooltip>
+
+                  <!-- Preview collapse: show when both expanded -->
+                  <n-tooltip
+                    v-if="!pageViewerCollapsed"
+                    placement="left"
+                  >
+                    <template #trigger>
+                      <n-button
+                        size="small"
+                        circle
+                        quaternary
+                        @click="previewCollapsed = true"
+                      >
+                        <template #icon>
+                          <n-icon><ChevronForwardOutline /></n-icon>
+                        </template>
+                      </n-button>
+                    </template>
+                    Collapse Preview
+                  </n-tooltip>
+                </div>
+
+                <!-- Preview -->
+                <div
+                  v-if="!previewCollapsed"
+                  class="panel preview-panel"
+                  :style="{ width: previewWidth }"
+                >
+                  <div class="preview-container">
+                    <Preview
+                      :current-page="currentPage"
+                    />
+                  </div>
+                </div>
+
+                <!-- Preview expand trigger (fixed to right edge when collapsed) -->
+                <div
+                  v-if="previewCollapsed"
+                  class="right-edge-trigger"
+                >
+                  <n-tooltip placement="left">
+                    <template #trigger>
+                      <n-button
+                        size="small"
+                        circle
+                        quaternary
+                        @click="previewCollapsed = false"
+                      >
+                        <template #icon>
+                          <n-icon><ChevronBackOutline /></n-icon>
+                        </template>
+                      </n-button>
+                    </template>
+                    Expand Preview
+                  </n-tooltip>
                 </div>
               </div>
-
-              <!-- Panel Divider (only show when both panels are visible or PageViewer collapsed) -->
-              <div
-                v-if="!previewCollapsed"
-                class="panel-divider"
-              >
-                <!-- PageViewer collapse: show when both expanded -->
-                <n-tooltip
-                  v-if="!pageViewerCollapsed"
-                  placement="right"
-                >
-                  <template #trigger>
-                    <n-button
-                      size="small"
-                      circle
-                      quaternary
-                      @click="pageViewerCollapsed = true"
-                    >
-                      <template #icon>
-                        <n-icon><ChevronBackOutline /></n-icon>
-                      </template>
-                    </n-button>
-                  </template>
-                  Collapse Viewer
-                </n-tooltip>
-
-                <!-- PageViewer expand: show when PV collapsed -->
-                <n-tooltip
-                  v-if="pageViewerCollapsed"
-                  placement="right"
-                >
-                  <template #trigger>
-                    <n-button
-                      size="small"
-                      circle
-                      quaternary
-                      @click="pageViewerCollapsed = false"
-                    >
-                      <template #icon>
-                        <n-icon><ChevronForwardOutline /></n-icon>
-                      </template>
-                    </n-button>
-                  </template>
-                  Expand Viewer
-                </n-tooltip>
-
-                <!-- Preview collapse: show when both expanded -->
-                <n-tooltip
-                  v-if="!pageViewerCollapsed"
-                  placement="left"
-                >
-                  <template #trigger>
-                    <n-button
-                      size="small"
-                      circle
-                      quaternary
-                      @click="previewCollapsed = true"
-                    >
-                      <template #icon>
-                        <n-icon><ChevronForwardOutline /></n-icon>
-                      </template>
-                    </n-button>
-                  </template>
-                  Collapse Preview
-                </n-tooltip>
-              </div>
-
-              <!-- Preview -->
-              <div
-                v-if="!previewCollapsed"
-                class="panel preview-panel"
-                :style="{ width: previewWidth }"
-              >
-                <div class="preview-container">
-                  <Preview
-                    :current-page="currentPage"
-                  />
-                </div>
-              </div>
-
-              <!-- Preview expand trigger (fixed to right edge when collapsed) -->
-              <div
-                v-if="previewCollapsed"
-                class="right-edge-trigger"
-              >
-                <n-tooltip placement="left">
-                  <template #trigger>
-                    <n-button
-                      size="small"
-                      circle
-                      quaternary
-                      @click="previewCollapsed = false"
-                    >
-                      <template #icon>
-                        <n-icon><ChevronBackOutline /></n-icon>
-                      </template>
-                    </n-button>
-                  </template>
-                  Expand Preview
-                </n-tooltip>
-              </div>
-            </div>
-          </template>
+            </template>
+          </n-layout>
         </n-layout>
-      </n-layout>
-    </n-dialog-provider>
+      </n-dialog-provider>
+    </n-notification-provider>
   </n-message-provider>
 </template>
 
@@ -201,7 +203,7 @@ import Preview from './components/preview/Preview.vue'
 import PageViewer from './components/page-viewer/PageViewer.vue'
 import AppHeader from './components/common/AppHeader.vue'
 import EmptyState from './components/common/EmptyState.vue'
-import { NLayout, NLayoutSider, NButton, NIcon, NTooltip, createDiscreteApi, NMessageProvider, NDialogProvider } from 'naive-ui'
+import { NLayout, NLayoutSider, NButton, NIcon, NTooltip, createDiscreteApi, NMessageProvider, NDialogProvider, NNotificationProvider } from 'naive-ui'
 import { ChevronForwardOutline, ChevronBackOutline } from '@vicons/ionicons5'
 
 const pagesStore = usePagesStore()

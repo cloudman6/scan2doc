@@ -53,6 +53,12 @@ vi.mock('naive-ui', () => ({
         error: vi.fn(),
         warning: vi.fn(),
         info: vi.fn()
+    }),
+    useNotification: () => ({
+        success: vi.fn(),
+        error: vi.fn(),
+        warning: vi.fn(),
+        info: vi.fn()
     })
 }))
 
