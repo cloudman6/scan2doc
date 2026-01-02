@@ -85,16 +85,20 @@ test.describe('Page Reordering', () => {
         // Perform drag using manual mouse events with improved timing
         await page.mouse.move(sourceX, sourceY);
         await page.mouse.down();
-        await page.waitForTimeout(500); // Wait for drag initiation
+        await page.waitForTimeout(200); // Wait for drag initiation
+
+        // Move slightly to trigger drag start
+        await page.mouse.move(sourceX + 5, sourceY + 5, { steps: 5 });
+        await page.waitForTimeout(200);
 
         // Move slowly to target
-        await page.mouse.move(targetX, targetY, { steps: 50 });
+        await page.mouse.move(targetX, targetY, { steps: 100 });
 
-        // Wait for reorder animation/logic
+        // Wait for reorder animation/logic to register
         await page.waitForTimeout(500);
 
         await page.mouse.up();
-        await page.waitForTimeout(1000); // Wait for settle
+        await page.waitForTimeout(2000); // Allow ample time for DB update and UI settle
     }
 
     test('should reorder pages after all pages are ready and persist after reload', async ({ page, browserName }) => {

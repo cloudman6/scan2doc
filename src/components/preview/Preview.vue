@@ -155,7 +155,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onUnmounted } from 'vue'
+import { ref, watch, onUnmounted, computed } from 'vue'
 import { NTabs, NTabPane, NEmpty, NButton, NSpin, NSwitch } from 'naive-ui'
 import { renderAsync } from 'docx-preview'
 import MarkdownIt from 'markdown-it'
@@ -165,6 +165,7 @@ import 'katex/dist/katex.min.css'
 import { db } from '@/db'
 import { uiLogger } from '@/utils/logger'
 import 'github-markdown-css/github-markdown.css'
+import { exportService } from '@/services/export'
 
 import type { Page } from '@/stores/pages'
 
@@ -190,9 +191,7 @@ const mdRenderer = new MarkdownIt({
 })
 mdRenderer.use(MarkdownItKatex)
 
-mdRenderer.use(MarkdownItKatex)
 
-import { computed } from 'vue'
 
 const isChineseDominant = computed(() => {
     // 优先使用 Markdown 内容检测，如果没有则回退到 OCR 文本
@@ -503,20 +502,28 @@ async function loadMarkdown(pageId: string) {
     }
 }
 
-function handleDownloadMarkdown() {
+async function handleDownloadMarkdown() {
     if (!mdContent.value || !props.currentPage) return
-    const blob = new Blob([mdContent.value], { type: 'text/markdown' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    // Use original filename base + .md
-    const baseName = props.currentPage.fileName.replace(/\.[^/.]+$/, "")
-    const pageNum = props.currentPage.pageNumber || 1
-    a.download = `${baseName}_page${pageNum}.md`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+    
+    try {
+        // Create a minimal Page object for export
+        const pageForExport = {
+            id: props.currentPage.id!,
+            fileName: props.currentPage.fileName,
+            pageNumber: props.currentPage.pageNumber || 1
+        }
+        
+        // Use ExportService to handle image replacement
+        const result = await exportService.exportToMarkdown(
+            [pageForExport as any],
+            { format: 'markdown', includeImages: true }
+        )
+        
+        // Download the result
+        exportService.downloadBlob(result)
+    } catch (error) {
+        uiLogger.error('Failed to export markdown', error)
+    }
 }
 
 async function downloadBinary(type: 'docx' | 'pdf' | 'md') {

@@ -41,6 +41,21 @@ vi.mock('@/db', () => ({
 globalThis.URL.createObjectURL = vi.fn((b) => `blob:mock-${b.type}`)
 globalThis.URL.revokeObjectURL = vi.fn()
 
+// Mock ExportService
+vi.mock('@/services/export', () => ({
+  exportService: {
+    exportToMarkdown: vi.fn().mockResolvedValue({
+      blob: new Blob(['mock-md'], { type: 'text/markdown' }),
+      filename: 'document.md',
+      mimeType: 'text/markdown',
+      size: 100
+    }),
+    downloadBlob: vi.fn()
+  }
+}))
+
+import { exportService } from '@/services/export'
+
 describe('Preview.vue', () => {
   const mockPage = {
     id: 'p1',
@@ -118,7 +133,8 @@ describe('Preview.vue', () => {
 
     // MD Download branch in downloadBinary
     await vm.downloadBinary('md')
-    expect(mockAnchor.click).toHaveBeenCalled()
+    expect(exportService.exportToMarkdown).toHaveBeenCalled()
+    expect(exportService.downloadBlob).toHaveBeenCalled()
 
     // DOCX Download branch
     await vm.downloadBinary('docx')
@@ -245,27 +261,11 @@ describe('Preview.vue', () => {
     // Set up mdContent
     vm.mdContent = '# Test Content'
 
-    // Mock document.createElement and related DOM methods
-    const mockAnchor = {
-      href: '',
-      download: '',
-      click: vi.fn()
-    }
-    const originalCreateElement = document.createElement.bind(document)
-    const createElementSpy = vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
-      if (tag === 'a') return mockAnchor as any
-      return originalCreateElement(tag)
-    })
-    vi.spyOn(document.body, 'appendChild').mockImplementation(() => ({} as any))
-    vi.spyOn(document.body, 'removeChild').mockImplementation(() => ({} as any))
-
     // Call the function
-    vm.handleDownloadMarkdown()
+    await vm.handleDownloadMarkdown()
 
-    expect(mockAnchor.download).toContain('.md')
-    expect(mockAnchor.download).toContain('.md')
-
-    createElementSpy.mockRestore()
+    expect(exportService.exportToMarkdown).toHaveBeenCalled()
+    expect(exportService.downloadBlob).toHaveBeenCalled()
   })
 
   it('renders math expressions correctly using KaTeX', async () => {
@@ -496,14 +496,15 @@ describe('Preview.vue', () => {
     // Test with empty mdContent
     vm.mdContent = ''
     const createElementSpy = vi.spyOn(document, 'createElement')
-    vm.handleDownloadMarkdown()
-    // Should return early, not create anchor
-    expect(createElementSpy).not.toHaveBeenCalledWith('a')
+    await vm.handleDownloadMarkdown()
+    // Should return early, not call exportToMarkdown
+    expect(exportService.exportToMarkdown).not.toHaveBeenCalled()
 
     // Test with null currentPage
     vm.mdContent = '# Content'
     await wrapper.setProps({ currentPage: null })
-    vm.handleDownloadMarkdown()
+    await vm.handleDownloadMarkdown()
+    expect(exportService.exportToMarkdown).not.toHaveBeenCalled()
     // Should return early
 
     createElementSpy.mockRestore()
