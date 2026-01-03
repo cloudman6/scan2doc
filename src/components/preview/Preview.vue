@@ -481,9 +481,17 @@ async function loadMarkdown(pageId: string) {
             const processedMd = await processMarkdownImages(record.content)
             renderedMd.value = mdRenderer.render(processedMd)
         } else {
-            // Fallback to OCR text if no markdown yet
-             mdContent.value = props.currentPage?.ocrText || ''
-             renderedMd.value = mdRenderer.render(mdContent.value)
+             // Fallback to OCR text if no markdown yet, but avoid showing JSON (e.g. from Find mode)
+             const raw = props.currentPage?.ocrText || ''
+             const isJson = raw.trim().startsWith('{') || raw.trim().startsWith('[') || raw.includes('<|det|>') // Also check for raw tags if any
+             
+             if (!isJson) {
+                mdContent.value = raw
+                renderedMd.value = mdRenderer.render(mdContent.value)
+             } else {
+                mdContent.value = '' // Don't show confusing raw data in Preview
+                renderedMd.value = '' 
+             }
         }
     } catch (error) {
         uiLogger.error('Failed to load markdown', error)

@@ -1,4 +1,5 @@
 import type { OCRResult, OCRBox } from '@/services/ocr'
+import { normalizeBox } from '@/services/ocr/parser'
 
 interface Block {
     type: string
@@ -118,7 +119,7 @@ export class MarkdownAssembler {
 
                 // Normalize box to absolute coordinates
 
-                const absBox = this.normalizeBox(coords, ocrResult.image_dims!)
+                const absBox = normalizeBox(coords, ocrResult.image_dims!)
 
                 blocks.push({
                     type,
@@ -285,24 +286,7 @@ export class MarkdownAssembler {
         return output
     }
 
-    private normalizeBox(coords: number[], dims: { w: number, h: number }): number[] {
-        // [x1, y1, x2, y2]
-        if (coords.length < 4) return [0, 0, 0, 0]
 
-        // If max coordinate <= 1000 and the image dimension is > 1000, 
-        // assume it is 1000-normalized.
-        // NOTE: Some OCR engines output 0-1000 fixed.
-        const maxCoord = Math.max(...coords)
-        if (maxCoord <= 1000 && (dims.w > 1000 || dims.h > 1000)) {
-            return [
-                (coords[0]! / 1000) * dims.w,
-                (coords[1]! / 1000) * dims.h,
-                (coords[2]! / 1000) * dims.w,
-                (coords[3]! / 1000) * dims.h,
-            ]
-        }
-        return coords
-    }
 
     // eslint-disable-next-line complexity
     private findMatchingBoxIndex(

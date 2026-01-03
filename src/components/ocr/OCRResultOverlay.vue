@@ -1,7 +1,7 @@
 <template>
   <div class="ocr-result-overlay">
     <div
-      v-for="(boxItem, index) in boxes"
+      v-for="(boxItem, index) in computedBoxes"
       :key="index"
       class="ocr-box"
       :style="getBoxStyle(boxItem.box, boxItem.label)"
@@ -18,14 +18,29 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+import { parseOCRBoxes } from '@/services/ocr/parser'
 import type { OCRBox } from '@/services/ocr'
 
 interface Props {
-  boxes: OCRBox[]
+  rawText?: string
   imageDims?: { w: number; h: number }
 }
 
 const props = defineProps<Props>()
+
+/**
+ * Computed boxes parsed from rawText.
+ * Throws error if rawText is missing as per user requirement.
+ */
+const computedBoxes = computed<OCRBox[]>(() => {
+  if (!props.rawText) {
+    throw new Error('OCRResultOverlay: rawText is required but missing')
+  }
+  
+  const dims = props.imageDims || { w: 1000, h: 1000 }
+  return parseOCRBoxes(props.rawText, dims)
+})
 
 /**
  * Convert [x1, y1, x2, y2] pixel coordinates to CSS percentage style
@@ -34,14 +49,14 @@ const props = defineProps<Props>()
 function getBoxStyle(box: [number, number, number, number], label: string) {
   const [x1, y1, x2, y2] = box
   
-  // Use image dimensions if provided, otherwise fallback to 1000x1000 for backward compatibility
+  // Use image dimensions if provided, otherwise fallback to 1000x1000
   const imgW = props.imageDims?.w || 1000
   const imgH = props.imageDims?.h || 1000
   
-  const left = (x1 / imgW) * 100
-  const top = (y1 / imgH) * 100
-  const width = ((x2 - x1) / imgW) * 100
-  const height = ((y2 - y1) / imgH) * 100
+  const left = ((x1 / imgW) * 100).toFixed(2)
+  const top = ((y1 / imgH) * 100).toFixed(2)
+  const width = (((x2 - x1) / imgW) * 100).toFixed(2)
+  const height = (((y2 - y1) / imgH) * 100).toFixed(2)
 
   return {
     left: `${left}%`,
@@ -66,8 +81,9 @@ const PALETTE = [
 ]
 
 function getLabelColor(label: string): string {
-  if (COLOR_MAP[label.toLowerCase()]) {
-    return COLOR_MAP[label.toLowerCase()]
+  const color = COLOR_MAP[label.toLowerCase()]
+  if (color) {
+    return color
   }
   // Generate deterministic color from string hash for custom labels (e.g. found objects)
   let hash = 0
@@ -75,7 +91,7 @@ function getLabelColor(label: string): string {
     hash = label.charCodeAt(i) + ((hash << 5) - hash)
   }
   const index = Math.abs(hash % PALETTE.length)
-  return PALETTE[index]
+  return PALETTE[index] || PALETTE[0]!
 }
 </script>
 

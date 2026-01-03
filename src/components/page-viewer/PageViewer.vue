@@ -82,8 +82,8 @@
           >
           <!-- OCR Result Overlay inside the scaled group -->
           <OCRResultOverlay
-            v-if="ocrResult?.boxes?.length && !imageLoading"
-            :boxes="ocrResult.boxes"
+            v-if="ocrResult?.raw_text && !imageLoading"
+            :raw-text="ocrResult.raw_text"
             :image-dims="ocrResult.image_dims"
           />
         </div>
@@ -285,9 +285,10 @@ async function handlePageChange(
   oldPageId: string | undefined, 
   oldStatus: string | undefined
 ) {
-  const processed = await handleOCRCompletion(newPageId, newStatus, oldStatus)
-  if (processed) return
+  // 1. Process OCR completion independently if it just happened
+  await handleOCRCompletion(newPageId, newStatus, oldStatus)
 
+  // 2. Always attempt to load the page content/image
   await handlePageLoad(newPageId, newStatus, oldPageId, oldStatus)
 }
 
@@ -306,20 +307,32 @@ async function handleOCRCompletion(
   return false
 }
 
+function shouldTriggerPageLoad(
+  newPageId: string | undefined,
+  newStatus: string | undefined,
+  oldPageId: string | undefined,
+  oldStatus: string | undefined
+) {
+  const idChanged = newPageId !== oldPageId
+  const isInitialization = !oldPageId && !!newPageId
+  
+  // Load image if: page changed, OR it's initialization, OR became viewable
+  const isViewable = ['ready', 'ocr_success', 'completed'].includes(String(newStatus))
+  const wasNotViewable = !oldStatus || !['ready', 'ocr_success', 'completed'].includes(String(oldStatus))
+  const viewableTransition = isViewable && wasNotViewable
+
+  return idChanged || isInitialization || viewableTransition
+}
+
 async function handlePageLoad(
   newPageId: string | undefined,
   newStatus: string | undefined,
   oldPageId: string | undefined,
   oldStatus: string | undefined
 ) {
-  // Handle both page change AND initialization (when oldPageId is undefined but newPageId exists)
+  if (!shouldTriggerPageLoad(newPageId, newStatus, oldPageId, oldStatus)) return
+
   const idChanged = newPageId !== oldPageId
-  const isInitialization = !oldPageId && !!newPageId
-  const becameReady = newStatus === 'ready' && oldStatus !== 'ready'
-
-  // Load image if: page changed, OR it's initialization, OR became ready
-  if (!idChanged && !isInitialization && !becameReady) return
-
   if (idChanged) {
       cleanupPreviousUrl(true)
   }

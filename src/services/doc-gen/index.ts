@@ -13,8 +13,15 @@ export class DocumentService {
     }
 
     init() {
-        // Listen to OCR success to trigger Markdown generation automatically
+        // Listen to OCR success to trigger document generation automatically
+        // BUT ONLY for 'document' prompt type
         ocrEvents.on('ocr:success', async ({ pageId, result }) => {
+            // Only generate documents for 'document' mode OCR
+            // Other modes (find, describe, etc.) should not trigger doc generation
+            if (result.prompt_type !== 'document') {
+                return
+            }
+
             // Inform that generation is queued
             ocrEvents.emit('doc:gen:queued', { pageId })
 

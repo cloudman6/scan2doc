@@ -16,8 +16,13 @@ export interface OCRResult {
   prompt_type: string
 }
 
+export type OCRPromptType = 'document' | 'ocr' | 'free' | 'figure' | 'describe' | 'find' | 'freeform'
+
 export interface OCROptions {
-  prompt_type?: string
+  prompt_type?: OCRPromptType
+  custom_prompt?: string // used for freeform
+  find_term?: string     // used for find
+  grounding?: boolean    // required for all
   signal?: AbortSignal
 }
 
