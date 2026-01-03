@@ -431,4 +431,44 @@ describe('PageViewer.vue', () => {
 
     expect(wrapper.text()).toContain('100 × 200')
   })
+
+  it('re-loads image when status changes from recognizing to ocr_success on same page', async () => {
+    const pageId = 'p-same'
+    const pageRecognizing = { ...mockPage, id: pageId, status: 'recognizing' as const }
+    const pageSuccess = { ...mockPage, id: pageId, status: 'ocr_success' as const }
+
+    const wrapper = mount(PageViewer, {
+      props: { currentPage: pageRecognizing }
+    })
+
+    await flushPromises()
+    vi.mocked(db.getPageImage).mockClear()
+
+    // Page finishes OCR
+    await wrapper.setProps({ currentPage: pageSuccess })
+    await flushPromises()
+
+    // Should re-trigger image load because it transitioned to a viewable status
+    expect(db.getPageImage).toHaveBeenCalledWith(pageId)
+  })
+
+  it('loads correct image when switching between different processed pages', async () => {
+    const page1 = { ...mockPage, id: 'p1', status: 'ready' as const }
+    const page2 = { ...mockPage, id: 'p2', status: 'completed' as const }
+
+    const wrapper = mount(PageViewer, {
+      props: { currentPage: page1 }
+    })
+
+    await flushPromises()
+    expect(db.getPageImage).toHaveBeenCalledWith('p1')
+    vi.mocked(db.getPageImage).mockClear()
+
+    // Switch to page2 (already completed)
+    await wrapper.setProps({ currentPage: page2 })
+    await flushPromises()
+
+    // Should load p2 image, even though OCR logic also runs
+    expect(db.getPageImage).toHaveBeenCalledWith('p2')
+  })
 })

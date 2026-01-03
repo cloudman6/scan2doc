@@ -4,21 +4,41 @@ import type { OCRProvider, OCRResult, OCROptions } from './index'
 export class DeepSeekOCRProvider implements OCRProvider {
     name = 'deepseek'
 
-    async process(imageData: Blob | string, options?: OCROptions): Promise<OCRResult> {
+    private async createFormData(imageData: Blob | string, options?: OCROptions): Promise<FormData> {
         const formData = new FormData()
 
         // Handle both Blob (from file/canvas) and base64 string (legacy/other sources)
         if (imageData instanceof Blob) {
             formData.append('file', imageData, 'image.jpg')
         } else {
-            // If it's a string, assume it's a data URL, convert to Blob
             const blob = await (await fetch(imageData)).blob()
             formData.append('file', blob, 'image.jpg')
         }
 
-        // Add options
         const promptType = options?.prompt_type || 'document'
         formData.append('prompt_type', promptType)
+
+        if (options?.custom_prompt && promptType === 'freeform') {
+            formData.append('custom_prompt', options.custom_prompt)
+        }
+
+        if (options?.find_term && promptType === 'find') {
+            formData.append('find_term', options.find_term)
+        }
+
+        const grounding = this.resolveGrounding(options, promptType)
+        formData.append('grounding', String(grounding))
+
+        return formData
+    }
+
+    private resolveGrounding(options: OCROptions | undefined, promptType: string): boolean {
+        if (options?.grounding !== undefined) return options.grounding
+        return ['document', 'ocr', 'find'].includes(promptType)
+    }
+
+    async process(imageData: Blob | string, options?: OCROptions): Promise<OCRResult> {
+        const formData = await this.createFormData(imageData, options)
 
         try {
             const response = await fetch(config.ocrApiEndpoint, {

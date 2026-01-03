@@ -163,7 +163,7 @@
                   </div>
                 </div>
 
-                <!-- Preview expand trigger (fixed to right edge when collapsed) -->
+                <!-- Preview expand trigger (now part of flex layout, not absolute) -->
                 <div
                   v-if="previewCollapsed"
                   class="right-edge-trigger"
@@ -222,7 +222,7 @@ const previewCollapsed = ref(false)
 // Computed widths for proper space distribution
 const pageViewerWidth = computed(() => {
   if (pageViewerCollapsed.value) return '0'
-  if (previewCollapsed.value) return '100%'
+  if (previewCollapsed.value) return 'calc(100% - 32px)' // Reserve space for right-edge-trigger
   return '50%'
 })
 
@@ -369,10 +369,9 @@ watch(() => pagesStore.pages, (newPages) => {
   if (selectedPageId.value && !newPages.find(p => p.id === selectedPageId.value)) {
     // If selected page is gone, select the first available page or null
     selectedPageId.value = newPages[0]?.id || null
-  } else if (!selectedPageId.value && newPages.length > 0) {
-    // If no page selected but pages exist (e.g. init load), select first
-    selectedPageId.value = newPages[0]!.id
   }
+  // Removed auto-selection of first page when none selected - this is handled by onMounted
+  // to avoid race condition and double-triggering during initialization
 }, { deep: true })
 
 // Load pages from database on mount and resume PDF processing
@@ -381,7 +380,8 @@ onMounted(async () => {
   if (pagesStore.pages.length > 0 && !selectedPageId.value) {
     const firstPage = pagesStore.pages[0]
     if (firstPage) {
-      selectedPageId.value = firstPage.id
+      // Use handlePageSelected to ensure proper initialization
+      handlePageSelected(firstPage)
     }
   }
 
@@ -544,20 +544,18 @@ html, body {
   box-shadow: 0 2px 6px rgba(24, 160, 88, 0.2);
 }
 
-/* Right edge trigger for Preview expand */
+/* Right edge trigger for Preview expand - now part of flex layout */
 .right-edge-trigger {
-  position: absolute;
-  right: 0;
-  top: 0;
-  bottom: 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   width: 32px;
+  min-width: 32px; /* Prevent shrinking */
+  flex-shrink: 0;
   background: #f0f0f0;
   border-left: 1px solid #e0e0e0;
-  z-index: 10;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .right-edge-trigger .n-button {
