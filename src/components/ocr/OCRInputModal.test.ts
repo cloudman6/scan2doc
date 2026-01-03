@@ -1,0 +1,133 @@
+import { describe, it, expect, vi } from 'vitest'
+import { mount } from '@vue/test-utils'
+import OCRInputModal from './OCRInputModal.vue'
+
+// Mock Naive UI components
+vi.mock('naive-ui', () => ({
+    NModal: {
+        name: 'NModal',
+        props: ['show', 'preset', 'title', 'positiveText', 'negativeText'],
+        template: '<div v-if="show" class="n-modal"><slot></slot><button class="btn-positive" @click="$emit(\'positive-click\')">{{positiveText}}</button><button class="btn-negative" @click="$emit(\'negative-click\')">{{negativeText}}</button></div>'
+    },
+    NInput: {
+        name: 'NInput',
+        props: ['value', 'type', 'placeholder', 'rows'],
+        template: '<textarea :value="value" :placeholder="placeholder" @input="$emit(\'update:value\', $event.target.value)" @keydown.enter="$emit(\'keydown\', $event)" />'
+    }
+}))
+
+describe('OCRInputModal.vue', () => {
+    it('renders correctly when show is true', () => {
+        const wrapper = mount(OCRInputModal, {
+            props: {
+                show: true,
+                mode: 'find'
+            }
+        })
+        expect(wrapper.find('.n-modal').exists()).toBe(true)
+        expect(wrapper.find('textarea').attributes('placeholder')).toContain('locate')
+    })
+
+    it('hides when show is false', () => {
+        const wrapper = mount(OCRInputModal, {
+            props: {
+                show: false,
+                mode: 'find'
+            }
+        })
+        expect(wrapper.find('.n-modal').exists()).toBe(false)
+    })
+
+    it('switches content based on mode', async () => {
+        const wrapper = mount(OCRInputModal, {
+            props: {
+                show: true,
+                mode: 'find'
+            }
+        })
+        expect(wrapper.vm.title).toBe('Locate Object')
+
+        await wrapper.setProps({ mode: 'freeform' })
+        expect(wrapper.vm.title).toBe('Custom Prompt')
+        expect(wrapper.find('textarea').attributes('placeholder')).toContain('custom prompt')
+    })
+
+    it('resets input value when opened', async () => {
+        const wrapper = mount(OCRInputModal, {
+            props: {
+                show: false,
+                mode: 'find'
+            }
+        })
+
+        // Set some value internally
+        await wrapper.vm.$nextTick()
+        wrapper.vm.inputValue = 'some initial value'
+
+        // Open
+        await wrapper.setProps({ show: true })
+        expect(wrapper.vm.inputValue).toBe('')
+    })
+
+    it('emits submit and update:show when positive button clicked', async () => {
+        const wrapper = mount(OCRInputModal, {
+            props: {
+                show: true,
+                mode: 'find'
+            }
+        })
+
+        const input = wrapper.find('textarea')
+        await input.setValue('test search')
+
+        await wrapper.find('.btn-positive').trigger('click')
+
+        expect(wrapper.emitted('submit')).toBeTruthy()
+        expect(wrapper.emitted('submit')![0]).toEqual(['test search'])
+        expect(wrapper.emitted('update:show')).toBeTruthy()
+        expect(wrapper.emitted('update:show')![0]).toEqual([false])
+    })
+
+    it('does not emit submit if value is empty', async () => {
+        const wrapper = mount(OCRInputModal, {
+            props: {
+                show: true,
+                mode: 'find'
+            }
+        })
+
+        await wrapper.find('.btn-positive').trigger('click')
+        expect(wrapper.emitted('submit')).toBeFalsy()
+    })
+
+    it('emits update:show(false) when negative button clicked', async () => {
+        const wrapper = mount(OCRInputModal, {
+            props: {
+                show: true,
+                mode: 'find'
+            }
+        })
+
+        await wrapper.find('.btn-negative').trigger('click')
+        expect(wrapper.emitted('update:show')).toBeTruthy()
+        expect(wrapper.emitted('update:show')![0]).toEqual([false])
+    })
+
+    it('handles enter key on input', async () => {
+        const wrapper = mount(OCRInputModal, {
+            props: {
+                show: true,
+                mode: 'find'
+            }
+        })
+
+        const input = wrapper.find('textarea')
+        await input.setValue('test item')
+
+        // Simulate enter key
+        await input.trigger('keydown.enter')
+
+        expect(wrapper.emitted('submit')).toBeTruthy()
+        expect(wrapper.emitted('submit')![0]).toEqual(['test item'])
+    })
+})

@@ -17,6 +17,14 @@
           align="center"
           size="small"
         >
+          <div class="ocr-actions">
+            <OCRModeSelector 
+              :loading="status === 'recognizing'"
+              :disabled="!currentPage || isPageProcessing"
+              @run="handleOCRRun"
+            />
+          </div>
+          <n-divider vertical />
           <n-button-group size="small">
             <n-button
               :disabled="zoomLevel <= 0.25"
@@ -57,15 +65,29 @@
         v-if="currentPage"
         class="image-wrapper"
       >
-        <img
+        <div 
           v-if="fullImageUrl"
-          :src="fullImageUrl"
-          :style="{ transform: `scale(${zoomLevel})` }"
-          class="page-image"
-          alt=""
-          @load="onImageLoad"
-          @error="onImageError"
+          class="scalable-content"
+          :style="{
+            transform: `scale(${zoomLevel})`,
+            aspectRatio: naturalWidth && naturalHeight ? `${naturalWidth} / ${naturalHeight}` : 'auto'
+          }"
         >
+          <img
+            :src="fullImageUrl"
+            class="page-image"
+            alt=""
+            @load="onImageLoad"
+            @error="onImageError"
+          >
+          <!-- OCR Result Overlay inside the scaled group -->
+          <OCRResultOverlay
+            v-if="ocrResult?.boxes?.length && !imageLoading"
+            :boxes="ocrResult.boxes"
+            :image-dims="ocrResult.image_dims"
+          />
+        </div>
+        
         <n-empty
           v-else-if="!imageLoading"
           description="No image available"
@@ -186,17 +208,21 @@
             </n-text>
           </n-text>
         </n-space>
-        <n-button
-          :type="status === 'recognizing' ? 'info' : 'primary'"
-          :loading="status === 'recognizing'"
-          :disabled="!currentPage || status === 'recognizing' || status === 'pending_render' || status === 'rendering'"
-          size="small"
-          @click="runOCR"
-        >
-          {{ status === 'recognizing' ? 'Processing OCR...' : 'Run OCR' }}
-        </n-button>
       </n-space>
     </n-card>
+
+    <!-- Raw Text Panel -->
+    <OCRRawTextPanel
+      v-if="ocrResult?.raw_text"
+      :text="ocrResult.raw_text"
+    />
+
+    <!-- Input Modal -->
+    <OCRInputModal
+      v-model:show="inputModalShow"
+      :mode="targetInputMode"
+      @submit="handleInputSubmit"
+    />
   </div>
 </template>
 
@@ -205,8 +231,12 @@ import { ref, computed, watch, onUnmounted } from 'vue'
 import { uiLogger } from '@/utils/logger'
 import { NCard, NSpace, NButton, NButtonGroup, NSpin, NEmpty, NResult, NText } from 'naive-ui'
 import { db } from '@/db'
-import { ocrService } from '@/services/ocr'
-import { useMessage, useNotification } from 'naive-ui'
+import { ocrService, type OCRResult, type OCRPromptType } from '@/services/ocr'
+import { useMessage, useNotification, NDivider } from 'naive-ui'
+import OCRModeSelector from '@/components/ocr/OCRModeSelector.vue'
+import OCRInputModal from '@/components/ocr/OCRInputModal.vue'
+import OCRResultOverlay from '@/components/ocr/OCRResultOverlay.vue'
+import OCRRawTextPanel from '@/components/ocr/OCRRawTextPanel.vue'
 
 import type { Page } from '@/stores/pages'
 
@@ -225,6 +255,15 @@ const imageSize = ref<string>('')
 const imageLoading = ref(false)
 const imageError = ref<string>('')
 const fullImageUrl = ref<string>('')
+const ocrResult = ref<OCRResult | undefined>()
+
+// Image dimensions for aspect ratio lock
+const naturalWidth = ref<number | null>(null)
+const naturalHeight = ref<number | null>(null)
+
+// Input Modal State
+const inputModalShow = ref(false)
+const targetInputMode = ref<OCRPromptType>('find')
 
 const status = computed(() => props.currentPage?.status || 'ready')
 
@@ -246,16 +285,51 @@ async function handlePageChange(
   oldPageId: string | undefined, 
   oldStatus: string | undefined
 ) {
+  const processed = await handleOCRCompletion(newPageId, newStatus, oldStatus)
+  if (processed) return
+
+  await handlePageLoad(newPageId, newStatus, oldPageId, oldStatus)
+}
+
+async function handleOCRCompletion(
+  pageId: string | undefined,
+  newStatus: string | undefined,
+  oldStatus: string | undefined
+): Promise<boolean> {
+  // Only reload OCR results when OCR **just** completed (status transition from non-success to success)
+  // Do NOT trigger during initialization (when oldStatus is undefined)
+  const ocrJustFinished = newStatus === 'ocr_success' && oldStatus !== undefined && oldStatus !== 'ocr_success'
+  if (ocrJustFinished && pageId) {
+      await loadOCRResult(pageId)
+      return true
+  }
+  return false
+}
+
+async function handlePageLoad(
+  newPageId: string | undefined,
+  newStatus: string | undefined,
+  oldPageId: string | undefined,
+  oldStatus: string | undefined
+) {
+  // Handle both page change AND initialization (when oldPageId is undefined but newPageId exists)
   const idChanged = newPageId !== oldPageId
+  const isInitialization = !oldPageId && !!newPageId
   const becameReady = newStatus === 'ready' && oldStatus !== 'ready'
 
-  if (!idChanged && !becameReady) return
+  // Load image if: page changed, OR it's initialization, OR became ready
+  if (!idChanged && !isInitialization && !becameReady) return
 
-  cleanupPreviousUrl(idChanged)
+  if (idChanged) {
+      cleanupPreviousUrl(true)
+  }
   
   if (!newPageId || newStatus === 'pending_render' || newStatus === 'rendering') return
 
-  await loadPageBlob(newPageId)
+  await Promise.all([
+    loadPageBlob(newPageId),
+    loadOCRResult(newPageId)
+  ])
 }
 
 /**
@@ -265,9 +339,12 @@ function cleanupPreviousUrl(idChanged: boolean) {
   if (idChanged && fullImageUrl.value) {
     URL.revokeObjectURL(fullImageUrl.value)
     fullImageUrl.value = ''
+    naturalWidth.value = null
+    naturalHeight.value = null
   }
   imageError.value = ''
   imageSize.value = ''
+  ocrResult.value = undefined
 }
 
 /**
@@ -299,6 +376,18 @@ async function loadPageBlob(pageId: string, retry = true) {
     if (!retry) {
       imageLoading.value = false
     }
+  }
+}
+
+/**
+ * Load OCR result from DB
+ */
+async function loadOCRResult(pageId: string) {
+  try {
+    const record = await db.getPageOCR(pageId)
+    ocrResult.value = record?.data
+  } catch (error) {
+    uiLogger.error('Failed to load OCR result', error)
   }
 }
 
@@ -369,6 +458,8 @@ function fitToScreen() {
 
 function onImageLoad(event: Event) {
   const img = event.target as HTMLImageElement
+  naturalWidth.value = img.naturalWidth
+  naturalHeight.value = img.naturalHeight
   imageSize.value = `${img.naturalWidth} × ${img.naturalHeight}`
   imageLoading.value = false
   imageError.value = ''
@@ -398,7 +489,27 @@ const isPageProcessing = computed(() => {
          s.startsWith('generating_')
 })
 
-async function runOCR() {
+
+
+function handleOCRRun(mode: OCRPromptType) {
+  if (mode === 'find' || mode === 'freeform') {
+    targetInputMode.value = mode
+    inputModalShow.value = true
+  } else {
+    // Direct run
+    submitOCR(mode)
+  }
+}
+
+function handleInputSubmit(value: string) {
+  const options = {
+    custom_prompt: targetInputMode.value === 'freeform' ? value : undefined,
+    find_term: targetInputMode.value === 'find' ? value : undefined
+  }
+  submitOCR(targetInputMode.value, options)
+}
+
+async function submitOCR(mode: OCRPromptType, extraOptions: { custom_prompt?: string; find_term?: string } = {}) {
   if (!props.currentPage || isPageProcessing.value) return
   
   try {
@@ -409,18 +520,25 @@ async function runOCR() {
       return
     }
 
-    uiLogger.info('Adding page to OCR Queue:', props.currentPage.id)
+    uiLogger.info(`Adding page to OCR Queue (${mode}):`, props.currentPage.id)
     notification.success({
       content: 'Added to OCR Queue',
       duration: 2500
     })
-    await ocrService.queueOCR(props.currentPage.id, imageBlob)
+    
+    await ocrService.queueOCR(props.currentPage.id, imageBlob, {
+      prompt_type: mode,
+      ...extraOptions
+    })
 
   } catch (error) {
     uiLogger.error('OCR Error:', error)
     message.error('OCR Failed: ' + (error instanceof Error ? error.message : String(error)))
   }
 }
+// Removed old runOCR function in place of new handlers
+
+
 </script>
 
 <style scoped>
@@ -446,7 +564,8 @@ async function runOCR() {
   flex: 1;
   overflow: auto;
   display: flex;
-  align-items: center;
+  /* Use flex-start to prevent negative scroll area when content is taller than container */
+  align-items: flex-start;
   justify-content: center;
   background: #f8f9fa;
   position: relative;
@@ -454,21 +573,31 @@ async function runOCR() {
 
 .image-wrapper {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   min-height: 100%;
   padding: 20px;
   position: relative;
+  /* Use margin auto for conditional centering - only centers when content is smaller */
+  margin: auto 0;
+}
+
+.scalable-content {
+  position: relative;
+  display: inline-flex; /* Shrink to fit image */
+  transform-origin: center;
+  transition: transform 0.2s ease;
+  max-width: 100%;
+  max-height: 100%;
 }
 
 .page-image {
+  display: block; /* Remove gap */
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   border-radius: 4px;
-  transition: transform 0.2s ease;
-  transform-origin: center;
 }
 
 .placeholder-select {

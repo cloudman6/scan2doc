@@ -1,0 +1,94 @@
+import { describe, it, expect, vi } from 'vitest'
+import { mount } from '@vue/test-utils'
+import OCRModeSelector from './OCRModeSelector.vue'
+import { h } from 'vue'
+
+// Mock Naive UI components
+vi.mock('naive-ui', () => ({
+    NButton: {
+        name: 'NButton',
+        props: ['type', 'loading', 'disabled'],
+        template: '<button :disabled="disabled" class="n-button"><slot name="icon"></slot><slot></slot></button>'
+    },
+    NButtonGroup: {
+        name: 'NButtonGroup',
+        template: '<div class="n-button-group"><slot></slot></div>'
+    },
+    NDropdown: {
+        name: 'NDropdown',
+        props: ['options', 'trigger'],
+        template: '<div class="n-dropdown"><slot></slot></div>'
+    },
+    NIcon: {
+        name: 'NIcon',
+        template: '<i class="n-icon"><slot></slot></i>'
+    }
+}))
+
+// Mock Icons
+vi.mock('@vicons/ionicons5', () => ({
+    DocumentTextOutline: { name: 'DocumentTextOutline', render: () => h('svg') },
+    ScanOutline: { name: 'ScanOutline', render: () => h('svg') },
+    TextOutline: { name: 'TextOutline', render: () => h('svg') },
+    ImageOutline: { name: 'ImageOutline', render: () => h('svg') },
+    ChatboxEllipsesOutline: { name: 'ChatboxEllipsesOutline', render: () => h('svg') },
+    SearchOutline: { name: 'SearchOutline', render: () => h('svg') },
+    CreateOutline: { name: 'CreateOutline', render: () => h('svg') },
+    ChevronDownOutline: { name: 'ChevronDownOutline', render: () => h('svg') }
+}))
+
+describe('OCRModeSelector.vue', () => {
+    it('renders default mode correctly', () => {
+        const wrapper = mount(OCRModeSelector)
+        expect(wrapper.find('.trigger-btn').text()).toContain('Scan to Document')
+    })
+
+    it('emits run event when main button clicked', async () => {
+        const wrapper = mount(OCRModeSelector)
+        await wrapper.find('.trigger-btn').trigger('click')
+        expect(wrapper.emitted('run')).toBeTruthy()
+        expect(wrapper.emitted('run')![0]).toEqual(['document'])
+    })
+
+    it('changes mode and emits run when dropdown item selected', async () => {
+        const wrapper = mount(OCRModeSelector)
+
+        // Simulate selection from dropdown (via handleSelect)
+        await (wrapper.vm as any).handleSelect('ocr')
+
+        expect(wrapper.vm.selectedMode).toBe('ocr')
+        expect(wrapper.find('.trigger-btn').text()).toContain('General OCR')
+        expect(wrapper.emitted('run')![0]).toEqual(['ocr'])
+    })
+
+    it('updates button type when loading', async () => {
+        const wrapper = mount(OCRModeSelector, {
+            props: { loading: true }
+        })
+        expect(wrapper.vm.buttonType).toBe('info')
+
+        await wrapper.setProps({ loading: false })
+        expect(wrapper.vm.buttonType).toBe('primary')
+    })
+
+    it('disables buttons when disabled prop is true', () => {
+        const wrapper = mount(OCRModeSelector, {
+            props: { disabled: true }
+        })
+        const buttons = wrapper.findAll('.n-button')
+        buttons.forEach(btn => {
+            expect(btn.attributes('disabled')).toBeDefined()
+        })
+    })
+
+    it('correctly generates menu options with icons', () => {
+        const wrapper = mount(OCRModeSelector)
+        const options = wrapper.vm.menuOptions
+        expect(options.length).toBe(7)
+        expect(options[0].label).toBe('Scan to Document')
+
+        // Test icon rendering function
+        const iconVNode = (options[0].icon as () => import('vue').VNode)()
+        expect(iconVNode.type.name).toBe('NIcon')
+    })
+})

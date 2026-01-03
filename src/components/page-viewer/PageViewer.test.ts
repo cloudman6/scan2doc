@@ -83,6 +83,21 @@ vi.mock('naive-ui', () => ({
     props: ['vertical'],
     template: '<span class="n-divider"></span>'
   },
+  NDropdown: {
+    name: 'NDropdown',
+    props: ['trigger', 'options'],
+    template: '<div><slot></slot></div>'
+  },
+  NModal: {
+    name: 'NModal',
+    props: ['show', 'preset', 'title'],
+    template: '<div v-if="show"><slot></slot></div>'
+  },
+  NInput: {
+    name: 'NInput',
+    props: ['value', 'type', 'placeholder', 'rows'],
+    template: '<input :value="value" />'
+  },
   useMessage: vi.fn(() => ({
     error: vi.fn(),
     success: vi.fn(),
@@ -100,7 +115,8 @@ vi.mock('naive-ui', () => ({
 // Mock db
 vi.mock('@/db', () => ({
   db: {
-    getPageImage: vi.fn()
+    getPageImage: vi.fn(),
+    getPageOCR: vi.fn()
   }
 }))
 
@@ -129,6 +145,7 @@ describe('PageViewer.vue', () => {
     }
     vi.clearAllMocks()
     vi.mocked(db.getPageImage).mockResolvedValue(new Blob(['mock-image'], { type: 'image/png' }))
+    vi.mocked(db.getPageOCR).mockResolvedValue(undefined)
   })
 
   afterEach(() => {
@@ -148,6 +165,9 @@ describe('PageViewer.vue', () => {
     const wrapper = mount(PageViewer, {
       props: { currentPage: mockPage }
     })
+
+    // Wait for promises to resolve
+    await flushPromises()
 
     // Should call getPageImage
     expect(db.getPageImage).toHaveBeenCalledWith(mockPage.id)
@@ -286,36 +306,77 @@ describe('PageViewer.vue', () => {
     expect((wrapper.vm as any).imageError).toBe('Failed to load image')
   })
 
-  it('guards runOCR execution', async () => {
+  it('guards submitOCR execution', async () => {
     // 1. No current page
     const wrapper1 = mount(PageViewer, {
       props: { currentPage: null }
     })
-      ; await (wrapper1.vm as any).runOCR() // Should return early
+      ; await (wrapper1.vm as any).submitOCR('document') // Should return early
 
     // 2. Status is processing (mocked as recognizing in this context for guard check)
     const processingPage = { ...mockPage, status: 'recognizing' as const }
     const wrapper2 = mount(PageViewer, {
       props: { currentPage: processingPage }
     })
-      ; await (wrapper2.vm as any).runOCR() // Should return early
+      ; await (wrapper2.vm as any).submitOCR('document') // Should return early
 
     // 3. Normal execution
     const wrapper3 = mount(PageViewer, {
       props: { currentPage: mockPage }
     })
-      ; await (wrapper3.vm as any).runOCR() // Should log/execute
-    expect(uiLogger.info).toHaveBeenCalledWith('Adding page to OCR Queue:', mockPage.id)
+    await flushPromises()
+      ; await (wrapper3.vm as any).submitOCR('document') // Should log/execute
+    expect(uiLogger.info).toHaveBeenCalled()
   })
 
-  it('disables OCR button when status is not ready', async () => {
+  it('handles submitOCR error (no blob)', async () => {
+    vi.mocked(db.getPageImage).mockResolvedValue(undefined)
+    const wrapper = mount(PageViewer, {
+      props: { currentPage: mockPage }
+    })
+    await (wrapper.vm as any).submitOCR('document')
+    const message = (wrapper.vm as any).message
+    expect(message.error).toHaveBeenCalledWith('Could not retrieve image data')
+  })
+
+  it('handles handleOCRRun branches', async () => {
+    const wrapper = mount(PageViewer, {
+      props: { currentPage: mockPage }
+    })
+    // Branch 1: 'find' or 'freeform' -> shows modal
+    await (wrapper.vm as any).handleOCRRun('find')
+    expect((wrapper.vm as any).inputModalShow).toBe(true)
+    expect((wrapper.vm as any).targetInputMode).toBe('find')
+
+    // Branch 2: other -> direct submit (triggers logger)
+    await (wrapper.vm as any).handleOCRRun('document')
+    expect(uiLogger.info).toHaveBeenCalledWith(expect.stringContaining('Adding page to OCR Queue'), mockPage.id)
+  })
+
+  it('handles handleInputSubmit', async () => {
+    const wrapper = mount(PageViewer, {
+      props: { currentPage: mockPage }
+    })
+
+      // Case 1: find
+      ; (wrapper.vm as any).targetInputMode = 'find'
+    await (wrapper.vm as any).handleInputSubmit('test-find')
+    expect(uiLogger.info).toHaveBeenCalledWith(expect.stringContaining('(find)'), mockPage.id)
+
+      // Case 2: freeform
+      ; (wrapper.vm as any).targetInputMode = 'freeform'
+    await (wrapper.vm as any).handleInputSubmit('test-prompt')
+    expect(uiLogger.info).toHaveBeenCalledWith(expect.stringContaining('(freeform)'), mockPage.id)
+  })
+
+  it('disables OCRModeSelector when status is not ready', async () => {
     const processingPage = { ...mockPage, status: 'recognizing' as const }
     const wrapper = mount(PageViewer, {
       props: { currentPage: processingPage }
     })
 
-    const ocrBtn = wrapper.findAll('button').find(b => b.text().includes('OCR'))
-    expect(ocrBtn?.attributes('disabled')).toBeDefined()
+    // Check if OCRModeSelector is disabled via prop
+    expect((wrapper.vm as any).isPageProcessing).toBe(true)
   })
 
   it('handles image load failure with retry', async () => {
