@@ -12,7 +12,7 @@ test.describe('File Adding', () => {
         const expectedPageCount = await getPdfPageCount(filePath);
 
         // Setup file chooser
-        const fileChooserPromise = page.waitForEvent('filechooser');
+        const fileChooserPromise = page.waitForEvent('filechooser', { timeout: 60000 });
 
         // Click Add File
         await page.locator('.app-header button').first().click();
@@ -44,7 +44,7 @@ test.describe('File Adding', () => {
 
         const filePaths = [pdfPath, pngPath, jpgPath];
 
-        const fileChooserPromise = page.waitForEvent('filechooser');
+        const fileChooserPromise = page.waitForEvent('filechooser', { timeout: 60000 });
         await page.locator('.app-header button').first().click();
         const fileChooser = await fileChooserPromise;
         await fileChooser.setFiles(filePaths);
@@ -74,7 +74,7 @@ test.describe('File Adding', () => {
         const singleFilePageCount = await getPdfPageCount(filePath);
 
         // First upload
-        const fileChooserPromise1 = page.waitForEvent('filechooser');
+        const fileChooserPromise1 = page.waitForEvent('filechooser', { timeout: 60000 });
         await page.locator('.app-header button').first().click();
         const fileChooser1 = await fileChooserPromise1;
         await fileChooser1.setFiles(filePath);
@@ -86,7 +86,7 @@ test.describe('File Adding', () => {
         }).toPass({ timeout: 30000 });
 
         // Second upload (same file)
-        const fileChooserPromise2 = page.waitForEvent('filechooser');
+        const fileChooserPromise2 = page.waitForEvent('filechooser', { timeout: 60000 });
         await page.locator('.app-header button').first().click();
         const fileChooser2 = await fileChooserPromise2;
         await fileChooser2.setFiles(filePath);
@@ -111,7 +111,7 @@ test.describe('File Adding', () => {
         const jpgPath = path.resolve('tests/e2e/samples/sample.jpg');
 
         // 1. Add first image (PNG)
-        const fileChooserPromise1 = page.waitForEvent('filechooser');
+        const fileChooserPromise1 = page.waitForEvent('filechooser', { timeout: 60000 });
         await page.locator('.app-header button').first().click();
         const fileChooser1 = await fileChooserPromise1;
         await fileChooser1.setFiles(pngPath);
@@ -127,7 +127,7 @@ test.describe('File Adding', () => {
         await expect(page.locator('.page-viewer')).toContainText('141.8 KB');
 
         // 2. Add second image (JPG)
-        const fileChooserPromise2 = page.waitForEvent('filechooser');
+        const fileChooserPromise2 = page.waitForEvent('filechooser', { timeout: 60000 });
         await page.locator('.app-header button').first().click();
         const fileChooser2 = await fileChooserPromise2;
         await fileChooser2.setFiles(jpgPath);

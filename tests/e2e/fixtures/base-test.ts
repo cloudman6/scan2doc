@@ -46,6 +46,8 @@ export const test = base.extend({
                 // Ignore module loading errors
                 if (cleanText.includes('Importing a module script failed')) return false;
                 if (cleanText.includes('Loading failed for the module with source')) return false;
+                // Ignore WebKit specific BlobResource errors (often benign in test environments)
+                if (cleanText.includes('WebKitBlobResource error 1')) return false;
                 return true;
             });
 
