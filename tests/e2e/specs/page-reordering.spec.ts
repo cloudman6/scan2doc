@@ -20,9 +20,11 @@ test.describe('Page Reordering', () => {
 
         const filePaths = [pdfPath, pngPath];
 
-        const fileChooserPromise = page.waitForEvent('filechooser');
-        await page.locator('.app-header button').first().click();
-        const fileChooser = await fileChooserPromise;
+        // Use Promise.all to avoid race conditions between waiting for event and clicking
+        const [fileChooser] = await Promise.all([
+            page.waitForEvent('filechooser'),
+            page.locator('.app-header button').first().click(),
+        ]);
         await fileChooser.setFiles(filePaths);
 
         // Wait for all page items to appear
