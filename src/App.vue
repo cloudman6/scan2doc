@@ -205,6 +205,8 @@ import AppHeader from './components/common/AppHeader.vue'
 import EmptyState from './components/common/EmptyState.vue'
 import { NLayout, NLayoutSider, NButton, NIcon, NTooltip, createDiscreteApi, NMessageProvider, NDialogProvider, NNotificationProvider } from 'naive-ui'
 import { ChevronForwardOutline, ChevronBackOutline } from '@vicons/ionicons5'
+// Import documentService to ensure it's initialized and listening to OCR events
+import { documentService } from '@/services/doc-gen'
 
 const pagesStore = usePagesStore()
 const { message, dialog } = createDiscreteApi(['message', 'dialog'], {
@@ -395,6 +397,13 @@ onMounted(async () => {
     await pdfService.resumeProcessing()
   } catch (error) {
     uiLogger.error('Error resuming PDF processing:', error)
+  }
+
+  // Expose store for E2E testing observability
+  if (typeof window !== 'undefined') {
+    (window as any).pagesStore = pagesStore
+    // Log documentService to avoid tree-shaking and satisfy linter
+    console.log('[App] Document service initialized', !!documentService)
   }
 })
 </script>

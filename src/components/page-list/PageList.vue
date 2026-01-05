@@ -11,6 +11,34 @@
         size="small"
         @update:checked="handleSelectAll"
       />
+      
+      <!-- Export dropdown button -->
+      <NDropdown
+        v-if="hasSelection"
+        trigger="click"
+        :options="exportMenuOptions"
+        placement="bottom-start"
+        @select="handleExportSelect"
+      >
+        <NButton
+          text
+          size="tiny"
+          circle
+          title="Export selected pages"
+          class="export-selected-btn"
+        >
+          <template #icon>
+            <n-icon
+              size="18"
+              color="#18a058"
+            >
+              <DownloadOutline />
+            </n-icon>
+          </template>
+        </NButton>
+      </NDropdown>
+
+      <!-- Delete button -->
       <NButton
         v-if="hasSelection"
         text
@@ -98,18 +126,22 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, h } from 'vue'
 import draggable from 'vuedraggable'
 import { usePagesStore } from '@/stores/pages'
 import PageItem from '@/components/page-item/PageItem.vue'
-import type { Page } from '@/stores/pages'
-import { TrashOutline } from '@vicons/ionicons5'
-import { NScrollbar, NEmpty, NCheckbox, NButton, NIcon } from 'naive-ui'
+import type { Page, PageStatus } from '@/stores/pages'
+import { TrashOutline, DownloadOutline, DocumentTextOutline } from '@vicons/ionicons5'
+import { NScrollbar, NEmpty, NCheckbox, NButton, NIcon, NDropdown, useMessage, useDialog } from 'naive-ui'
+import { exportService } from '@/services/export'
+import { db } from '@/db'
 
 const props = defineProps<{
   pages: Page[]
   selectedId: string | null
 }>()
+
+type ExportFormat = 'markdown' | 'docx' | 'pdf'
 
 const emit = defineEmits<{
   pageSelected: [page: Page]
@@ -119,6 +151,8 @@ const emit = defineEmits<{
 
 const pagesStore = usePagesStore()
 const isDeleteHovered = ref(false)
+const message = useMessage()
+const dialog = useDialog()
 
 // Local copy of pages for drag and drop
 const localPages = ref<Page[]>([...props.pages])
@@ -159,6 +193,201 @@ function handleBatchDelete() {
     // Emit batch delete event
     emit('batchDeleted', selectedPages)
   }
+}
+
+// Export functionality
+const exportMenuOptions = computed(() => {
+  const stats = exportStats.value
+  return [
+    {
+      label: `Export as Markdown (${stats.markdown}/${stats.total})`,
+      key: 'markdown',
+      disabled: stats.markdown === 0,
+      icon: () => h(NIcon, null, { default: () => h(DocumentTextOutline) })
+    },
+    {
+      label: `Export as DOCX (${stats.docx}/${stats.total})`,
+      key: 'docx',
+      disabled: stats.docx === 0,
+      icon: () => h(NIcon, null, { default: () => h(DownloadOutline) })
+    },
+    {
+      label: `Export as PDF (${stats.pdf}/${stats.total})`,
+      key: 'pdf',
+      disabled: stats.pdf === 0,
+      icon: () => h(NIcon, null, { default: () => h(DownloadOutline) })
+    }
+  ]
+})
+
+const exportStats = ref({
+  total: 0,
+  markdown: 0,
+  docx: 0,
+  pdf: 0
+})
+
+// Watch selected pages and update stats
+watch(() => pagesStore.selectedPages, async (selected) => {
+  const total = selected.length
+  if (total === 0) {
+    exportStats.value = { total: 0, markdown: 0, docx: 0, pdf: 0 }
+    return
+  }
+
+  const results = await Promise.all(
+    selected.map(async (page) => ({
+      hasMarkdown: await hasFormat(page.id, 'markdown'),
+      hasDocx: await hasFormat(page.id, 'docx'),
+      hasPdf: await hasFormat(page.id, 'pdf')
+    }))
+  )
+
+  exportStats.value = {
+    total,
+    markdown: results.filter(r => r.hasMarkdown).length,
+    docx: results.filter(r => r.hasDocx).length,
+    pdf: results.filter(r => r.hasPdf).length
+  }
+}, { immediate: true })
+
+async function handleExportSelect(key: string) {
+  if (key === 'markdown' || key === 'docx' || key === 'pdf') {
+    await handleQuickExport(key as ExportFormat)
+  }
+}
+
+async function handleQuickExport(format: ExportFormat) {
+  const { validPages, invalidPages } = await checkPagesReadiness(
+    pagesStore.selectedPages,
+    format
+  )
+  
+  // All pages ready, export directly
+  if (invalidPages.length === 0) {
+    await performExport(validPages, format)
+    message.success(`Exported ${validPages.length} pages`)
+    return
+  }
+  
+  // No pages ready, show warning
+  if (validPages.length === 0) {
+    dialog.warning({
+      title: 'Cannot Export',
+      content: `All ${invalidPages.length} selected pages don't have Markdown data yet.`,
+      positiveText: 'OK'
+    })
+    return
+  }
+  
+  // Some pages not ready, show confirmation
+  await showExportConfirmDialog(validPages, invalidPages, format)
+}
+
+async function checkPagesReadiness(pages: Page[], format: ExportFormat) {
+  const checks = await Promise.all(
+    pages.map(async (page) => ({
+      page,
+      isReady: await hasFormat(page.id, format)
+    }))
+  )
+  
+  return {
+    validPages: checks.filter(c => c.isReady).map(c => c.page),
+    invalidPages: checks.filter(c => !c.isReady).map(c => c.page)
+  }
+}
+
+async function hasFormat(pageId: string, format: ExportFormat): Promise<boolean> {
+  if (format === 'markdown' || format === 'docx') {
+    const md = await db.getPageMarkdown(pageId)
+    return !!md && md.content.length > 0
+  } else if (format === 'pdf') {
+    const pdf = await db.getPagePDF(pageId)
+    return !!pdf
+  }
+  return false
+}
+
+async function showExportConfirmDialog(
+  validPages: Page[],
+  invalidPages: Page[],
+  format: string
+) {
+  return new Promise((resolve) => {
+    dialog.warning({
+      title: 'Some Pages Not Ready',
+      content: () => h('div', { class: 'export-warning-content' }, [
+        h('p', { style: 'margin-bottom: 12px' }, 
+          `${invalidPages.length} of ${validPages.length + invalidPages.length} pages don't have ${format.toUpperCase()} data yet:`
+        ),
+        h('div', { 
+          class: 'page-list-preview',
+          style: 'max-height: 150px; overflow-y: auto; background: #f5f5f5; padding: 8px; border-radius: 4px; margin-bottom: 12px'
+        }, 
+          invalidPages.map(p => 
+            h('div', { style: 'font-size: 13px; color: #666; padding: 2px 0' }, 
+              `• ${p.fileName} - ${getStatusLabel(p.status)}`
+            )
+          )
+        ),
+        h('p', { style: 'font-size: 13px; color: #666' }, 
+          'You can cancel to complete OCR first, or skip these pages and export the rest.'
+        )
+      ]),
+      positiveText: 'Skip & Export',
+      negativeText: 'Cancel',
+      onPositiveClick: async () => {
+        await performExport(validPages, format as ExportFormat)
+        message.success(
+          `Exported ${validPages.length} pages (skipped ${invalidPages.length})`
+        )
+        resolve(true)
+      },
+      onNegativeClick: () => {
+        resolve(false)
+      }
+    })
+  })
+}
+
+async function performExport(pages: Page[], format: ExportFormat) {
+  const options = {
+    format: format,
+    includeImages: true,
+    useDataURI: false
+  }
+  
+  if (format === 'markdown') {
+    const result = await exportService.exportToMarkdown(pages, options)
+    exportService.downloadBlob(result)
+  } else if (format === 'docx') {
+    const result = await exportService.exportToDOCX(pages, options)
+    exportService.downloadBlob(result)
+  } else if (format === 'pdf') {
+    const result = await exportService.exportToPDF(pages, options)
+    exportService.downloadBlob(result)
+  }
+}
+
+function getStatusLabel(status: PageStatus): string {
+  const labels: Record<PageStatus, string> = {
+    'pending_render': 'Rendering...',
+    'rendering': 'Rendering...',
+    'pending_ocr': 'OCR Queued',
+    'recognizing': 'OCR Running...',
+    'ocr_success': 'OCR Done',
+    'pending_gen': 'Generating...',
+    'generating_markdown': 'Generating MD...',
+    'markdown_success': 'MD Ready',
+    'generating_docx': 'Generating DOCX...',
+    'generating_pdf': 'Generating PDF...',
+    'pdf_success': 'PDF Ready',
+    'ready': 'Ready',
+    'completed': 'Completed',
+    'error': 'Error'
+  }
+  return labels[status] || status
 }
 
 interface DragEndEvent {

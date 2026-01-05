@@ -22,7 +22,27 @@ vi.mock('jszip', () => {
 vi.mock('@/db', () => ({
   db: {
     getPageMarkdown: vi.fn(),
-    getPageExtractedImage: vi.fn()
+    getPageExtractedImage: vi.fn(),
+    getPagePDF: vi.fn()
+  }
+}))
+
+vi.mock('@/services/doc-gen/docx', () => ({
+  docxGenerator: {
+    generate: vi.fn().mockResolvedValue(new Blob(['docx-content']))
+  }
+}))
+
+vi.mock('pdf-lib', () => ({
+  PDFDocument: {
+    create: vi.fn().mockResolvedValue({
+      copyPages: vi.fn().mockResolvedValue([{}]),
+      addPage: vi.fn(),
+      save: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]))
+    }),
+    load: vi.fn().mockResolvedValue({
+      getPageIndices: vi.fn().mockReturnValue([0])
+    })
   }
 }))
 
@@ -137,20 +157,29 @@ describe('ExportService', () => {
     })
   })
 
-  describe('unimplemented methods', () => {
-    const pages: any[] = []
-    const options: Record<string, any> = { format: 'markdown' }
+  describe('implemented methods', () => {
+    const pages = [{ id: 'p1' }] as any[]
+    const options: any = { format: 'markdown' }
 
     it('should throw error for exportToHTML', async () => {
       await expect(exportService.exportToHTML(pages as any, options as any)).rejects.toThrow('Not implemented yet')
     })
 
-    it('should throw error for exportToDOCX', async () => {
-      await expect(exportService.exportToDOCX(pages as any, options as any)).rejects.toThrow('Not implemented yet')
+    it('should successfully exportToDOCX', async () => {
+      vi.mocked(db.getPageMarkdown).mockResolvedValue({ pageId: 'p1', content: '# Test' })
+      const result = await exportService.exportToDOCX(pages, options)
+      expect(result.filename).toMatch(/\.docx$/)
+      expect(result.mimeType).toBe('application/vnd.openxmlformats-officedocument.wordprocessingml.document')
     })
 
-    it('should throw error for exportToPDF', async () => {
-      await expect(exportService.exportToPDF(pages as any, options as any)).rejects.toThrow('Not implemented yet')
+    it('should successfully exportToPDF', async () => {
+      const mockBlob = {
+        arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(8))
+      }
+      vi.mocked(db.getPagePDF).mockResolvedValue(mockBlob as any)
+      const result = await exportService.exportToPDF(pages, options)
+      expect(result.filename).toMatch(/\.pdf$/)
+      expect(result.mimeType).toBe('application/pdf')
     })
   })
 

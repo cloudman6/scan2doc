@@ -237,4 +237,57 @@ End of table.
             expect(call[0].spacing.line).toBe(360)
         })
     })
+
+    it('should handle Heading Level 4 and above', async () => {
+        const markdown = '#### H4\n##### H5'
+        const blob = await docxGenerator.generate(markdown)
+        expect(blob.size).toBeGreaterThan(0)
+
+        const headingCalls = ParagraphSpy.mock.calls.filter((c: any) => c[0] && c[0].heading)
+        // Should have 2 headings
+        expect(headingCalls.length).toBe(2)
+    })
+
+    it('should handle inline math $...$', async () => {
+        const markdown = 'Inline math: $E=mc^2$'
+        const blob = await docxGenerator.generate(markdown)
+        expect(blob.size).toBeGreaterThan(0)
+    })
+
+    it('should handle extracted image with ArrayBuffer blob', async () => {
+        const imageId = 'arraybuffer-img'
+        const markdown = `![Fig](scan2doc-img:${imageId})`
+
+        const mockBuffer = new ArrayBuffer(8)
+        vi.mocked(db.getPageExtractedImage).mockResolvedValue({
+            id: imageId,
+            pageId: 'page1',
+            blob: mockBuffer, // Not a Blob, but an ArrayBuffer
+            box: [0, 0, 100, 100]
+        })
+
+        const blob = await docxGenerator.generate(markdown)
+        expect(blob.size).toBeGreaterThan(0)
+    })
+
+    it('should handle fallback cell content in HTML tables', async () => {
+        // A table where some cells might trigger fallback or be empty
+        const markdown = `
+<table>
+  <tr>
+    <td><b>Header</b></td>
+    <td>Plain</td>
+  </tr>
+</table>
+`
+        const blob = await docxGenerator.generate(markdown)
+        expect(blob.size).toBeGreaterThan(0)
+    })
+
+    it('should handle detectDominantLanguage with empty string', async () => {
+        // This is tricky because generate() parses tokens. 
+        // We can test the private method if it was exposed or just pass minimal markdown.
+        const blob = await docxGenerator.generate(' ')
+        expect(blob.size).toBeGreaterThan(0)
+    })
 })

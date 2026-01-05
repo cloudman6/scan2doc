@@ -141,6 +141,34 @@ describe('DeepSeekOCRProvider', () => {
         expect(fetchMock).toHaveBeenCalledTimes(2)
     })
 
+    it('should handle different prompt types correctly', async () => {
+        fetchMock.mockResolvedValue({
+            ok: true,
+            json: async () => mockResponse
+        })
+
+        const provider = new DeepSeekOCRProvider()
+        const blob = new Blob([''], { type: 'image/jpeg' })
+
+        // Test freeform with custom prompt
+        await provider.process(blob, {
+            prompt_type: 'freeform',
+            custom_prompt: 'analyze this image'
+        })
+        let formData = fetchMock.mock.calls[fetchMock.mock.calls.length - 1]![1].body as FormData
+        expect(formData.get('prompt_type')).toBe('freeform')
+        expect(formData.get('custom_prompt')).toBe('analyze this image')
+
+        // Test find with search term
+        await provider.process(blob, {
+            prompt_type: 'find',
+            find_term: 'invoice'
+        })
+        formData = fetchMock.mock.calls[fetchMock.mock.calls.length - 1]![1].body as FormData
+        expect(formData.get('prompt_type')).toBe('find')
+        expect(formData.get('find_term')).toBe('invoice')
+    })
+
     it('should handle non-Error objects thrown during processing', async () => {
         const provider = new DeepSeekOCRProvider()
 

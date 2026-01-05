@@ -29,7 +29,6 @@ Scan2Doc is designed to handle document conversion tasks entirely within the bro
 - **OCR Integration**: Integration with third-party OCR APIs for text recognition.
 - **Multi-Format Export**:
   - Markdown
-  - HTML
   - DOCX (Microsoft Word)
   - Text+Image PDF (Searchable PDF)
 - **Task Management**: Resumable and cancellable long-running tasks with real-time progress reporting.

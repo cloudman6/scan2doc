@@ -1,6 +1,8 @@
 import type { Page } from '@/stores/pages'
 import { db } from '@/db'
 import JSZip from 'jszip'
+import { docxGenerator } from '@/services/doc-gen/docx'
+import { PDFDocument } from 'pdf-lib'
 
 export interface ExportOptions {
   format: 'markdown' | 'html' | 'docx' | 'pdf'
@@ -134,7 +136,7 @@ export class ExportService {
     return `images/${imageName}`
   }
 
-  private async createExportResult(content: string, options: ExportOptions, zip: JSZip | null): Promise<ExportResult> {
+  private async createExportResult(content: string, _options: ExportOptions, zip: JSZip | null): Promise<ExportResult> {
     if (zip) {
       zip.file('document.md', content)
       const blob = await zip.generateAsync({ type: 'blob' })
@@ -168,17 +170,56 @@ export class ExportService {
   }
 
   async exportToDOCX(
-    _pages: Page[],
+    pages: Page[],
     _options: ExportOptions
   ): Promise<ExportResult> {
-    throw new Error('Not implemented yet')
+    let combinedMarkdown = ''
+
+    for (const page of pages) {
+      const pageMarkdown = await db.getPageMarkdown(page.id)
+      if (!pageMarkdown) continue
+
+      if (combinedMarkdown) combinedMarkdown += '\n\n---\n\n'
+      combinedMarkdown += pageMarkdown.content
+    }
+
+    const blob = await docxGenerator.generate(combinedMarkdown)
+    const filename = await this.generateFilename('document', 'docx')
+    return {
+      blob,
+      filename,
+      mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      size: blob.size
+    }
   }
 
   async exportToPDF(
-    _pages: Page[],
+    pages: Page[],
     _options: ExportOptions
   ): Promise<ExportResult> {
-    throw new Error('Not implemented yet')
+    const mergedPdf = await PDFDocument.create()
+
+    for (const page of pages) {
+      const pdfBlob = await db.getPagePDF(page.id)
+      if (!pdfBlob) continue
+
+      const pdfBytes = await pdfBlob.arrayBuffer()
+      const donorPdf = await PDFDocument.load(pdfBytes)
+      const copiedPages = await mergedPdf.copyPages(donorPdf, donorPdf.getPageIndices())
+      copiedPages.forEach((p) => mergedPdf.addPage(p))
+    }
+
+    const pdfBytes = await mergedPdf.save()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const blob = new Blob([pdfBytes as any], { type: 'application/pdf' })
+    const filename = await this.generateFilename('document', 'pdf')
+
+    return {
+      blob,
+      filename,
+      mimeType: 'application/pdf',
+      size: blob.size
+    }
   }
 
   async generateFilename(
