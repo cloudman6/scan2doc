@@ -401,7 +401,7 @@ onMounted(async () => {
 
   // Expose store for E2E testing observability
   if (typeof window !== 'undefined') {
-    (window as any).pagesStore = pagesStore
+    (window as unknown as { pagesStore: typeof pagesStore }).pagesStore = pagesStore
     // Log documentService to avoid tree-shaking and satisfy linter
     console.log('[App] Document service initialized', !!documentService)
   }
