@@ -213,16 +213,14 @@ describe('OCRService', () => {
       expect(emitSpy).toHaveBeenCalledWith('ocr:queued', { pageId: 'page2' })
     })
 
-    it('should skip pages with pending_ocr, recognizing, ocr_success, and completed status', async () => {
+    it('should skip pages with pending_ocr or recognizing status', async () => {
       const service = new OCRService()
 
       const pages = [
         { id: 'page1', status: 'pending_ocr' },
         { id: 'page2', status: 'recognizing' },
-        { id: 'page3', status: 'ocr_success' },
-        { id: 'page4', status: 'ready' },
-        { id: 'page5', status: 'markdown_success' },
-        { id: 'page6', status: 'completed' }
+        { id: 'page3', status: 'ocr_success' },  // This will NOT be skipped anymore
+        { id: 'page4', status: 'ready' }
       ] as Array<{ id: string; status: string }>
 
       vi.spyOn(queueManager, 'addOCRTask').mockResolvedValue(undefined)
@@ -230,7 +228,8 @@ describe('OCRService', () => {
 
       const result = await service.queueBatchOCR(pages as any)
 
-      expect(result).toEqual({ queued: 1, skipped: 5, failed: 0 })
+      // Only pending_ocr and recognizing are skipped, ocr_success is now queued
+      expect(result).toEqual({ queued: 2, skipped: 2, failed: 0 })
     })
 
     it('should retry pages with error status', async () => {
@@ -256,21 +255,28 @@ describe('OCRService', () => {
       expect(callCount).toBe(2)
     })
 
-    it('should skip pages with pending_render or rendering status', async () => {
+    it('should allow re-OCR of pages with ocr_success status', async () => {
       const service = new OCRService()
 
       const pages = [
-        { id: 'page1', status: 'pending_render' },
-        { id: 'page2', status: 'rendering' },
-        { id: 'page3', status: 'ready' }
+        { id: 'page1', status: 'ocr_success' },
+        { id: 'page2', status: 'markdown_success' },
+        { id: 'page3', status: 'completed' }
       ] as Array<{ id: string; status: string }>
 
-      vi.spyOn(queueManager, 'addOCRTask').mockResolvedValue(undefined)
+      let callCount = 0
+      vi.spyOn(queueManager, 'addOCRTask').mockImplementation((_id: string, _task: (signal: AbortSignal) => Promise<void>) => {
+        callCount++
+        return Promise.resolve()
+      })
+
       vi.spyOn(db, 'getPageImage').mockResolvedValue(new Blob(['test']))
 
       const result = await service.queueBatchOCR(pages as any)
 
-      expect(result).toEqual({ queued: 1, skipped: 2, failed: 0 })
+      // All pages should be queued since we only skip pending_ocr and recognizing
+      expect(result).toEqual({ queued: 3, skipped: 0, failed: 0 })
+      expect(callCount).toBe(3)
     })
 
     it('should handle failed image retrieval', async () => {
@@ -291,11 +297,11 @@ describe('OCRService', () => {
       expect(result).toEqual({ queued: 1, skipped: 0, failed: 1 })
     })
 
-    it('should return all skipped when no pages can be queued', async () => {
+    it('should return all skipped when all pages are in OCR queue', async () => {
       const service = new OCRService()
 
       const pages = [
-        { id: 'page1', status: 'ocr_success' },
+        { id: 'page1', status: 'pending_ocr' },
         { id: 'page2', status: 'recognizing' }
       ] as Array<{ id: string; status: string }>
 

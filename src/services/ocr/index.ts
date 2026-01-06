@@ -110,7 +110,8 @@ export class OCRService {
 
   /**
    * Queue multiple pages for batch OCR processing
-   * Skips pages that are already being processed or completed
+   * Skips pages that are currently in the OCR queue (pending or processing)
+   * Allows re-OCR of pages that have already completed OCR
    * @param pages - Array of pages with id and status
    * @returns Statistics about queued, skipped, and failed pages
    */
@@ -121,20 +122,10 @@ export class OCRService {
     let skipped = 0
     let failed = 0
 
-    // Skip statuses: pages that are already being processed, completed OCR, or in later stages
+    // Skip only pages that are currently being processed in the OCR queue
     const skipStatuses = [
       'pending_ocr',      // Already queued
-      'recognizing',      // Currently processing OCR
-      'ocr_success',      // OCR completed
-      'pending_render',   // Rendering
-      'rendering',        // Rendering
-      'pending_gen',      // Waiting for doc generation (OCR done)
-      'generating_markdown', // Generating Markdown (OCR done)
-      'markdown_success', // Markdown generated (OCR done)
-      'generating_pdf',   // Generating PDF (OCR done)
-      'pdf_success',      // PDF generated (OCR done)
-      'generating_docx',  // Generating DOCX (OCR done)
-      'completed'         // All done
+      'recognizing'       // Currently processing OCR
     ]
 
     for (const page of pages) {

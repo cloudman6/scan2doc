@@ -1,5 +1,6 @@
 import { test, expect } from '../fixtures/base-test';
 import { getPdfPageCount } from '../utils/pdf-utils';
+import { Route } from 'playwright';
 import fs from 'fs';
 import path from 'path';
 
@@ -41,6 +42,52 @@ async function getPageStoreData(page: import('@playwright/test').Page, expectedC
       pages: pages.map(p => ({ status: p.status }))
     };
   }, expectedCount);
+}
+
+// Helper function to create delayed OCR route handler
+function createDelayedOCRHandler(completeFlag: { value: boolean }) {
+  return async (route: Route) => {
+    // Wait for complete flag before responding
+    while (!completeFlag.value) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    const mockResponse = JSON.parse(fs.readFileSync(path.resolve('tests/e2e/samples/sample.json'), 'utf-8'));
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(mockResponse),
+    });
+  };
+}
+
+// Helper function to check if page has completed OCR
+function checkPagePastOCR(idx: number): boolean {
+  const pages = window.pagesStore?.pages || [];
+  const status = pages[idx]?.status;
+  return ['ocr_success', 'pending_gen', 'generating_markdown', 'markdown_success',
+          'generating_pdf', 'pdf_success', 'generating_docx', 'completed'].includes(status || '');
+}
+
+// Helper function to check if count pages are in processing state
+function checkProcessingPagesCount(count: number): boolean {
+  const pages = window.pagesStore?.pages || [];
+  const processingCount = pages.filter(p => p.status === 'pending_ocr' || p.status === 'recognizing').length;
+  return processingCount === count;
+}
+
+// Helper function to check if all pages completed OCR
+function checkAllPagesCompletedOCR(): boolean {
+  const pages = window.pagesStore?.pages || [];
+  return pages.every(p =>
+    ['ocr_success', 'pending_gen', 'generating_markdown', 'markdown_success',
+     'generating_pdf', 'pdf_success', 'generating_docx', 'completed'].includes(p.status)
+  );
+}
+
+// Helper function to check if notification count increased
+function checkNotificationCountIncreased(countBefore: number): boolean {
+  const notifications = document.querySelectorAll('.n-notification');
+  return notifications.length > countBefore;
 }
 
 test.describe('Batch OCR', () => {
@@ -90,23 +137,12 @@ test.describe('Batch OCR', () => {
 
       // Wait for all pages to reach or pass ocr_success status
       for (let i = 0; i < expectedPageCount; i++) {
-        await page.waitForFunction((idx) => {
-          const pages = window.pagesStore?.pages || [];
-          const status = pages[idx]?.status;
-          // Check if page has completed OCR or is in later stages
-          return ['ocr_success', 'pending_gen', 'generating_markdown', 'markdown_success',
-                  'generating_pdf', 'pdf_success', 'generating_docx', 'completed'].includes(status);
-        }, i, { timeout: 30000 });
+        await page.waitForFunction(checkPagePastOCR, i, { timeout: 30000 });
       }
 
       // Verify all pages are past ocr_success (completed OCR stage)
       for (let i = 0; i < expectedPageCount; i++) {
-        const isPastOCR = await page.evaluate((idx) => {
-          const pages = window.pagesStore?.pages || [];
-          const status = pages[idx]?.status;
-          return ['ocr_success', 'pending_gen', 'generating_markdown', 'markdown_success',
-                  'generating_pdf', 'pdf_success', 'generating_docx', 'completed'].includes(status);
-        }, i);
+        const isPastOCR = await page.evaluate(checkPagePastOCR, i);
         expect(isPastOCR).toBeTruthy();
       }
 
@@ -124,19 +160,14 @@ test.describe('Batch OCR', () => {
     });
   });
 
-  test.describe('Smart Skip Logic', () => {
-    test('should skip already processed pages and only OCR ready pages', async ({ page }) => {
+  test.describe('Skip Currently Processing Pages', () => {
+    test('should skip only pages currently in OCR queue (pending_ocr or recognizing)', async ({ page }) => {
       await page.goto('/');
 
-      // Mock OCR API
-      await page.route('**/ocr', async (route) => {
-        const mockResponse = JSON.parse(fs.readFileSync(path.resolve('tests/e2e/samples/sample.json'), 'utf-8'));
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify(mockResponse),
-        });
-      });
+      const firstBatchComplete = { value: false };
+
+      // Mock OCR API with delay for first batch
+      await page.route('**/ocr', createDelayedOCRHandler(firstBatchComplete));
 
       // Upload first PDF
       const filePath1 = path.resolve('tests/e2e/samples/sample.pdf');
@@ -163,15 +194,8 @@ test.describe('Batch OCR', () => {
       await page.check('[data-testid="select-all-checkbox"]');
       await page.click('[data-testid="batch-ocr-button"]');
 
-      // Wait for first batch to complete OCR (reach or pass ocr_success)
-      for (let i = 0; i < firstBatchCount; i++) {
-        await page.waitForFunction((idx) => {
-          const pages = window.pagesStore?.pages || [];
-          const status = pages[idx]?.status;
-          return ['ocr_success', 'pending_gen', 'generating_markdown', 'markdown_success',
-                  'generating_pdf', 'pdf_success', 'generating_docx', 'completed'].includes(status);
-        }, i, { timeout: 30000 });
-      }
+      // Wait for first batch to reach pending_ocr status (they should be stuck there due to delay)
+      await page.waitForFunction(checkProcessingPagesCount, firstBatchCount, { timeout: 10000 });
 
       // Clear selection
       await page.uncheck('[data-testid="select-all-checkbox"]');
@@ -194,58 +218,40 @@ test.describe('Batch OCR', () => {
       // Wait for thumbnail
       await expect(pageItems.nth(firstBatchCount).locator('.thumbnail-img')).toBeVisible({ timeout: 30000 });
 
-      // Select all pages (including already OCR'd ones)
+      // Select all pages (including those in OCR queue)
       await page.check('[data-testid="select-all-checkbox"]');
 
-      // Verify first batch pages have completed OCR status
-      for (let i = 0; i < firstBatchCount; i++) {
-        const firstBatchStatus = await page.evaluate((idx) => {
-          const pages = window.pagesStore?.pages || [];
-          return pages[idx]?.status;
-        }, i);
-        // Should be past ocr_success
-        expect(['ocr_success', 'pending_gen', 'generating_markdown', 'markdown_success',
-                'generating_pdf', 'pdf_success', 'generating_docx', 'completed']).toContain(firstBatchStatus);
-      }
-
-      // Verify new page is still ready
-      const newPageStatus = await page.evaluate((idx) => {
-        const pages = window.pagesStore?.pages || [];
-        return pages[idx]?.status;
-      }, firstBatchCount);
-      expect(newPageStatus).toBe('ready');
+      // Get notification count before clicking batch OCR
+      const notificationCountBefore = await page.locator('.n-notification').count();
 
       // Click batch OCR
       await page.click('[data-testid="batch-ocr-button"]');
 
-      // Verify notification shows only new page was processed (1 added, firstBatchCount skipped)
-      await expect(page.locator('.n-notification').first()).toContainText(/Added 1 page to OCR queue.*skipped \d+ processed/, { timeout: 5000 });
+      // Verify notification shows only new page was queued (first batch was skipped because they're in queue)
+      // Wait for a new notification to appear
+      await page.waitForFunction(checkNotificationCountIncreased, notificationCountBefore, { timeout: 5000 });
 
-      // Wait for the new page to complete OCR
-      await page.waitForFunction((idx) => {
-        const pages = window.pagesStore?.pages || [];
-        const status = pages[idx]?.status;
-        return ['ocr_success', 'pending_gen', 'generating_markdown', 'markdown_success',
-                'generating_pdf', 'pdf_success', 'generating_docx', 'completed'].includes(status);
-      }, firstBatchCount, { timeout: 30000 });
+      // Check the latest notification
+      await expect(page.locator('.n-notification').nth(notificationCountBefore)).toContainText(/Added 1 page to OCR queue.*skipped \d+/, { timeout: 5000 });
+
+      // Now allow the first batch OCR to complete
+      firstBatchComplete.value = true;
+
+      // Wait for all pages to complete OCR (including the first batch and new page)
+      await page.waitForFunction(checkAllPagesCompletedOCR, { timeout: 30000 });
     });
   });
 
   test.describe('Edge Cases', () => {
-    test('should show warning when all selected pages are already processed', async ({ page }) => {
+    test('should show warning when all selected pages are currently in OCR queue', async ({ page }) => {
       await page.goto('/');
 
-      // Mock OCR API
-      await page.route('**/ocr', async (route) => {
-        const mockResponse = JSON.parse(fs.readFileSync(path.resolve('tests/e2e/samples/sample.json'), 'utf-8'));
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify(mockResponse),
-        });
-      });
+      const allowOCRToComplete = { value: false };
 
-      // Upload PDF and complete OCR
+      // Mock OCR API with delay to keep pages in queue
+      await page.route('**/ocr', createDelayedOCRHandler(allowOCRToComplete));
+
+      // Upload PDF
       const filePath = path.resolve('tests/e2e/samples/sample.pdf');
 
       const fileChooserPromise = page.waitForEvent('filechooser', { timeout: 60000 });
@@ -267,24 +273,14 @@ test.describe('Batch OCR', () => {
         await expect(pageItems.nth(i).locator('.thumbnail-img')).toBeVisible({ timeout: 30000 });
       }
 
-      // Do batch OCR to complete all pages
+      // Do batch OCR
       await page.check('[data-testid="select-all-checkbox"]');
       await page.click('[data-testid="batch-ocr-button"]');
 
-      // Wait for OCR to complete
-      for (let i = 0; i < pageCount; i++) {
-        await page.waitForFunction((idx) => {
-          const pages = window.pagesStore?.pages || [];
-          const status = pages[idx]?.status;
-          return ['ocr_success', 'pending_gen', 'generating_markdown', 'markdown_success',
-                  'generating_pdf', 'pdf_success', 'generating_docx', 'completed'].includes(status);
-        }, i, { timeout: 30000 });
-      }
+      // Wait for all pages to enter OCR queue (pending_ocr status)
+      await page.waitForFunction(checkProcessingPagesCount, pageCount, { timeout: 10000 });
 
-      // Wait a bit for messages to clear
-      await page.waitForTimeout(1000);
-
-      // All pages are now past ocr_success - try batch OCR again
+      // All pages are now in OCR queue - try batch OCR again
       await page.click('[data-testid="batch-ocr-button"]');
 
       // Verify warning notification (look for the latest notification with warning text)
@@ -299,6 +295,12 @@ test.describe('Batch OCR', () => {
         return false;
       });
       expect(foundWarning).toBeTruthy();
+
+      // Now allow the OCR to complete
+      allowOCRToComplete.value = true;
+
+      // Wait for all pages to complete OCR
+      await page.waitForFunction(checkAllPagesCompletedOCR, { timeout: 30000 });
     });
   });
 });
