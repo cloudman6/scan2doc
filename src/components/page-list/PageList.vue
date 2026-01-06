@@ -4,11 +4,13 @@
     <div
       v-if="pages.length > 0"
       class="selection-toolbar"
+      data-testid="selection-toolbar"
     >
       <NCheckbox
         :checked="isAllSelected"
         :indeterminate="isPartiallySelected"
         size="small"
+        data-testid="select-all-checkbox"
         @update:checked="handleSelectAll"
       />
       
@@ -38,6 +40,27 @@
         </NButton>
       </NDropdown>
 
+      <!-- Batch OCR button -->
+      <NButton
+        v-if="hasSelection"
+        text
+        size="tiny"
+        circle
+        title="Scan selected pages to document"
+        class="batch-ocr-btn"
+        data-testid="batch-ocr-button"
+        @click="handleBatchOCR"
+      >
+        <template #icon>
+          <n-icon
+            size="18"
+            color="#18a058"
+          >
+            <DocumentTextOutline />
+          </n-icon>
+        </template>
+      </NButton>
+
       <!-- Delete button -->
       <NButton
         v-if="hasSelection"
@@ -50,6 +73,7 @@
         }"
         title="Delete selected pages"
         class="delete-selected-btn"
+        data-testid="batch-delete-button"
         @click="handleBatchDelete"
         @mouseenter="isDeleteHovered = true"
         @mouseleave="isDeleteHovered = false"
@@ -134,6 +158,7 @@ import type { Page, PageStatus } from '@/stores/pages'
 import { TrashOutline, DownloadOutline, DocumentTextOutline } from '@vicons/ionicons5'
 import { NScrollbar, NEmpty, NCheckbox, NButton, NIcon, NDropdown, useMessage, useDialog } from 'naive-ui'
 import { exportService } from '@/services/export'
+import { ocrService } from '@/services/ocr'
 import { db } from '@/db'
 
 const props = defineProps<{
@@ -192,6 +217,25 @@ function handleBatchDelete() {
   if (selectedPages.length > 0) {
     // Emit batch delete event
     emit('batchDeleted', selectedPages)
+  }
+}
+
+async function handleBatchOCR() {
+  const selectedPages = pagesStore.selectedPages
+  if (selectedPages.length === 0) return
+
+  // Call batch OCR service
+  const result = await ocrService.queueBatchOCR(selectedPages)
+
+  // Show result notification
+  if (result.queued > 0) {
+    let msg = `已将 ${result.queued} 个页面添加到 OCR 队列`
+    if (result.skipped > 0) {
+      msg += ` (跳过 ${result.skipped} 个已处理)`
+    }
+    message.success(msg)
+  } else {
+    message.warning('选中的页面都已处理或正在处理中')
   }
 }
 
@@ -434,6 +478,10 @@ defineExpose({})
 .delete-selected-btn {
   margin-left: auto;
   margin-right: 8px;
+}
+
+.batch-ocr-btn {
+  margin-left: 0;
 }
 
 .page-list {

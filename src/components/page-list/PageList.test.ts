@@ -68,6 +68,13 @@ vi.mock('@/services/export', () => ({
   }
 }))
 
+// Mock OCR service
+vi.mock('@/services/ocr', () => ({
+  ocrService: {
+    queueBatchOCR: vi.fn()
+  }
+}))
+
 // Mock vuedraggable
 vi.mock('vuedraggable', () => ({
   default: {
@@ -618,8 +625,157 @@ describe('PageList.vue', () => {
         contentFn() // This will call getStatusLabel for all pages
       }
 
-      // No explicit assertion needed for getStatusLabel as it's for coverage, 
+      // No explicit assertion needed for getStatusLabel as it's for coverage,
       // but we covered the lines now.
+    })
+  })
+
+  describe('Batch OCR', () => {
+    beforeEach(() => {
+      vi.clearAllMocks()
+    })
+
+    it('shows batch OCR button only when pages are selected', () => {
+      // No selection
+      const pinia1 = createTestingPinia({
+        initialState: {
+          pages: { selectedPageIds: [] }
+        }
+      })
+
+      const wrapper1 = mount(PageList, {
+        props: { pages: mockPages, selectedId: null },
+        global: { plugins: [pinia1] }
+      })
+
+      expect(wrapper1.find('.batch-ocr-btn').exists()).toBe(false)
+
+      // With selection
+      const pinia2 = createTestingPinia({
+        initialState: {
+          pages: { selectedPageIds: ['page-1'] }
+        }
+      })
+
+      const wrapper2 = mount(PageList, {
+        props: { pages: mockPages, selectedId: null },
+        global: { plugins: [pinia2] }
+      })
+
+      expect(wrapper2.find('.batch-ocr-btn').exists()).toBe(true)
+    })
+
+    it('calls queueBatchOCR and shows success message when pages are queued', async () => {
+      const { ocrService } = await import('@/services/ocr')
+      vi.mocked(ocrService.queueBatchOCR).mockResolvedValue({ queued: 2, skipped: 1, failed: 0 })
+
+      const pinia = createTestingPinia({
+        initialState: {
+          pages: {
+            pages: mockPages,
+            selectedPageIds: ['page-1', 'page-2']
+          }
+        }
+      })
+
+      const store = usePagesStore(pinia)
+      Object.defineProperty(store, 'selectedPages', {
+        get: () => mockPages
+      })
+
+      const wrapper = mount(PageList, {
+        props: { pages: mockPages, selectedId: null },
+        global: { plugins: [pinia] }
+      })
+
+      await wrapper.find('.batch-ocr-btn').trigger('click')
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      expect(ocrService.queueBatchOCR).toHaveBeenCalledWith(mockPages)
+      expect(messageSuccessSpy).toHaveBeenCalledWith('已将 2 个页面添加到 OCR 队列 (跳过 1 个已处理)')
+    })
+
+    it('shows success message without skip info when nothing is skipped', async () => {
+      const { ocrService } = await import('@/services/ocr')
+      vi.mocked(ocrService.queueBatchOCR).mockResolvedValue({ queued: 2, skipped: 0, failed: 0 })
+
+      const pinia = createTestingPinia({
+        initialState: {
+          pages: {
+            pages: mockPages,
+            selectedPageIds: ['page-1', 'page-2']
+          }
+        }
+      })
+
+      const store = usePagesStore(pinia)
+      Object.defineProperty(store, 'selectedPages', {
+        get: () => mockPages
+      })
+
+      const wrapper = mount(PageList, {
+        props: { pages: mockPages, selectedId: null },
+        global: { plugins: [pinia] }
+      })
+
+      await wrapper.find('.batch-ocr-btn').trigger('click')
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      expect(messageSuccessSpy).toHaveBeenCalledWith('已将 2 个页面添加到 OCR 队列')
+    })
+
+    it('shows warning message when no pages can be queued', async () => {
+      const { ocrService } = await import('@/services/ocr')
+      vi.mocked(ocrService.queueBatchOCR).mockResolvedValue({ queued: 0, skipped: 2, failed: 0 })
+
+      const pinia = createTestingPinia({
+        initialState: {
+          pages: {
+            pages: mockPages,
+            selectedPageIds: ['page-1', 'page-2']
+          }
+        }
+      })
+
+      const store = usePagesStore(pinia)
+      Object.defineProperty(store, 'selectedPages', {
+        get: () => mockPages
+      })
+
+      const wrapper = mount(PageList, {
+        props: { pages: mockPages, selectedId: null },
+        global: { plugins: [pinia] }
+      })
+
+      await wrapper.find('.batch-ocr-btn').trigger('click')
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      expect(messageWarningSpy).toHaveBeenCalledWith('选中的页面都已处理或正在处理中')
+    })
+
+    it('does nothing when no pages are selected', async () => {
+      const { ocrService } = await import('@/services/ocr')
+
+      const pinia = createTestingPinia({
+        initialState: {
+          pages: {
+            pages: mockPages,
+            selectedPageIds: []
+          }
+        }
+      })
+
+      const store = usePagesStore(pinia)
+      Object.defineProperty(store, 'selectedPages', {
+        get: () => []
+      })
+
+      mount(PageList, {
+        props: { pages: mockPages, selectedId: null },
+        global: { plugins: [pinia] }
+      })
+
+      expect(ocrService.queueBatchOCR).not.toHaveBeenCalled()
     })
   })
 })

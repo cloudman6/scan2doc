@@ -107,6 +107,63 @@ export class OCRService {
   getAvailableProviders(): string[] {
     return Array.from(this.providers.keys())
   }
+
+  /**
+   * Queue multiple pages for batch OCR processing
+   * Skips pages that are already being processed or completed
+   * @param pages - Array of pages with id and status
+   * @returns Statistics about queued, skipped, and failed pages
+   */
+  async queueBatchOCR(
+    pages: Array<{ id: string; status: string }>
+  ): Promise<{ queued: number; skipped: number; failed: number }> {
+    let queued = 0
+    let skipped = 0
+    let failed = 0
+
+    // Skip statuses: pages that are already being processed, completed OCR, or in later stages
+    const skipStatuses = [
+      'pending_ocr',      // Already queued
+      'recognizing',      // Currently processing OCR
+      'ocr_success',      // OCR completed
+      'pending_render',   // Rendering
+      'rendering',        // Rendering
+      'pending_gen',      // Waiting for doc generation (OCR done)
+      'generating_markdown', // Generating Markdown (OCR done)
+      'markdown_success', // Markdown generated (OCR done)
+      'generating_pdf',   // Generating PDF (OCR done)
+      'pdf_success',      // PDF generated (OCR done)
+      'generating_docx',  // Generating DOCX (OCR done)
+      'completed'         // All done
+    ]
+
+    for (const page of pages) {
+      const status = page.status
+
+      // Skip if page is in a skip status
+      if (skipStatuses.includes(status)) {
+        skipped++
+        continue
+      }
+
+      // Try to queue the page (ready or error status)
+      try {
+        const imageBlob = await db.getPageImage(page.id)
+        if (imageBlob) {
+          await this.queueOCR(page.id, imageBlob, {
+            prompt_type: 'document'
+          })
+          queued++
+        } else {
+          failed++
+        }
+      } catch {
+        failed++
+      }
+    }
+
+    return { queued, skipped, failed }
+  }
 }
 
 export const ocrService = new OCRService()
