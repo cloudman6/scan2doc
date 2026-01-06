@@ -1,6 +1,4 @@
 # AI coder
-CLAUDE.md
-GEMINI.md
 !.agent/
 .claude/
 .vscode/
