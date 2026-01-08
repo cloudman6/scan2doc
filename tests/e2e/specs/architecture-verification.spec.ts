@@ -6,20 +6,14 @@
 import { test, expect } from '../fixtures/base-test';
 import { AppPage } from '../pages/AppPage';
 import { PageListPage } from '../pages/PageListPage';
-import { OCRPage } from '../pages/OCRPage';
-import { ExportPage } from '../pages/ExportPage';
 import { TestData } from '../data/TestData';
 import { APIMocks } from '../mocks/APIMocks';
-import { waitForNotification } from '../helpers/wait-helpers';
 
 test.describe('架构验证测试', () => {
   test('应该成功初始化所有 Page Objects', async ({ page }) => {
-    // 初始化所有 Page Objects
+    // 初始化 Page Objects
     const app = new AppPage(page);
     const pageList = new PageListPage(page);
-    const ocrPage = new OCRPage(page);
-    const exportPage = new ExportPage(page);
-    const apiMocks = new APIMocks(page);
 
     // 验证 Page Objects 可以正常使用
     await app.goto();

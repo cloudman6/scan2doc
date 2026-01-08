@@ -5,7 +5,7 @@ import type { Page } from '@playwright/test';
  */
 export async function waitForStoreState<T>(
   page: Page,
-  predicate: (store: any) => T,
+  predicate: (store: Record<string, unknown>) => T,
   options: { timeout?: number; interval?: number } = {}
 ): Promise<T> {
   const { timeout = 10000, interval = 100 } = options;
@@ -70,9 +70,8 @@ export async function waitForNotification(
  */
 export async function waitForDatabaseSync(
   page: Page,
-  timeout: number = 2000
+  timeout = 2000
 ): Promise<void> {
-  // TODO: 实现更精确的数据库同步检测
   // 当前使用固定等待,未来可以监听 IndexedDB 事件
   await page.waitForTimeout(timeout);
 }
@@ -95,8 +94,9 @@ export async function pollUntil<T>(
     try {
       const result = await condition();
       if (result) return result;
-    } catch (e) {
-      // 继续轮询
+    } catch (_error) {
+      // Continue polling if condition check fails
+      console.debug('Polling condition failed, retrying...', _error);
     }
     await new Promise(resolve => setTimeout(resolve, interval));
   }

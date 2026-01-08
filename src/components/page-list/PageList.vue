@@ -417,21 +417,26 @@ async function showExportConfirmDialog(
 }
 
 async function performExport(pages: Page[], format: ExportFormat) {
-  const options = {
-    format: format,
-    includeImages: true,
-    useDataURI: false
-  }
-  
-  if (format === 'markdown') {
-    const result = await exportService.exportToMarkdown(pages, options)
-    exportService.downloadBlob(result)
-  } else if (format === 'docx') {
-    const result = await exportService.exportToDOCX(pages, options)
-    exportService.downloadBlob(result)
-  } else if (format === 'pdf') {
-    const result = await exportService.exportToPDF(pages, options)
-    exportService.downloadBlob(result)
+  try {
+    const options = {
+      format: format,
+      includeImages: true,
+      useDataURI: false
+    }
+    
+    if (format === 'markdown') {
+      const result = await exportService.exportToMarkdown(pages, options)
+      exportService.downloadBlob(result)
+    } else if (format === 'docx') {
+      const result = await exportService.exportToDOCX(pages, options)
+      exportService.downloadBlob(result)
+    } else if (format === 'pdf') {
+      const result = await exportService.exportToPDF(pages, options)
+      exportService.downloadBlob(result)
+    }
+  } catch (error) {
+    uiLogger.error('Export failed:', error)
+    message.error(t('errors.failedToExportMarkdown'))
   }
 }
 

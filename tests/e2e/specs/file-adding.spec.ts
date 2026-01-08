@@ -1,140 +1,153 @@
+/**
+ * File Adding Tests - Refactored Version
+ * 使用 POM 和 TestData 简化文件上传测试
+ */
+
 import { test, expect } from '../fixtures/base-test';
+import { AppPage } from '../pages/AppPage';
+import { PageListPage } from '../pages/PageListPage';
+import { PageViewerPage } from '../pages/PageViewerPage';
+import { TestData } from '../data/TestData';
 import { getPdfPageCount } from '../utils/pdf-utils';
-import { uploadFiles } from '../utils/file-upload';
-import path from 'path';
 
-test.describe('File Adding', () => {
-    test('should process uploaded PDF and generate thumbnail', async ({ page }) => {
-        await page.goto('/');
+test.describe('File Adding - Refactored', () => {
+  let app: AppPage;
+  let pageList: PageListPage;
+  let pageViewer: PageViewerPage;
 
-        // Prepare path
-        const filePath = path.resolve('tests/e2e/samples/sample.pdf');
-        const expectedPageCount = await getPdfPageCount(filePath);
+  test.beforeEach(async ({ page }) => {
+    app = new AppPage(page);
+    pageList = new PageListPage(page);
+    pageViewer = new PageViewerPage(page);
+    
+    await app.goto();
+    await app.waitForAppReady();
+  });
 
-        // Upload file using direct injection
-        await uploadFiles(page, [filePath], '.app-header button', true);
+  test('should process uploaded PDF and generate thumbnail', async () => {
+    const filePath = TestData.files.samplePDF();
+    const expectedPageCount = await getPdfPageCount(filePath);
 
-        // Assert: Wait for correct number of items
-        const pageItems = page.locator('.page-item');
-        await expect(async () => {
-            const count = await pageItems.count();
-            expect(count).toBe(expectedPageCount);
-        }).toPass({ timeout: 30000 });
+    // 上传并等待处理完成
+    await pageList.uploadAndWaitReady([filePath]);
 
-        const pageItem = pageItems.first();
-        await expect(pageItem).toBeVisible({ timeout: 30000 });
-    });
+    // 验证页面数量
+    expect(await pageList.getPageCount()).toBe(expectedPageCount);
 
-    test('should process multiple files uploaded simultaneously', async ({ page }) => {
-        await page.goto('/');
+    // 验证第一个页面可见
+    expect(await pageList.isPageVisible(0)).toBe(true);
+  });
 
-        const pdfPath = path.resolve('tests/e2e/samples/sample.pdf');
-        const pngPath = path.resolve('tests/e2e/samples/sample.png');
-        const jpgPath = path.resolve('tests/e2e/samples/sample.jpg');
+  test('should process multiple files uploaded simultaneously', async () => {
+    const filePaths = [
+      TestData.files.samplePDF(),
+      TestData.files.samplePNG(),
+      TestData.files.sampleJPG()
+    ];
 
-        const pdfPageCount = await getPdfPageCount(pdfPath);
-        const expectedTotalCount = pdfPageCount + 1 + 1; // 1 for PNG, 1 for JPG
+    // 计算预期总页数
+    const pdfPageCount = await getPdfPageCount(filePaths[0]);
+    const expectedTotalCount = pdfPageCount + 2; // PDF页数 + 2张图片
 
-        const filePaths = [pdfPath, pngPath, jpgPath];
+    // 上传并等待
+    await pageList.uploadAndWaitReady(filePaths);
 
-        // Upload files using direct injection
-        await uploadFiles(page, filePaths, '.app-header button', true);
+    // 验证页面数量
+    expect(await pageList.getPageCount()).toBe(expectedTotalCount);
 
-        // Wait for ALL items to be visible
-        const pageItems = page.locator('.page-item');
-        await expect(async () => {
-            const count = await pageItems.count();
-            expect(count).toBe(expectedTotalCount);
-        }).toPass({ timeout: 30000 });
+    // 验证所有缩略图可见
+    expect(await pageList.areAllThumbnailsVisible()).toBe(true);
 
-        // Wait for ALL items to have thumbnails (meaning processing is done for all)
-        for (let i = 0; i < expectedTotalCount; i++) {
-            await expect(pageItems.nth(i).locator('.thumbnail-img')).toBeVisible({ timeout: 30000 });
-        }
+    // 验证前3个页面都可见
+    for (let i = 0; i < 3; i++) {
+      expect(await pageList.isPageVisible(i)).toBe(true);
+    }
+  });
 
-        // Final verification of items exist
-        await expect(pageItems.nth(0)).toBeVisible();
-        await expect(pageItems.nth(1)).toBeVisible();
-        await expect(pageItems.nth(2)).toBeVisible();
-    });
+  test('should handle repeated upload of the same file', async () => {
+    const filePath = TestData.files.samplePDF();
+    const singleFilePageCount = await getPdfPageCount(filePath);
 
-    test('should handle repeated upload of the same file', async ({ page }) => {
-        await page.goto('/');
+    // 第一次上传
+    await pageList.uploadAndWaitReady([filePath]);
+    expect(await pageList.getPageCount()).toBe(singleFilePageCount);
 
-        const filePath = path.resolve('tests/e2e/samples/sample.pdf');
-        const singleFilePageCount = await getPdfPageCount(filePath);
+    // 第二次上传（相同文件）
+    await pageList.uploadAndWaitReady([filePath]);
 
-        // First upload
-        await uploadFiles(page, [filePath], '.app-header button', true);
+    // 应该有两倍的页面
+    const expectedTotalCount = singleFilePageCount * 2;
+    expect(await pageList.getPageCount()).toBe(expectedTotalCount);
 
-        // Record initial count
-        await expect(async () => {
-            const count = await page.locator('.page-item').count();
-            expect(count).toBe(singleFilePageCount);
-        }).toPass({ timeout: 30000 });
+    // 确保所有项都已处理
+    expect(await pageList.areAllThumbnailsVisible()).toBe(true);
+  });
 
-        // Second upload (same file)
-        await uploadFiles(page, [filePath], '.app-header button', true);
+  test('should sync selection when adding two images sequentially', async ({ page }) => {
+    const pngPath = TestData.files.samplePNG();
+    const jpgPath = TestData.files.sampleJPG();
 
-        // Should now have exactly double the items
-        const expectedTotalCount = singleFilePageCount * 2;
-        const pageItems = page.locator('.page-item');
-        await expect(async () => {
-            const currentCount = await pageItems.count();
-            expect(currentCount).toBe(expectedTotalCount);
-        }).toPass({ timeout: 30000 });
+    // 1. 添加第一张图片（PNG）
+    await pageList.uploadAndWaitReady([pngPath]);
 
-        // Ensure ALL items (including newly added ones) are processed
-        for (let i = 0; i < expectedTotalCount; i++) {
-            await expect(pageItems.nth(i).locator('.thumbnail-img')).toBeVisible({ timeout: 30000 });
-        }
-    });
-    test('should sync selection when adding two images sequentially', async ({ page }) => {
-        await page.goto('/');
+    // 等待选择状态更新
+    await page.waitForTimeout(500);
 
-        const pngPath = path.resolve('tests/e2e/samples/sample.png');
-        const jpgPath = path.resolve('tests/e2e/samples/sample.jpg');
+    // 验证 PNG 被选中
+    expect(await pageList.isPageSelected(0)).toBe(true);
 
-        // 1. Add first image (PNG)
-        await uploadFiles(page, [pngPath], '.app-header button', true);
+    // 验证页面查看器显示 PNG（141.8 KB）
+    await pageViewer.waitForImageLoaded();
+    const viewerText = await page.locator('.page-viewer').textContent();
+    expect(viewerText).toContain('141.8 KB');
 
-        // Verify PNG is selected in PageList
-        const pageItems = page.locator('.page-item');
-        await expect(pageItems.first()).toHaveClass(/active|selected/);
+    // 2. 添加第二张图片（JPG）
+    await pageList.uploadAndWaitReady([jpgPath]);
 
-        // Verify Page Viewer shows PNG (Size: 141.8 KB)
-        await expect(page.locator('.page-viewer .page-image')).toBeVisible();
-        // Check title contains "Page" followed by something (ID is alphanumeric)
-        await expect(page.locator('.page-viewer .page-title')).toContainText(/Page .+/);
-        await expect(page.locator('.page-viewer')).toContainText('141.8 KB');
+    // 等待两个页面都可见
+    expect(await pageList.getPageCount()).toBe(2);
 
-        // 2. Add second image (JPG)
-        await uploadFiles(page, [jpgPath], '.app-header button', true);
+    // 等待选择状态更新
+    await page.waitForTimeout(500);
 
-        // Wait for both items
-        await expect(pageItems).toHaveCount(2);
+    // 验证第二张图片（JPG）现在被选中（自动切换）
+    expect(await pageList.isPageSelected(1)).toBe(true);
+    expect(await pageList.isPageSelected(0)).toBe(false);
 
-        // Verify second image (JPG) is now selected (auto-switch)
-        await expect(pageItems.nth(1)).toHaveClass(/active|selected/);
-        // Verify first image is NOT selected
-        await expect(pageItems.nth(0)).not.toHaveClass(/active|selected/);
+    // 验证页面查看器显示新图片（9.1 KB）
+    await pageViewer.waitForImageLoaded();
+    const newViewerText = await page.locator('.page-viewer').textContent();
+    expect(newViewerText).toContain('9.1 KB');
+    expect(newViewerText).not.toContain('No image available');
 
-        // Verify Page Viewer displays the NEW image (Size: 9.1 KB)
-        // We can verify this by checking if the image element is visible and perhaps the title or store state implies change.
-        // For E2E without strict image matching, checking visibility and lack of "No image available" is good.
-        await expect(page.locator('.page-viewer .page-image')).toBeVisible();
-        await expect(page.locator('.page-viewer')).not.toContainText('No image available');
-        await expect(page.locator('.page-viewer')).toContainText('9.1 KB');
+    // 3. 点击返回第一张图片
+    await pageList.clickPage(0);
 
-        // 3. Click back to first image
-        await pageItems.nth(0).click();
+    // 验证选择返回到第一张图片
+    expect(await pageList.isPageSelected(0)).toBe(true);
+    expect(await pageList.isPageSelected(1)).toBe(false);
 
-        // Verify selection returns to first image
-        await expect(pageItems.nth(0)).toHaveClass(/active|selected/);
-        await expect(pageItems.nth(1)).not.toHaveClass(/active|selected/);
+    // 验证页面查看器再次更新到 PNG 大小
+    await pageViewer.waitForImageLoaded();
+    const backViewerText = await page.locator('.page-viewer').textContent();
+    expect(backViewerText).toContain('141.8 KB');
+  });
 
-        // Verify Page Viewer updates again to PNG size
-        await expect(page.locator('.page-viewer .page-image')).toBeVisible();
-        await expect(page.locator('.page-viewer')).toContainText('141.8 KB');
-    });
+  test('should handle canceling file selection', async ({ page }) => {
+    const initialCount = await pageList.getPageCount();
+
+    // 触发文件选择器但不选择任何文件
+    // 在 Playwright 中，这可以通过等待事件但不设置文件来模拟
+    // 或者简单地点击按钮并检查没有新页面添加
+    await Promise.all([
+      page.waitForEvent('filechooser'),
+      page.click('.app-header button:has-text("Import Files")')
+    ]);
+    
+    // 模拟取消：在 Playwright 中，如果不调用 setFiles，就相当于取消了对话框
+    // 但我们可能需要稍微等待一下确认没有上传发生
+    await page.waitForTimeout(1000);
+    
+    expect(await pageList.getPageCount()).toBe(initialCount);
+  });
 });

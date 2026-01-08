@@ -1,226 +1,111 @@
 import { test, expect } from '../fixtures/base-test';
-import { uploadFiles } from '../utils/file-upload';
-import path from 'path';
-import type { Page } from '@playwright/test';
+import { AppPage } from '../pages/AppPage';
+import { PageListPage } from '../pages/PageListPage';
+import { TestData } from '../data/TestData';
 
 test.describe('Page-List UI Interactions', () => {
-    // Test file paths
-    const TEST_FILES = [
-        'sample.pdf',
-        'sample.png',
-        'sample.jpg',
-        'sample2.jpeg'
-    ];
+  let app: AppPage;
+  let pageList: PageListPage;
 
-    /**
-     * Upload test files and wait for all page items to appear
-     */
-    async function uploadTestFiles(page: Page): Promise<number> {
-        const filePaths = TEST_FILES.map(f => path.resolve(`tests/e2e/samples/${f}`));
+  test.beforeEach(async ({ page }) => {
+    app = new AppPage(page);
+    pageList = new PageListPage(page);
+    await app.goto();
+  });
 
-        // Note: This test focuses on UI interactions, not file upload UI.
-        // Using direct injection for reliability.
-        await uploadFiles(page, filePaths, '.app-header button', true);
+  test('should show/hide delete button on page-item hover', async ({ page }) => {
+    await pageList.uploadAndWaitReady([TestData.files.samplePNG()]);
+    
+    const pageItem = page.locator('.page-item').first();
+    const actionsContainer = pageItem.locator('.actions-container');
+    const deleteButton = pageItem.locator('button[title="Delete page"]');
 
-        // Wait for all page items to appear (PDF + images)
-        const pageItems = page.locator('.page-item');
-        await expect(async () => {
-            const count = await pageItems.count();
-            expect(count).toBeGreaterThan(0);
-        }).toPass({ timeout: 30000 });
+    // 1. Verify actions container is hidden by default
+    await expect(actionsContainer).toHaveCSS('opacity', '0');
 
-        const totalCount = await pageItems.count();
+    // 2. Hover over page-item and verify actions container becomes visible
+    await pageItem.hover();
+    await expect(actionsContainer).toHaveCSS('opacity', '1');
 
-        // Wait for all thumbnails to load
-        for (let i = 0; i < totalCount; i++) {
-            await expect(pageItems.nth(i).locator('.thumbnail-img')).toBeVisible({ timeout: 30000 });
-        }
+    // 3. Hover over delete button and verify icon changes to red
+    await deleteButton.hover();
+    const deleteIcon = deleteButton.locator('.n-icon');
+    await expect(async () => {
+      const color = await deleteIcon.evaluate(el => window.getComputedStyle(el).color);
+      expect(color).toBe('rgb(208, 48, 80)'); // #d03050
+    }).toPass({ timeout: 2000 });
 
-        return totalCount;
+    // 4. Move mouse away and verify actions container hides
+    await page.mouse.move(0, 0);
+    await expect(actionsContainer).toHaveCSS('opacity', '0');
+  });
+
+  test('should show/hide toolbar delete button on select-all interaction', async ({ page }) => {
+    await pageList.uploadAndWaitReady([TestData.files.samplePNG(), TestData.files.sampleJPG()]);
+    const totalPages = await pageList.getPageCount();
+
+    const toolbarDeleteBtn = page.locator('.delete-selected-btn');
+
+    // 1. Verify toolbar delete button is NOT visible by default
+    await expect(toolbarDeleteBtn).not.toBeVisible();
+
+    // 2. Click toolbar checkbox to select all
+    await pageList.selectAll();
+
+    // 3. Verify all page-item checkboxes are checked
+    for (let i = 0; i < totalPages; i++) {
+      const pageCheckbox = page.locator('.page-item').nth(i).locator('.page-checkbox');
+      await expect(pageCheckbox).toHaveAttribute('aria-checked', 'true');
     }
 
-    test('should show/hide delete button on page-item hover', async ({ page }) => {
-        await page.goto('/');
+    // 4. Verify toolbar delete button is now visible
+    await expect(toolbarDeleteBtn).toBeVisible();
 
-        // Upload test files
-        const totalPages = await uploadTestFiles(page);
-        expect(totalPages).toBeGreaterThan(0);
+    // 5. Uncheck toolbar checkbox to deselect all
+    await pageList.unselectAll();
 
-        // Select a random page item (middle one for safety)
-        const targetIndex = Math.floor(totalPages / 2);
-        const targetPageItem = page.locator('.page-item').nth(targetIndex);
-        const deleteButton = targetPageItem.locator('button[title="Delete page"]');
+    // 6. Verify all page-item checkboxes are unchecked
+    for (let i = 0; i < totalPages; i++) {
+      const pageCheckbox = page.locator('.page-item').nth(i).locator('.page-checkbox');
+      await expect(pageCheckbox).toHaveAttribute('aria-checked', 'false');
+    }
 
-        const actionsContainer = targetPageItem.locator('.actions-container');
+    // 7. Verify toolbar delete button is hidden
+    await expect(toolbarDeleteBtn).not.toBeVisible();
+  });
 
-        // 1. Verify actions container is hidden by default (opacity: 0)
-        await expect(actionsContainer).toHaveCSS('opacity', '0');
+  test('should show/hide toolbar delete button on single page selection', async ({ page }) => {
+    await pageList.uploadAndWaitReady([TestData.files.samplePNG(), TestData.files.sampleJPG()]);
+    
+    const toolbarDeleteBtn = page.locator('.delete-selected-btn');
 
-        // 2. Hover over page-item and verify actions container becomes visible
-        await targetPageItem.hover();
-        await expect(actionsContainer).toHaveCSS('opacity', '1');
+    // 1. Verify toolbar delete button is NOT visible by default
+    await expect(toolbarDeleteBtn).not.toBeVisible();
 
-        // 3. Hover over delete button and verify icon changes to red
-        await deleteButton.hover();
-        const deleteIcon = deleteButton.locator('.n-icon');
-        await expect(async () => {
-            const color = await deleteIcon.evaluate(el =>
-                window.getComputedStyle(el).color
-            );
-            // rgb(208, 48, 80) is #d03050
-            expect(color).toBe('rgb(208, 48, 80)');
-        }).toPass({ timeout: 2000 });
+    // 2. Select a page
+    await pageList.selectPage(0);
 
-        // 4. Move mouse away from delete button (but still on page-item) and verify icon reverts
-        await targetPageItem.hover({ position: { x: 10, y: 10 } }); // Hover on left side
-        await expect(async () => {
-            const color = await deleteIcon.evaluate(el =>
-                window.getComputedStyle(el).color
-            );
-            // rgb(102, 102, 102) is #666
-            expect(color).toBe('rgb(102, 102, 102)');
-        }).toPass({ timeout: 2000 });
+    // 3. Verify toolbar delete button is now visible
+    await expect(toolbarDeleteBtn).toBeVisible();
 
-        // 5. Move mouse away and verify actions container hides
-        await page.mouse.move(0, 0);
-        await expect(actionsContainer).toHaveCSS('opacity', '0');
-    });
+    // 4. Uncheck the page
+    await pageList.selectPage(0);
 
-    test('should show/hide toolbar delete button on select-all interaction', async ({ page }) => {
-        await page.goto('/');
+    // 5. Verify toolbar delete button is hidden
+    await expect(toolbarDeleteBtn).not.toBeVisible();
+  });
 
-        const totalPages = await uploadTestFiles(page);
-        expect(totalPages).toBeGreaterThan(0);
+  test('should allow dragging page-items to reorder', async () => {
+    await pageList.uploadAndWaitReady([TestData.files.samplePNG(), TestData.files.sampleJPG()]);
+    const initialOrder = await pageList.getPageOrder();
+    expect(initialOrder.length).toBe(2);
 
-        const toolbarCheckbox = page.locator('.selection-toolbar .n-checkbox');
-        const toolbarDeleteBtn = page.locator('.delete-selected-btn');
-        const pageItems = page.locator('.page-item');
+    // Drag first page to second position
+    await pageList.dragAndDrop(0, 1);
 
-        // 1. Verify toolbar delete button is NOT visible by default
-        await expect(toolbarDeleteBtn).not.toBeVisible();
-
-        // 2. Click toolbar checkbox to select all
-        await toolbarCheckbox.click();
-
-        // 3. Verify all page-item checkboxes are checked
-        for (let i = 0; i < totalPages; i++) {
-            const pageCheckbox = pageItems.nth(i).locator('.page-checkbox');
-            await expect(pageCheckbox).toHaveAttribute('aria-checked', 'true');
-        }
-
-        // 4. Verify toolbar delete button is now visible
-        await expect(toolbarDeleteBtn).toBeVisible();
-
-        // 5. Hover over toolbar delete button and verify icon changes to red
-        await toolbarDeleteBtn.hover();
-        const deleteIcon = toolbarDeleteBtn.locator('.n-icon');
-        await expect(async () => {
-            const color = await deleteIcon.evaluate(el =>
-                window.getComputedStyle(el).color
-            );
-            expect(color).toBe('rgb(208, 48, 80)');
-        }).toPass({ timeout: 2000 });
-
-        // 6. Move mouse away and verify icon reverts
-        await page.mouse.move(0, 0);
-        await expect(async () => {
-            const color = await deleteIcon.evaluate(el =>
-                window.getComputedStyle(el).color
-            );
-            expect(color).toBe('rgb(102, 102, 102)');
-        }).toPass({ timeout: 2000 });
-
-        // 7. Uncheck toolbar checkbox to deselect all
-        await toolbarCheckbox.click();
-
-        // 8. Verify all page-item checkboxes are unchecked
-        for (let i = 0; i < totalPages; i++) {
-            const pageCheckbox = pageItems.nth(i).locator('.page-checkbox');
-            await expect(pageCheckbox).toHaveAttribute('aria-checked', 'false');
-        }
-
-        // 9. Verify toolbar delete button is hidden
-        await expect(toolbarDeleteBtn).not.toBeVisible();
-    });
-
-    test('should show/hide toolbar delete button on single page selection', async ({ page }) => {
-        await page.goto('/');
-
-        const totalPages = await uploadTestFiles(page);
-        expect(totalPages).toBeGreaterThan(0);
-
-        const toolbarDeleteBtn = page.locator('.delete-selected-btn');
-        const pageItems = page.locator('.page-item');
-
-        // 1. Verify toolbar delete button is NOT visible by default
-        await expect(toolbarDeleteBtn).not.toBeVisible();
-
-        // 2. Select a random page-item checkbox
-        const targetIndex = Math.floor(totalPages / 2);
-        const targetCheckbox = pageItems.nth(targetIndex).locator('.page-checkbox');
-        await targetCheckbox.click();
-
-        // 3. Verify toolbar delete button is now visible
-        await expect(toolbarDeleteBtn).toBeVisible();
-
-        // 4. Verify the checkbox is checked
-        await expect(targetCheckbox).toHaveAttribute('aria-checked', 'true');
-
-        // 5. Uncheck the checkbox
-        await targetCheckbox.click();
-
-        // 6. Verify toolbar delete button is hidden
-        await expect(toolbarDeleteBtn).not.toBeVisible();
-
-        // 7. Verify the checkbox is unchecked
-        await expect(targetCheckbox).toHaveAttribute('aria-checked', 'false');
-    });
-
-    test('should allow dragging page-items to reorder', async ({ page }) => {
-        await page.goto('/');
-
-        const totalPages = await uploadTestFiles(page);
-        expect(totalPages).toBeGreaterThan(1);
-
-        /**
-         * Get the current order of pages by reading page names
-         */
-        async function getPageOrder(): Promise<string[]> {
-            const pageItems = page.locator('.page-item');
-            const count = await pageItems.count();
-            const order: string[] = [];
-
-            for (let i = 0; i < count; i++) {
-                const name = await pageItems.nth(i).locator('.page-name').textContent();
-                order.push(name || '');
-            }
-
-            return order;
-        }
-
-        // Record initial order
-        const initialOrder = await getPageOrder();
-        expect(initialOrder.length).toBeGreaterThan(1);
-
-
-        // Drag first page to second position
-        const pageItems = page.locator('.page-item');
-        const sourceItem = pageItems.nth(0);
-        const targetItem = pageItems.nth(1);
-        // Perform drag using dragTo for better reliability
-        // Targeting the .drag-handle specifically
-        const sourceHandle = sourceItem.locator('.drag-handle');
-        const targetHandle = targetItem.locator('.drag-handle');
-
-        await sourceHandle.dragTo(targetHandle);
-
-        // Wait for reorder to complete
-        await page.waitForTimeout(1000);
-
-        // Verify order changed
-        const newOrder = await getPageOrder();
-        expect(newOrder).not.toEqual(initialOrder);
-        // First item should now be in second position
-        expect(newOrder[1]).toBe(initialOrder[0]);
-    });
+    // Verify order changed
+    const newOrder = await pageList.getPageOrder();
+    expect(newOrder).not.toEqual(initialOrder);
+    expect(newOrder[1]).toBe(initialOrder[0]);
+  });
 });

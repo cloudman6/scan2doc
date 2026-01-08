@@ -1,12 +1,14 @@
 import type { Page, Download } from '@playwright/test';
 
+export type ExportFormat = 'Markdown' | 'DOCX' | 'PDF';
+
 export class ExportPage {
   constructor(private page: Page) {}
 
   /**
    * 导出为指定格式
    */
-  async exportAs(format: 'Markdown' | 'DOCX' | 'PDF'): Promise<Download> {
+  async exportAs(format: ExportFormat): Promise<Download> {
     // 点击导出按钮
     await this.page.locator('.export-selected-btn').click();
 
@@ -22,7 +24,7 @@ export class ExportPage {
   /**
    * 导出时处理确认对话框
    */
-  async exportAsWithConfirmation(format: 'Markdown' | 'DOCX' | 'PDF'): Promise<Download> {
+  async exportAsWithConfirmation(format: ExportFormat): Promise<Download> {
     // 点击导出按钮
     await this.page.locator('.export-selected-btn').click();
 
@@ -79,7 +81,7 @@ export class ExportPage {
   /**
    * 选择导出格式
    */
-  async selectExportFormat(format: 'Markdown' | 'DOCX' | 'PDF') {
+  async selectExportFormat(format: ExportFormat) {
     await this.page.locator(`.n-dropdown-option:has-text("Export as ${format}")`).click();
   }
 

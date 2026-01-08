@@ -1,273 +1,193 @@
-import { test, expect } from '../fixtures/base-test';
-import { getPdfPageCount } from '../utils/pdf-utils';
-import { uploadFiles } from '../utils/file-upload';
-import path from 'path';
+/**
+ * Page Reordering Tests - Refactored Version
+ * 使用 POM 简化页面重排序测试
+ */
+
 import type { Page } from '@playwright/test';
+import { test, expect } from '../fixtures/base-test';
+import { AppPage } from '../pages/AppPage';
+import { PageListPage } from '../pages/PageListPage';
+import { TestData } from '../data/TestData';
+import { getPdfPageCount } from '../utils/pdf-utils';
 
-test.describe('Page Reordering', () => {
-    /**
-     * Upload test files and wait for processing
-     * @param page Playwright page
-     * @param waitForAll Whether to wait for all pages to be ready (thumbnails loaded)
-     * @returns Expected page count
-     */
-    async function uploadTestFiles(page: Page, waitForAll = false): Promise<number> {
-        // Use sample3.pdf (multi-page) and sample.png
-        const pdfPath = path.resolve('tests/e2e/samples/sample3.pdf');
-        const pngPath = path.resolve('tests/e2e/samples/sample.png');
+test.describe('Page Reordering - Refactored', () => {
+  let app: AppPage;
+  let pageList: PageListPage;
 
-        const pdfPageCount = await getPdfPageCount(pdfPath);
-        const expectedCount = pdfPageCount + 1; // PDF pages + 1 PNG
+  test.beforeEach(async ({ page }) => {
+    app = new AppPage(page);
+    pageList = new PageListPage(page);
+    await app.goto();
+    await app.waitForAppReady();
+  });
 
-        const filePaths = [pdfPath, pngPath];
+  /**
+   * 上传测试文件
+   */
+  async function uploadTestFiles(waitForAll = false): Promise<number> {
+    const pdfPath = TestData.files.sample3PDF();
+    const pngPath = TestData.files.samplePNG();
+    
+    const pdfPageCount = await getPdfPageCount(pdfPath);
+    const expectedCount = pdfPageCount + 1; // PDF页数 + 1张PNG
 
-        // Note: This test focuses on page reordering, not file upload UI.
-        // Using direct injection for reliability.
-        await uploadFiles(page, filePaths, '.app-header button', true);
+    await pageList.uploadAndWaitReady([pdfPath, pngPath]);
 
-        // Wait for all page items to appear
-        const pageItems = page.locator('.page-item');
-        await expect(async () => {
-            expect(await pageItems.count()).toBe(expectedCount);
-        }).toPass({ timeout: 30000 });
-
-        if (waitForAll) {
-            // Wait for ALL thumbnails to load
-            for (let i = 0; i < expectedCount; i++) {
-                await expect(pageItems.nth(i).locator('.thumbnail-img')).toBeVisible({ timeout: 60000 });
-            }
-        }
-
-        return expectedCount;
+    if (waitForAll) {
+      // 等待所有缩略图加载
+      await pageList.waitForThumbnailsReady(60000);
     }
 
-    /**
-     * Get the current order of pages by reading page names
-     */
-    async function getPageOrder(page: Page): Promise<string[]> {
-        const pageItems = page.locator('.page-item');
-        const count = await pageItems.count();
-        const order: string[] = [];
+    return expectedCount;
+  }
 
-        for (let i = 0; i < count; i++) {
-            const name = await pageItems.nth(i).locator('.page-name').textContent();
-            order.push(name || '');
-        }
+  /**
+   * 验证重排序后的持久化
+   */
+  async function verifyPersistence(
+    page: Page,
+    totalPages: number,
+    targetIndex: number,
+    expectedPageName: string
+  ) {
+    // 重载页面
+    await page.reload();
+    await page.waitForLoadState('networkidle');
 
-        return order;
+    // 等待页面加载
+    await pageList.waitForPagesLoaded({ count: totalPages, timeout: 30000 });
+
+    // 等待所有缩略图加载
+    await expect(async () => {
+      const readyCount = await page.locator('.page-item .thumbnail-img').count();
+      expect(readyCount).toBe(totalPages);
+    }).toPass({ timeout: 60000 });
+
+    // 验证顺序持久化
+    const persistedOrder = await pageList.getPageOrder();
+    expect(persistedOrder[targetIndex]).toBe(expectedPageName);
+  }
+
+  test('should reorder pages after all pages are ready and persist after reload', async ({ page, browserName }) => {
+    // 跳过 webkit（blob URL 限制）
+    test.skip(browserName === 'webkit', 'Playwright webkit has blob URL access control issues with large PDFs');
+    test.setTimeout(120000);
+
+    // 1. 上传文件并等待所有页面就绪
+    const totalPages = await uploadTestFiles(true);
+
+    // 2. 记录初始顺序
+    const initialOrder = await pageList.getPageOrder();
+    expect(initialOrder.length).toBe(totalPages);
+
+    // 3. 拖拽第一个页面到第三个位置
+    await pageList.dragAndDrop(0, 2);
+    await page.waitForTimeout(1000);
+
+    // 4. 验证顺序改变
+    const newOrder = await pageList.getPageOrder();
+    expect(newOrder).not.toEqual(initialOrder);
+    expect(newOrder[0]).toBe(initialOrder[1]);
+    expect(newOrder[1]).toBe(initialOrder[2]);
+    expect(newOrder[2]).toBe(initialOrder[0]);
+
+    // 5. 验证持久化
+    await verifyPersistence(page, totalPages, 2, initialOrder[0]);
+  });
+
+  test('should reorder pages when some pages are ready (drag ready page) and persist after reload', async ({ page, browserName }) => {
+    test.skip(browserName === 'webkit', 'Playwright webkit has blob URL access control issues with large PDFs');
+    test.skip(browserName === 'firefox', 'Firefox has inconsistent drag behavior during concurrent PDF processing');
+    test.setTimeout(120000);
+
+    // 1. 上传文件但不等待所有页面就绪
+    const totalPages = await uploadTestFiles(false);
+
+    // 2. 等待至少2个页面就绪
+    await page.waitForFunction(() => {
+      const readyCount = document.querySelectorAll('.page-item .thumbnail-img').length;
+      return readyCount >= 2;
+    }, { timeout: 60000 });
+
+    // 3. 找到一个就绪的页面
+    const pageItems = page.locator('.page-item');
+    let readyPageIndex = -1;
+    for (let i = 0; i < totalPages; i++) {
+      const thumbnail = pageItems.nth(i).locator('.thumbnail-img');
+      if (await thumbnail.isVisible()) {
+        readyPageIndex = i;
+        break;
+      }
     }
 
-    /**
-     * Drag a page from sourceIndex to targetIndex using manual mouse events
-     */
-    async function dragPage(page: Page, sourceIndex: number, targetIndex: number): Promise<void> {
-        const pageItems = page.locator('.page-item');
-        const sourceItem = pageItems.nth(sourceIndex);
-        const targetItem = pageItems.nth(targetIndex);
-
-        // Ensure elements are visible
-        await sourceItem.scrollIntoViewIfNeeded();
-        await targetItem.scrollIntoViewIfNeeded();
-
-        // Perform drag using dragTo targeting the .drag-handle specifically
-        const sourceHandle = sourceItem.locator('.drag-handle');
-        const targetHandle = targetItem.locator('.drag-handle');
-
-        await sourceHandle.dragTo(targetHandle);
-        await page.waitForTimeout(1000); // Allow time for DB update and UI settle
+    if (readyPageIndex === -1) {
+      test.skip(true, 'No ready page found for testing');
+      return;
     }
 
-    test('should reorder pages after all pages are ready and persist after reload', async ({ page, browserName }) => {
-        // Skip on webkit due to blob URL limitations
-        test.skip(browserName === 'webkit', 'Playwright webkit has blob URL access control issues with large PDFs');
+    // 4. 记录初始顺序
+    const initialOrder = await pageList.getPageOrder();
+    const draggedPageName = initialOrder[readyPageIndex];
 
-        // Extended timeout for large PDF processing
-        test.setTimeout(120000);
+    // 5. 拖拽页面
+    const targetIndex = readyPageIndex === 0 ? 2 : 0;
+    await pageList.dragAndDrop(readyPageIndex, targetIndex);
+    await page.waitForTimeout(2000);
 
-        await page.goto('/');
+    // 6. 验证顺序改变
+    const newOrder = await pageList.getPageOrder();
+    expect(newOrder).not.toEqual(initialOrder);
+    expect(newOrder[targetIndex]).toBe(draggedPageName);
 
-        // 1. Upload files and wait for ALL pages to be ready
-        const totalPages = await uploadTestFiles(page, true);
+    // 7. 验证持久化
+    await verifyPersistence(page, totalPages, targetIndex, draggedPageName);
+  });
 
-        // 2. Record initial order
-        const initialOrder = await getPageOrder(page);
-        expect(initialOrder.length).toBe(totalPages);
+  test('should reorder pages when some pages are ready (drag non-ready page) and persist after reload', async ({ page, browserName }) => {
+    test.skip(browserName === 'webkit', 'Playwright webkit has blob URL access control issues with large PDFs');
+    test.skip(browserName === 'firefox', 'Firefox has inconsistent drag behavior during concurrent PDF processing');
+    test.setTimeout(120000);
 
-        // 3. Drag first page to third position (index 0 -> index 2)
-        await dragPage(page, 0, 2);
+    // 1. 上传文件但不等待所有页面就绪
+    const totalPages = await uploadTestFiles(false);
 
-        // 4. Wait a bit for the reorder to complete
-        await page.waitForTimeout(1000);
+    // 2. 等待至少2个页面就绪
+    await page.waitForFunction(() => {
+      const readyCount = document.querySelectorAll('.page-item .thumbnail-img').length;
+      return readyCount >= 2;
+    }, { timeout: 60000 });
 
-        // 5. Verify order changed
-        const newOrder = await getPageOrder(page);
-        expect(newOrder).not.toEqual(initialOrder);
-        expect(newOrder[0]).toBe(initialOrder[1]);
-        expect(newOrder[1]).toBe(initialOrder[2]);
-        expect(newOrder[2]).toBe(initialOrder[0]);
+    // 3. 找到一个未就绪的页面
+    const pageItems = page.locator('.page-item');
+    let nonReadyPageIndex = -1;
+    for (let i = 0; i < totalPages; i++) {
+      const thumbnail = pageItems.nth(i).locator('.thumbnail-img');
+      if (!(await thumbnail.isVisible())) {
+        nonReadyPageIndex = i;
+        break;
+      }
+    }
 
-        // 6. Reload page to verify persistence
-        await page.reload();
-        await page.waitForLoadState('networkidle');
+    if (nonReadyPageIndex === -1) {
+      test.skip(true, 'All pages completed too quickly, no non-ready page found for testing');
+      return;
+    }
 
-        // 7. Verify order persisted
-        const pageItems = page.locator('.page-item');
-        await expect(async () => {
-            expect(await pageItems.count()).toBe(totalPages);
-        }).toPass({ timeout: 30000 });
+    // 4. 记录初始顺序
+    const initialOrder = await pageList.getPageOrder();
+    const draggedPageName = initialOrder[nonReadyPageIndex];
 
-        // Wait for all thumbnails to load after reload
-        for (let i = 0; i < totalPages; i++) {
-            await expect(pageItems.nth(i).locator('.thumbnail-img')).toBeVisible({ timeout: 60000 });
-        }
+    // 5. 拖拽页面
+    const targetIndex = nonReadyPageIndex === 0 ? 2 : 0;
+    await pageList.dragAndDrop(nonReadyPageIndex, targetIndex);
+    await page.waitForTimeout(2000);
 
-        const persistedOrder = await getPageOrder(page);
-        expect(persistedOrder).toEqual(newOrder);
-    });
+    // 6. 验证顺序改变
+    const newOrder = await pageList.getPageOrder();
+    expect(newOrder).not.toEqual(initialOrder);
+    expect(newOrder[targetIndex]).toBe(draggedPageName);
 
-    test('should reorder pages when some pages are ready (drag ready page) and persist after reload', async ({ page, browserName }) => {
-        test.skip(browserName === 'webkit', 'Playwright webkit has blob URL access control issues with large PDFs');
-        test.skip(browserName === 'firefox', 'Firefox has inconsistent drag behavior during concurrent PDF processing');
-        test.setTimeout(120000);
-
-        await page.goto('/');
-
-        // 1. Upload files but DON'T wait for all pages to be ready
-        const totalPages = await uploadTestFiles(page, false);
-
-        // 2. Wait for at least SOME pages to be ready
-        // Note: With direct file injection, pages may process faster.
-        // We wait for at least 2 pages to be ready, but if all are ready that's also acceptable.
-        await page.waitForFunction((_total) => {
-            const readyCount = document.querySelectorAll('.page-item .thumbnail-img').length;
-            // At least 2 pages ready (or all pages if processing was fast)
-            return readyCount >= 2;
-        }, totalPages, { timeout: 60000 });
-
-        // 3. Find a ready page to drag
-        const pageItems = page.locator('.page-item');
-        let readyPageIndex = -1;
-        for (let i = 0; i < totalPages; i++) {
-            const thumbnail = pageItems.nth(i).locator('.thumbnail-img');
-            if (await thumbnail.isVisible()) {
-                readyPageIndex = i;
-                break;
-            }
-        }
-
-        // If no ready page found, skip this test (unlikely but for consistency)
-        if (readyPageIndex === -1) {
-            test.skip(true, 'No ready page found for testing');
-            return;
-        }
-
-        // 4. Record initial order and the page being dragged
-        const initialOrder = await getPageOrder(page);
-        const draggedPageName = initialOrder[readyPageIndex];
-
-        // 5. Drag the ready page to a different position
-        const targetIndex = readyPageIndex === 0 ? 2 : 0;
-        await dragPage(page, readyPageIndex, targetIndex);
-
-        // 6. Wait for database update to complete
-        await page.waitForTimeout(2000);
-
-        // 7. Verify order changed
-        const newOrder = await getPageOrder(page);
-        expect(newOrder).not.toEqual(initialOrder);
-        // Verify the dragged page is now at the target position
-        expect(newOrder[targetIndex]).toBe(draggedPageName);
-
-        // 8. Reload to verify persistence
-        await page.reload();
-        await page.waitForLoadState('networkidle');
-
-        // 9. Wait for all page items to appear
-        await expect(async () => {
-            expect(await pageItems.count()).toBe(totalPages);
-        }).toPass({ timeout: 30000 });
-
-        // 10. Wait for all thumbnails to eventually load (background processing may continue)
-        await expect(async () => {
-            const readyCount = await page.locator('.page-item .thumbnail-img').count();
-            expect(readyCount).toBe(totalPages);
-        }).toPass({ timeout: 60000 });
-
-        // 11. Verify the dragged page persisted at the target position
-        const persistedOrder = await getPageOrder(page);
-        expect(persistedOrder[targetIndex]).toBe(draggedPageName);
-    });
-
-    test('should reorder pages when some pages are ready (drag non-ready page) and persist after reload', async ({ page, browserName }) => {
-        test.skip(browserName === 'webkit', 'Playwright webkit has blob URL access control issues with large PDFs');
-        test.skip(browserName === 'firefox', 'Firefox has inconsistent drag behavior during concurrent PDF processing');
-        test.setTimeout(120000);
-
-        await page.goto('/');
-
-        // 1. Upload files but DON'T wait for all pages to be ready
-        const totalPages = await uploadTestFiles(page, false);
-
-        // 2. Wait for at least SOME pages to be ready
-        // Note: With direct file injection, pages may process faster.
-        // We wait for at least 2 pages to be ready, but if all are ready that's also acceptable.
-        await page.waitForFunction((_total) => {
-            const readyCount = document.querySelectorAll('.page-item .thumbnail-img').length;
-            // At least 2 pages ready (or all pages if processing was fast)
-            return readyCount >= 2;
-        }, totalPages, { timeout: 60000 });
-
-        // 3. Find a NON-ready page to drag
-        const pageItems = page.locator('.page-item');
-        let nonReadyPageIndex = -1;
-        for (let i = 0; i < totalPages; i++) {
-            const thumbnail = pageItems.nth(i).locator('.thumbnail-img');
-            if (!(await thumbnail.isVisible())) {
-                nonReadyPageIndex = i;
-                break;
-            }
-        }
-
-        // If all pages are already ready, skip this test (timing issue)
-        if (nonReadyPageIndex === -1) {
-            test.skip(true, 'All pages completed too quickly, no non-ready page found for testing');
-            return;
-        }
-
-        // 4. Record initial order and the page being dragged
-        const initialOrder = await getPageOrder(page);
-        const draggedPageName = initialOrder[nonReadyPageIndex];
-
-        // 5. Drag the non-ready page to a different position
-        const targetIndex = nonReadyPageIndex === 0 ? 2 : 0;
-        await dragPage(page, nonReadyPageIndex, targetIndex);
-
-        // 6. Wait for database update to complete
-        await page.waitForTimeout(2000);
-
-        // 7. Verify order changed
-        const newOrder = await getPageOrder(page);
-        expect(newOrder).not.toEqual(initialOrder);
-        // Verify the dragged page is now at the target position
-        expect(newOrder[targetIndex]).toBe(draggedPageName);
-
-        // 8. Reload to verify persistence
-        await page.reload();
-        await page.waitForLoadState('networkidle');
-
-        // 9. Wait for all page items to appear
-        await expect(async () => {
-            expect(await pageItems.count()).toBe(totalPages);
-        }).toPass({ timeout: 30000 });
-
-        // 10. Wait for all thumbnails to eventually load (background processing may continue)
-        await expect(async () => {
-            const readyCount = await page.locator('.page-item .thumbnail-img').count();
-            expect(readyCount).toBe(totalPages);
-        }).toPass({ timeout: 60000 });
-
-        // 11. Verify the dragged page persisted at the target position
-        const persistedOrder = await getPageOrder(page);
-        expect(persistedOrder[targetIndex]).toBe(draggedPageName);
-    });
+    // 7. 验证持久化
+    await verifyPersistence(page, totalPages, targetIndex, draggedPageName);
+  });
 });

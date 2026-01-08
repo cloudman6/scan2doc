@@ -1,338 +1,170 @@
-import { test, expect } from '../fixtures/base-test'
-import { uploadFiles } from '../utils/file-upload'
+/**
+ * Internationalization (i18n) Tests - Refactored Version
+ * 使用配置驱动和参数化测试减少代码重复
+ */
 
-// Helper function to reliably switch language
-async function switchLanguage(page: import('playwright').Page, language: 'en' | 'zh-CN') {
-  const langName = language === 'en' ? 'English' : '中文'
-  const expectedLabel = language === 'en' ? 'English' : '中文'
+import { test, expect } from '../fixtures/base-test';
+import { AppPage } from '../pages/AppPage';
+import { TestData } from '../data/TestData';
+import { uploadFiles } from '../utils/file-upload';
 
-  // Click language selector button
-  await page.click('[data-testid="language-selector-button"]')
+test.describe('Internationalization (i18n) - Refactored', () => {
+  let app: AppPage;
 
-  // Wait for dropdown menu to appear
-  await page.waitForSelector('.n-dropdown-menu', { timeout: 5000, state: 'visible' })
-
-  // Find and click the language option
-  const dropdownOption = page.locator(`.n-dropdown-option:has-text("${langName}")`).first()
-
-  // Click the option
-  await dropdownOption.click()
-
-  // Wait for dropdown to close
-  await page.waitForSelector('.n-dropdown-menu', { timeout: 5000, state: 'hidden' }).catch(() => {})
-
-  // Wait for and verify the language actually changed
-  await page.waitForFunction(
-    (expected: string) => {
-      const label = document.querySelector('[data-testid="current-language-label"]')
-      return label?.textContent === expected
-    },
-    expectedLabel,
-    { timeout: 5000 }
-  )
-}
-
-test.describe('Internationalization (i18n)', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/')
-  })
+    app = new AppPage(page);
+    await page.goto('/');
+  });
 
   test.describe('P0: Language Selector Visibility', () => {
     test('should display language selector button in header', async ({ page }) => {
-      await expect(page.locator('[data-testid="language-selector-button"]')).toBeVisible()
-    })
+      await expect(page.locator('[data-testid="language-selector-button"]')).toBeVisible();
+    });
 
     test('should display current language label', async ({ page }) => {
-      const label = page.locator('[data-testid="current-language-label"]')
-      await expect(label).toBeVisible()
-      const text = await label.textContent()
-      expect(text).toMatch(/^(English|中文)$/)
-    })
-  })
-
-  test.describe('P0: Language Switching', () => {
-    test('should switch from English to Chinese', async ({ page }) => {
-      // Use helper function to switch language
-      await switchLanguage(page, 'zh-CN')
-
-      // Verify key UI elements are in Chinese
-      await expect(page.getByText('拖放 PDF 或图片到此处开始')).toBeVisible()
-    })
-
-    test('should switch from Chinese to English', async ({ page }) => {
-      // First switch to Chinese
-      await switchLanguage(page, 'zh-CN')
-
-      // Verify in Chinese
-      await expect(page.locator('[data-testid="current-language-label"]')).toContainText('中文')
-
-      // Switch back to English using helper function
-      await switchLanguage(page, 'en')
-
-      // Verify key UI elements are in English
-      await expect(page.getByText('Drop PDF or Images here to start')).toBeVisible()
-    })
+      const label = page.locator('[data-testid="current-language-label"]');
+      await expect(label).toBeVisible();
+      const text = await label.textContent();
+      expect(text).toMatch(/^(English|中文)$/);
+    });
 
     test('should show both language options in dropdown', async ({ page }) => {
-      // Click to open dropdown
-      await page.click('[data-testid="language-selector-button"]')
+      await page.click('[data-testid="language-selector-button"]');
+      await expect(page.getByText('English')).toBeVisible();
+      await expect(page.getByText('中文')).toBeVisible();
+    });
+  });
 
-      // Verify both language options are visible
-      await expect(page.getByText('English')).toBeVisible()
-      await expect(page.getByText('中文')).toBeVisible()
-    })
-  })
+  test.describe('P0: Language Switching', () => {
+    // 参数化测试：验证两种语言的切换
+    for (const [lang, texts] of Object.entries(TestData.translations)) {
+      test(`should display correct ${lang} translations`, async ({ page }) => {
+        await app.switchLanguage(lang as 'en' | 'zh-CN');
+
+        // 验证空状态文本
+        await expect(page.getByText(texts.emptyState)).toBeVisible();
+
+        // 验证导入按钮
+        await expect(page.getByRole('button', { name: new RegExp(texts.importButton, 'i') })).toBeVisible();
+
+        // 验证选择文件按钮
+        await expect(page.getByRole('button', { name: texts.selectFiles })).toBeVisible();
+      });
+    }
+
+    test('should toggle between languages', async ({ page }) => {
+      // 切换到中文
+      await app.switchLanguage('zh-CN');
+      await expect(page.getByText(TestData.translations['zh-CN'].emptyState)).toBeVisible();
+
+      // 切换回英文
+      await app.switchLanguage('en');
+      await expect(page.getByText(TestData.translations.en.emptyState)).toBeVisible();
+    });
+  });
 
   test.describe('P0: Language Persistence', () => {
-    test('should persist language preference after page reload', async ({ page }) => {
-      // Switch to Chinese using helper function
-      await switchLanguage(page, 'zh-CN')
+    // 参数化测试：验证两种语言的持久化
+    for (const [lang, texts] of Object.entries(TestData.translations)) {
+      test(`should persist ${lang} after page reload`, async ({ page }) => {
+        const langLabel = lang === 'en' ? 'English' : '中文';
 
-      // Verify language changed
-      await expect(page.locator('[data-testid="current-language-label"]')).toContainText('中文')
+        // 切换语言
+        await app.switchLanguage(lang as 'en' | 'zh-CN');
+        await expect(page.locator('[data-testid="current-language-label"]')).toContainText(langLabel);
 
-      // Reload page
-      await page.reload()
+        // 重载页面
+        await page.reload();
 
-      // Verify language persisted
-      await expect(page.locator('[data-testid="current-language-label"]')).toContainText('中文')
-      await expect(page.getByText('拖放 PDF 或图片到此处开始')).toBeVisible()
-    })
-
-    test('should persist English language after page reload', async ({ page }) => {
-      // Ensure starting in English
-      const currentLang = await page.locator('[data-testid="current-language-label"]').textContent()
-      if (currentLang !== 'English') {
-        await switchLanguage(page, 'en')
-      }
-
-      // Verify language is English
-      await expect(page.locator('[data-testid="current-language-label"]')).toContainText('English')
-
-      // Reload page
-      await page.reload()
-
-      // Verify language persisted
-      await expect(page.locator('[data-testid="current-language-label"]')).toContainText('English')
-      await expect(page.getByText('Drop PDF or Images here to start')).toBeVisible()
-    })
-  })
+        // 验证语言持久化
+        await expect(page.locator('[data-testid="current-language-label"]')).toContainText(langLabel);
+        await expect(page.getByText(texts.emptyState)).toBeVisible();
+      });
+    }
+  });
 
   test.describe('P1: Initial Language Detection', () => {
-    test('should use default language (English) when no localStorage and browser is non-Chinese', async ({ page }) => {
-      // Clear localStorage
-      await page.evaluate(() => localStorage.clear())
-
-      // Set browser language to non-Chinese
+    test('should use default language (English) when no localStorage', async ({ page }) => {
+      await page.evaluate(() => localStorage.clear());
       await page.setExtraHTTPHeaders({
         'Accept-Language': 'en-US,en;q=0.9'
-      })
+      });
+      await page.reload();
 
-      // Reload page
-      await page.reload()
-
-      // Verify default language is English
-      await expect(page.locator('[data-testid="current-language-label"]')).toContainText('English')
-    })
+      await expect(page.locator('[data-testid="current-language-label"]')).toContainText('English');
+    });
 
     test('should prioritize localStorage over browser language', async ({ page }) => {
-      // Set Chinese in localStorage
-      await page.evaluate(() => localStorage.setItem('locale', 'zh-CN'))
-
-      // Set browser language to English
+      await page.evaluate(() => localStorage.setItem('locale', 'zh-CN'));
       await page.setExtraHTTPHeaders({
         'Accept-Language': 'en-US,en;q=0.9'
-      })
+      });
+      await page.reload();
 
-      // Reload page
-      await page.reload()
-
-      // Verify localStorage takes priority
-      await expect(page.locator('[data-testid="current-language-label"]')).toContainText('中文')
-    })
-  })
-
-  test.describe('P1: UI Text Translation', () => {
-    test('should translate all key UI elements to Chinese', async ({ page }) => {
-      // Switch to Chinese using helper function
-      await switchLanguage(page, 'zh-CN')
-
-      // Verify key text elements are translated
-      await expect(page.getByText('拖放 PDF 或图片到此处开始')).toBeVisible()
-
-      // Verify header button text
-      await expect(page.getByRole('button', { name: /导入文件/ })).toBeVisible()
-    })
-
-    test('should translate all key UI elements to English', async ({ page }) => {
-      // Switch to English using helper function
-      await switchLanguage(page, 'en')
-
-      // Verify key text elements are translated
-      await expect(page.getByText('Drop PDF or Images here to start')).toBeVisible()
-
-      // Verify header button text
-      await expect(page.getByRole('button', { name: /Import Files/ })).toBeVisible()
-    })
-
-    test('should translate empty state text correctly', async ({ page }) => {
-      // Test in English
-      await switchLanguage(page, 'en')
-      await expect(page.getByText('Drop PDF or Images here to start')).toBeVisible()
-      await expect(page.getByRole('button', { name: 'Select Files' })).toBeVisible()
-
-      // Test in Chinese
-      await switchLanguage(page, 'zh-CN')
-      await expect(page.getByText('拖放 PDF 或图片到此处开始')).toBeVisible()
-      await expect(page.getByRole('button', { name: '选择文件' })).toBeVisible()
-    })
-  })
-
-  test.describe('Cross-language Functionality', () => {
-    test('should work correctly in Chinese - file upload button exists', async ({ page }) => {
-      // Switch to Chinese using helper function
-      await switchLanguage(page, 'zh-CN')
-
-      // Verify import button exists with correct text
-      await expect(page.getByRole('button', { name: /导入文件/ })).toBeVisible()
-
-      // Verify empty state text
-      await expect(page.getByText('拖放 PDF 或图片到此处开始')).toBeVisible()
-      await expect(page.getByRole('button', { name: '选择文件' })).toBeVisible()
-    })
-
-    test('should work correctly in English - file upload button exists', async ({ page }) => {
-      // Switch to English using helper function
-      await switchLanguage(page, 'en')
-
-      // Verify import button exists with correct text
-      await expect(page.getByRole('button', { name: /Import Files/ })).toBeVisible()
-
-      // Verify empty state text
-      await expect(page.getByText('Drop PDF or Images here to start')).toBeVisible()
-      await expect(page.getByRole('button', { name: 'Select Files' })).toBeVisible()
-    })
-
-    test('should toggle between languages and maintain functionality', async ({ page }) => {
-      // Start in English
-      await switchLanguage(page, 'en')
-      await expect(page.getByRole('button', { name: /Import Files/ })).toBeVisible()
-
-      // Switch to Chinese
-      await switchLanguage(page, 'zh-CN')
-      await expect(page.getByRole('button', { name: /导入文件/ })).toBeVisible()
-    })
-  })
+      await expect(page.locator('[data-testid="current-language-label"]')).toContainText('中文');
+    });
+  });
 
   test.describe('P1: UI Text Translation After File Upload', () => {
     test.beforeEach(async ({ page }) => {
-      // Upload a sample PDF using the utility function
-      await uploadFiles(page, ['tests/e2e/samples/sample.pdf'])
+      await uploadFiles(page, ['tests/e2e/samples/sample.pdf']);
+      await page.waitForSelector('.page-item', { timeout: 15000 });
+    });
 
-      // Wait for pages to be ready
-      await page.waitForSelector('.page-item', { timeout: 15000 })
-    })
+    // 参数化测试：验证文件上传后的UI翻译
+    for (const [lang, texts] of Object.entries(TestData.translations)) {
+      test(`should translate UI elements to ${lang}`, async ({ page }) => {
+        await app.switchLanguage(lang as 'en' | 'zh-CN');
 
-    test('should translate page counter to Chinese', async ({ page }) => {
-      // Switch to Chinese using helper function
-      await switchLanguage(page, 'zh-CN')
+        // 验证页面计数器
+        const counterPattern = lang === 'en' ? /\d{1,3} Pages Loaded/ : /已加载 \d{1,3} 个页面/;
+        await expect(page.getByText(counterPattern)).toBeVisible();
 
-      // Verify page counter in Chinese
-      await expect(page.getByText(/已加载 \d{1,3} 个页面/)).toBeVisible()
-    })
+        // 验证页面项按钮
+        const firstPageItem = page.locator('.page-item').first();
+        await firstPageItem.hover();
+        await expect(page.getByRole('button', { name: texts.scanToDocument }).first()).toBeVisible();
+        await expect(page.getByRole('button', { name: texts.deletePage }).first()).toBeVisible();
 
-    test('should translate page counter to English', async ({ page }) => {
-      // Switch to English using helper function
-      await switchLanguage(page, 'en')
+        // 验证页面查看器
+        await expect(page.getByText(texts.selectAPage)).toBeVisible();
+        await expect(page.getByText(texts.status)).toBeVisible();
+        await expect(page.getByText(texts.ready)).toBeVisible();
+        await expect(page.getByRole('button', { name: texts.fit })).toBeVisible();
 
-      // Verify page counter in English
-      await expect(page.getByText(/\d{1,3} Pages Loaded/)).toBeVisible()
-    })
+        // 验证预览面板
+        await expect(page.getByRole('button', { name: texts.downloadMD })).toBeVisible();
+      });
+    }
 
-    test('should translate page item buttons to Chinese', async ({ page }) => {
-      // Switch to Chinese using helper function
-      await switchLanguage(page, 'zh-CN')
+    test('should maintain translations when switching languages', async ({ page }) => {
+      // 切换到中文
+      await app.switchLanguage('zh-CN');
+      await expect(page.getByText(/已加载 \d{1,3} 个页面/)).toBeVisible();
 
-      // Hover over a page item to show buttons
-      const firstPageItem = page.locator('.page-item').first()
-      await firstPageItem.hover()
+      // 切换到英文
+      await app.switchLanguage('en');
+      await expect(page.getByText(/\d{1,3} Pages Loaded/)).toBeVisible();
 
-      // Verify OCR and Delete buttons in Chinese
-      await expect(page.getByRole('button', { name: '扫描为文档' }).first()).toBeVisible()
-      await expect(page.getByRole('button', { name: '删除页面' }).first()).toBeVisible()
-    })
+      // 切换回中文验证仍然工作
+      await app.switchLanguage('zh-CN');
+      await expect(page.getByText(/已加载 \d{1,3} 个页面/)).toBeVisible();
+    });
+  });
 
-    test('should translate page item buttons to English', async ({ page }) => {
-      // Switch to English using helper function
-      await switchLanguage(page, 'en')
+  test.describe('Cross-language Functionality', () => {
+    // 参数化测试：验证两种语言下的功能
+    for (const [lang, texts] of Object.entries(TestData.translations)) {
+      test(`should work correctly in ${lang}`, async ({ page }) => {
+        await app.switchLanguage(lang as 'en' | 'zh-CN');
 
-      // Hover over a page item to show buttons
-      const firstPageItem = page.locator('.page-item').first()
-      await firstPageItem.hover()
+        // 验证导入按钮存在
+        await expect(page.getByRole('button', { name: new RegExp(texts.importButton, 'i') })).toBeVisible();
 
-      // Verify OCR and Delete buttons in English
-      await expect(page.getByRole('button', { name: 'Scan to Document' }).first()).toBeVisible()
-      await expect(page.getByRole('button', { name: 'Delete page' }).first()).toBeVisible()
-    })
-
-    test('should translate PageViewer text to Chinese', async ({ page }) => {
-      // Switch to Chinese using helper function
-      await switchLanguage(page, 'zh-CN')
-
-      // Verify PageViewer placeholder text in Chinese
-      await expect(page.getByText('选择一个页面查看')).toBeVisible()
-
-      // Verify status text in Chinese
-      await expect(page.getByText('状态:')).toBeVisible()
-      await expect(page.getByText('就绪')).toBeVisible()
-
-      // Verify fit button in Chinese
-      await expect(page.getByRole('button', { name: '适应' })).toBeVisible()
-    })
-
-    test('should translate PageViewer text to English', async ({ page }) => {
-      // Switch to English using helper function
-      await switchLanguage(page, 'en')
-
-      // Verify PageViewer placeholder text in English
-      await expect(page.getByText('Select a page to view')).toBeVisible()
-
-      // Verify status text in English
-      await expect(page.getByText('Status:')).toBeVisible()
-      await expect(page.getByText('Ready')).toBeVisible()
-
-      // Verify fit button in English
-      await expect(page.getByRole('button', { name: 'Fit' })).toBeVisible()
-    })
-
-    test('should translate Preview panel to Chinese', async ({ page }) => {
-      // Switch to Chinese using helper function
-      await switchLanguage(page, 'zh-CN')
-
-      // Verify download button in Chinese (this validates preview panel is translated)
-      await expect(page.getByRole('button', { name: '下载 MD' })).toBeVisible()
-    })
-
-    test('should translate Preview panel to English', async ({ page }) => {
-      // Switch to English using helper function
-      await switchLanguage(page, 'en')
-
-      // Verify download button in English (this validates preview panel is translated)
-      await expect(page.getByRole('button', { name: 'Download MD' })).toBeVisible()
-    })
-
-    test('should maintain translations when switching languages after file upload', async ({ page }) => {
-      // Start in Chinese using helper function
-      await switchLanguage(page, 'zh-CN')
-      await expect(page.getByText(/已加载 \d{1,3} 个页面/)).toBeVisible()
-
-      // Switch to English using helper function
-      await switchLanguage(page, 'en')
-      await expect(page.getByText(/\d{1,3} Pages Loaded/)).toBeVisible()
-
-      // Switch back to Chinese to verify it still works
-      await switchLanguage(page, 'zh-CN')
-      await expect(page.getByText(/已加载 \d{1,3} 个页面/)).toBeVisible()
-    })
-  })
-})
+        // 验证空状态文本
+        await expect(page.getByText(texts.emptyState)).toBeVisible();
+        await expect(page.getByRole('button', { name: texts.selectFiles })).toBeVisible();
+      });
+    }
+  });
+});

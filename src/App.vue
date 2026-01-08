@@ -55,6 +55,7 @@
                       circle
                       quaternary
                       class="sider-trigger-btn"
+                      data-testid="collapse-list-button"
                       @click="pageListCollapsed = !pageListCollapsed"
                     >
                       <template #icon>
@@ -99,6 +100,7 @@
                         size="small"
                         circle
                         quaternary
+                        data-testid="collapse-viewer-button"
                         @click="pageViewerCollapsed = true"
                       >
                         <template #icon>
@@ -119,6 +121,7 @@
                         size="small"
                         circle
                         quaternary
+                        data-testid="expand-viewer-button"
                         @click="pageViewerCollapsed = false"
                       >
                         <template #icon>
@@ -139,6 +142,7 @@
                         size="small"
                         circle
                         quaternary
+                        data-testid="collapse-preview-button"
                         @click="previewCollapsed = true"
                       >
                         <template #icon>
@@ -174,6 +178,7 @@
                         size="small"
                         circle
                         quaternary
+                        data-testid="expand-preview-button"
                         @click="previewCollapsed = false"
                       >
                         <template #icon>
@@ -208,6 +213,7 @@ import { NLayout, NLayoutSider, NButton, NIcon, NTooltip, createDiscreteApi, NMe
 import { ChevronForwardOutline, ChevronBackOutline } from '@vicons/ionicons5'
 // Import documentService to ensure it's initialized and listening to OCR events
 import { documentService } from '@/services/doc-gen'
+import { ocrEvents } from '@/services/ocr/events'
 
 const { t } = useI18n()
 const pagesStore = usePagesStore()
@@ -392,6 +398,19 @@ onMounted(async () => {
   // Initialize event listeners for OCR and Document Generation
   pagesStore.setupOCREventListeners()
   pagesStore.setupDocGenEventListeners()
+
+  // Add global error notifications for OCR and DocGen
+  ocrEvents.on('ocr:error', ({ pageId, error }) => {
+    const page = pagesStore.pages.find(p => p.id === pageId)
+    const name = page ? page.fileName : pageId
+    message.error(`${t('ocr.ocrFailed', [error.message])} (${name})`)
+  })
+
+  ocrEvents.on('doc:gen:error', ({ pageId, type: _type, error }) => {
+    const page = pagesStore.pages.find(p => p.id === pageId)
+    const name = page ? page.fileName : pageId
+    message.error(`${t('errors.failedToLoadMarkdown')}: ${error.message} (${name})`)
+  })
 
   // Resume any interrupted PDF processing
   try {

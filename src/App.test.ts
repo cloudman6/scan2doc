@@ -135,6 +135,11 @@ vi.mock('@/utils/logger', () => ({
     info: vi.fn(),
     error: vi.fn(),
     warn: vi.fn()
+  },
+  pdfLogger: {
+    info: vi.fn(),
+    error: vi.fn(),
+    warn: vi.fn()
   }
 }))
 
@@ -142,6 +147,15 @@ vi.mock('@/utils/logger', () => ({
 vi.mock('./services/pdf', () => ({
   pdfService: {
     resumeProcessing: vi.fn(() => Promise.resolve())
+  }
+}))
+
+// Mock OCR Events
+vi.mock('./services/ocr/events', () => ({
+  ocrEvents: {
+    on: vi.fn(),
+    emit: vi.fn(),
+    off: vi.fn()
   }
 }))
 
@@ -470,6 +484,84 @@ describe('App.vue', () => {
       await wrapper.vm.$nextTick()
 
       expect((wrapper.vm as AppInstance).selectedPageId).toBe('p1')
+    })
+  })
+
+  describe('Event Listeners', () => {
+    it('handles ocr:error event', async () => {
+      const { ocrEvents } = await import('./services/ocr/events')
+      
+      mockStore.pages = [{ id: 'p1', fileName: 'test.png' }]
+      
+      mountApp()
+      await flushPromises()
+
+      // Find the ocr:error handler
+      const ocrErrorCall = vi.mocked(ocrEvents.on).mock.calls.find(call => call[0] === 'ocr:error')
+      expect(ocrErrorCall).toBeDefined()
+
+      // Trigger the handler
+      const handler = ocrErrorCall![1]
+      handler({ pageId: 'p1', error: new Error('OCR failed') })
+
+      expect(mockMessage.error).toHaveBeenCalledWith(expect.stringContaining('test.png'))
+    })
+
+    it('handles ocr:error event for unknown page', async () => {
+      const { ocrEvents } = await import('./services/ocr/events')
+      
+      mockStore.pages = []
+      
+      mountApp()
+      await flushPromises()
+
+      // Find the ocr:error handler
+      const ocrErrorCall = vi.mocked(ocrEvents.on).mock.calls.find(call => call[0] === 'ocr:error')
+      expect(ocrErrorCall).toBeDefined()
+
+      // Trigger the handler with unknown pageId
+      const handler = ocrErrorCall![1]
+      handler({ pageId: 'unknown-page', error: new Error('OCR failed') })
+
+      expect(mockMessage.error).toHaveBeenCalledWith(expect.stringContaining('unknown-page'))
+    })
+
+    it('handles doc:gen:error event', async () => {
+      const { ocrEvents } = await import('./services/ocr/events')
+      
+      mockStore.pages = [{ id: 'p2', fileName: 'doc.png' }]
+      
+      mountApp()
+      await flushPromises()
+
+      // Find the doc:gen:error handler
+      const docGenErrorCall = vi.mocked(ocrEvents.on).mock.calls.find(call => call[0] === 'doc:gen:error')
+      expect(docGenErrorCall).toBeDefined()
+
+      // Trigger the handler
+      const handler = docGenErrorCall![1]
+      handler({ pageId: 'p2', type: 'docx', error: new Error('Generation failed') })
+
+      expect(mockMessage.error).toHaveBeenCalledWith(expect.stringContaining('doc.png'))
+    })
+
+    it('handles doc:gen:error event for unknown page', async () => {
+      const { ocrEvents } = await import('./services/ocr/events')
+      
+      mockStore.pages = []
+      
+      mountApp()
+      await flushPromises()
+
+      // Find the doc:gen:error handler
+      const docGenErrorCall = vi.mocked(ocrEvents.on).mock.calls.find(call => call[0] === 'doc:gen:error')
+      expect(docGenErrorCall).toBeDefined()
+
+      // Trigger the handler with unknown pageId
+      const handler = docGenErrorCall![1]
+      handler({ pageId: 'unknown-doc', type: 'pdf', error: new Error('Generation failed') })
+
+      expect(mockMessage.error).toHaveBeenCalledWith(expect.stringContaining('unknown-doc'))
     })
   })
 

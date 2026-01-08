@@ -78,6 +78,7 @@ expect.extend(customMatchers);
 
 // 导出类型声明
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace PlaywrightTest {
     interface Matchers<R> {
       toHavePageStatus(page: Page, pageIndex: number, expectedStatus: string): Promise<R>;

@@ -53,11 +53,31 @@ export class AppPage {
    * 切换语言
    */
   async switchLanguage(language: 'en' | 'zh-CN') {
+    const expectedLabel = language === 'en' ? 'English' : '中文';
+    const currentLabel = await this.page.locator('[data-testid="current-language-label"]').textContent();
+
+    // 如果当前语言已经是目标语言，不需要切换
+    if (currentLabel === expectedLabel) {
+      return;
+    }
+
     const langName = language === 'en' ? 'English' : '中文';
     await this.page.click('[data-testid="language-selector-button"]');
     await this.page.waitForSelector('.n-dropdown-menu', { state: 'visible' });
     await this.page.locator(`.n-dropdown-option:has-text("${langName}")`).first().click();
-    await this.page.waitForSelector('.n-dropdown-menu', { state: 'hidden' });
+    
+    // 等待下拉菜单关闭，使用 catch 忽略超时（有些情况下菜单可能已经关闭）
+    await this.page.waitForSelector('.n-dropdown-menu', { state: 'hidden' }).catch(() => {});
+    
+    // 验证语言确实已经切换
+    await this.page.waitForFunction(
+      (expected: string) => {
+        const label = document.querySelector('[data-testid="current-language-label"]');
+        return label?.textContent === expected;
+      },
+      expectedLabel,
+      { timeout: 5000 }
+    );
   }
 
   /**
@@ -72,7 +92,7 @@ export class AppPage {
    * 检查应用是否处于空状态
    */
   async isEmptyState(): Promise<boolean> {
-    return await this.page.locator('.empty-state').isVisible();
+    return await this.page.locator('.empty-state-container, .empty-state').first().isVisible();
   }
 
   /**

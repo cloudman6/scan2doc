@@ -1,97 +1,77 @@
 import { test, expect } from '../fixtures/base-test';
-import { getPdfPageCount } from '../utils/pdf-utils';
-import { uploadFiles } from '../utils/file-upload';
-import path from 'path';
+import { AppPage } from '../pages/AppPage';
+import { PageListPage } from '../pages/PageListPage';
+import { TestData } from '../data/TestData';
 
 test.describe('Persistence', () => {
-    test('should persist data after reload', async ({ page }) => {
-        // Reasonable timeout for reload stability and multi-page processing
-        test.setTimeout(30000);
+  let app: AppPage;
+  let pageList: PageListPage;
 
-        await page.goto('/');
+  test.beforeEach(async ({ page }) => {
+    app = new AppPage(page);
+    pageList = new PageListPage(page);
+    await app.goto();
+  });
 
-        // 1. Upload sample.pdf (6 pages) to verify PDF.js FontLoader fix
-        const filePath = path.resolve('tests/e2e/samples/sample.pdf');
-        const expectedPageCount = await getPdfPageCount(filePath);
+  test('should persist data after reload', async ({ page }) => {
+    // 1. Upload sample.pdf (6 pages)
+    const pdfPath = TestData.files.samplePDF();
+    await pageList.uploadAndWaitReady(pdfPath);
+    const expectedPageCount = await pageList.getPageCount();
 
-        // Note: This test focuses on persistence, not file upload UI.
-        await uploadFiles(page, [filePath], '.app-header button', true);
+    // 2. Reload Page
+    await page.reload();
+    await app.waitForAppReady();
 
-        // 2. Wait for items to appear and be ready
-        const pageItems = page.locator('.page-item');
-        await expect(async () => {
-            const count = await pageItems.count();
-            expect(count).toBe(expectedPageCount);
-        }).toPass({ timeout: 30000 });
+    // 3. Verify exact data and state is restored
+    await pageList.waitForPagesLoaded({ count: expectedPageCount });
+    await pageList.waitForThumbnailsReady();
+    
+    expect(await pageList.getPageCount()).toBe(expectedPageCount);
+  });
 
-        // Ensure processed before reload
-        for (let i = 0; i < expectedPageCount; i++) {
-            await expect(pageItems.nth(i).locator('.thumbnail-img')).toBeVisible({ timeout: 30000 });
-        }
+  test('should continue background processing after page reload with large PDF', async ({ page, browserName }) => {
+    // Skip on Playwright webkit due to blob URL limitations (real Safari works fine)
+    test.skip(browserName === 'webkit', 'Playwright webkit has blob URL access control issues with large PDFs');
 
-        // 3. Reload Page
-        await page.reload();
+    // Extended timeout for large PDF processing and reload scenarios
+    test.setTimeout(120000);
 
-        // 4. Verify exact data and state is restored
-        await expect(async () => {
-            const count = await pageItems.count();
-            expect(count).toBe(expectedPageCount);
-        }).toPass({ timeout: 30000 });
+    // 1. Upload large PDF
+    const pdfPath = TestData.files.largePDF();
+    
+    // We don't use uploadAndWaitReady here because we want to reload MID-processing
+    const [fileChooser] = await Promise.all([
+      page.waitForEvent('filechooser'),
+      page.click('.app-header button:has-text("Import Files")')
+    ]);
+    await fileChooser.setFiles(pdfPath);
 
-        for (let i = 0; i < expectedPageCount; i++) {
-            await expect(pageItems.nth(i).locator('.thumbnail-img')).toBeVisible({ timeout: 30000 });
-        }
-    });
+    // 2. Wait for page items to appear
+    await expect(async () => {
+      const count = await pageList.getPageCount();
+      expect(count).toBeGreaterThan(0);
+    }).toPass({ timeout: 30000 });
 
-    test('should continue background processing after page reload with large PDF', async ({ page, browserName }) => {
-        // Skip on Playwright webkit due to blob URL limitations (real Safari works fine)
-        test.skip(browserName === 'webkit', 'Playwright webkit has blob URL access control issues with large PDFs');
+    const expectedPageCount = await pageList.getPageCount();
 
-        // Extended timeout for large PDF processing and reload scenarios
-        test.setTimeout(120000);
+    // 3. Wait until SOME pages are ready (but NOT all)
+    await page.waitForFunction((totalPages) => {
+      const readyCount = document.querySelectorAll('.page-item .thumbnail-img').length;
+      return readyCount > 0 && readyCount < totalPages;
+    }, expectedPageCount, { timeout: 60000 });
 
-        await page.goto('/');
+    // 4. Immediately reload the page
+    await page.reload();
+    await app.waitForAppReady();
 
-        // 1. Upload sample3.pdf (20-30 pages)
-        const filePath = path.resolve('tests/e2e/samples/sample3.pdf');
-        const expectedPageCount = await getPdfPageCount(filePath);
+    // 5. Verify page count is restored
+    await pageList.waitForPagesLoaded({ count: expectedPageCount });
 
-        // Note: This test focuses on persistence, not file upload UI.
-        await uploadFiles(page, [filePath], '.app-header button', true);
-
-        // 2. Wait for page items to appear
-        const pageItems = page.locator('.page-item');
-        await expect(async () => {
-            const count = await pageItems.count();
-            expect(count).toBe(expectedPageCount);
-        }).toPass({ timeout: 30000 });
-
-        // 3. Wait until SOME pages are ready (but NOT all)
-        // This ensures we catch the app mid-processing
-        await page.waitForFunction((totalPages) => {
-            const readyCount = document.querySelectorAll('.page-item .thumbnail-img').length;
-            // At least 1 page ready, but not all pages
-            return readyCount > 0 && readyCount < totalPages;
-        }, expectedPageCount, { timeout: 60000 });
-
-        // 4. Immediately reload the page
-        await page.reload();
-
-        // 5. Verify page count is restored
-        await expect(async () => {
-            const count = await pageItems.count();
-            expect(count).toBe(expectedPageCount);
-        }).toPass({ timeout: 30000 });
-
-        // 6. Verify background processing continues and ALL pages eventually become ready
-        await expect(async () => {
-            const readyCount = await page.locator('.page-item .thumbnail-img').count();
-            expect(readyCount).toBe(expectedPageCount);
-        }).toPass({ timeout: 60000 });
-
-        // Final verification: all thumbnails are visible
-        for (let i = 0; i < expectedPageCount; i++) {
-            await expect(pageItems.nth(i).locator('.thumbnail-img')).toBeVisible({ timeout: 10000 });
-        }
-    });
+    // 6. Verify background processing continues and ALL pages eventually become ready
+    await pageList.waitForThumbnailsReady(60000);
+    
+    expect(await pageList.getPageCount()).toBe(expectedPageCount);
+    expect(await pageList.areAllThumbnailsVisible()).toBeTruthy();
+  });
 });

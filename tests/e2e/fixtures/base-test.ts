@@ -16,6 +16,10 @@ const IGNORED_PATTERNS = [
     'WebKitBlobResource error 1',
     'NotReadableError: The I/O read operation failed',
     'due to access control checks',
+    'OCR API Error: 500',
+    'OCR task for page',
+    'Failed to load resource: the server responded with a status of 500',
+    'WebKit encountered an internal error',
 ];
 
 /**

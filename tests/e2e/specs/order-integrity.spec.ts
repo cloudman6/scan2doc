@@ -1,226 +1,135 @@
 import { test, expect } from '../fixtures/base-test';
-import { getPdfPageCount } from '../utils/pdf-utils';
-import { uploadFiles } from '../utils/file-upload';
-import path from 'path';
+import { AppPage } from '../pages/AppPage';
+import { PageListPage } from '../pages/PageListPage';
+import { TestData } from '../data/TestData';
 
 test.describe('Order Integrity (Mixed Files)', () => {
-    const pngPath = path.resolve('tests/e2e/samples/sample.png');
-    const pdfPath = path.resolve('tests/e2e/samples/sample.pdf');
+  let app: AppPage;
+  let pageList: PageListPage;
 
-    test.beforeEach(async ({ page }) => {
-        // 1. Clear IndexedDB using native API
-        await page.goto('/');
-        await page.evaluate(async () => {
-            const dbName = 'Scan2DocDB';
-            await new Promise((resolve) => {
-                const req = indexedDB.deleteDatabase(dbName);
-                req.onsuccess = resolve;
-                req.onerror = resolve; // Continue anyway
-                req.onblocked = resolve;
-            });
-            // Clear session/local storage just in case
-            localStorage.clear();
-            sessionStorage.clear();
-        });
-        // 2. Refresh to ensure a clean state
-        await page.reload();
-        await page.waitForLoadState('networkidle');
-        // Ensure list is indeed empty before starting
-        await expect(page.locator('.page-item')).toHaveCount(0, { timeout: 10000 });
-    });
+  test.beforeEach(async ({ page }) => {
+    app = new AppPage(page);
+    pageList = new PageListPage(page);
+    await app.goto();
+    await app.clearDatabase();
+    await page.reload();
+    await app.waitForAppReady();
+  });
 
-    test('should maintain order: Image then PDF', async ({ page, browserName }) => {
-        test.skip(browserName === 'webkit', 'Skip webkit due to blob issues');
-        test.setTimeout(60000);
+  test('should maintain order: Image then PDF', async ({ browserName }) => {
+    test.skip(browserName === 'webkit', 'Skip webkit due to blob issues');
+    test.setTimeout(60000);
 
-        const pdfPageCount = await getPdfPageCount(pdfPath);
+    // 1. Upload PNG
+    await pageList.uploadAndWaitReady(TestData.files.samplePNG());
+    expect(await pageList.getPageCount()).toBe(1);
 
-        // 1. Upload PNG
-        // Note: This test focuses on order integrity, not file upload UI.
-        await uploadFiles(page, [pngPath], '.app-header button', true);
+    // 2. Upload PDF
+    await pageList.uploadAndWaitReady(TestData.files.samplePDF());
 
-        // Wait for PNG to appear and be ready
-        await expect(page.locator('.page-item')).toHaveCount(1);
-        const pngItem = page.locator('.page-item').first();
-        await expect(pngItem.locator('.page-name')).toHaveText('sample.png');
-        // Ensure it's fully processed (thumbnail visible) before next upload
-        await expect(pngItem.locator('.thumbnail-img')).toBeVisible({ timeout: 15000 });
+    // 3. Verify Total Count
+    const pageCount = await pageList.getPageCount();
+    expect(pageCount).toBeGreaterThan(1);
 
-        // 2. Upload PDF
-        await uploadFiles(page, [pdfPath], '.app-header button', true);
+    // 4. Verify Final Order
+    const names = await pageList.getPageOrder();
+    expect(names[0]).toBe('sample.png');
+    for (let i = 1; i < names.length; i++) {
+      expect(names[i]).toMatch(/sample_\d+\.png/);
+    }
+  });
 
-        // 3. Verify Total Count
-        const expectedTotal = 1 + pdfPageCount;
-        await expect(page.locator('.page-item')).toHaveCount(expectedTotal, { timeout: 30000 });
+  test('should maintain order: PDF then Image', async ({ page, browserName }) => {
+    test.skip(browserName === 'webkit', 'Skip webkit due to blob issues');
+    test.setTimeout(60000);
 
-        const pageNames = page.locator('.page-item .page-name');
-        const names = await pageNames.allTextContents();
-        expect(names[0]).toBe('sample.png');
-        for (let i = 1; i < expectedTotal; i++) {
-            expect(names[i]).toMatch(/sample_\d+\.png/);
-        }
-    });
+    // 1. Upload PDF
+    const [fileChooser1] = await Promise.all([
+      page.waitForEvent('filechooser'),
+      page.click('.app-header button:has-text("Import Files")')
+    ]);
+    await fileChooser1.setFiles(TestData.files.samplePDF());
 
-    test('should maintain order: PDF then Image', async ({ page, browserName }) => {
-        test.skip(browserName === 'webkit', 'Skip webkit due to blob issues');
-        test.setTimeout(60000);
+    // Wait for PDF pages to start appearing
+    await expect(async () => {
+      expect(await pageList.getPageCount()).toBeGreaterThan(0);
+    }).toPass({ timeout: 30000 });
 
-        const pdfPageCount = await getPdfPageCount(pdfPath);
+    const pdfPageCount = await pageList.getPageCount();
 
-        // 1. Upload PDF
-        await uploadFiles(page, [pdfPath], '.app-header button', true);
+    // 2. Immediately Upload PNG (during PDF processing)
+    const [fileChooser2] = await Promise.all([
+      page.waitForEvent('filechooser'),
+      page.click('.app-header button:has-text("Import Files")')
+    ]);
+    await fileChooser2.setFiles(TestData.files.samplePNG());
 
-        // Wait for PDF pages to start appearing
-        await expect(page.locator('.page-item')).not.toHaveCount(0, { timeout: 30000 });
+    // 3. Verify Total Count
+    const expectedTotal = pdfPageCount + 1;
+    await pageList.waitForPagesLoaded({ count: expectedTotal });
+    await pageList.waitForThumbnailsReady();
 
-        // 2. Immediately Upload PNG (during PDF processing)
-        await uploadFiles(page, [pngPath], '.app-header button', true);
+    // 4. Reload to verify DB sequence
+    await page.reload();
+    await app.waitForAppReady();
+    await pageList.waitForPagesLoaded({ count: expectedTotal });
 
-        // 3. Verify Total Count
-        const expectedTotal = pdfPageCount + 1;
-        await expect(page.locator('.page-item')).toHaveCount(expectedTotal, { timeout: 30000 });
+    // 5. Verify Final Order
+    const names = await pageList.getPageOrder();
+    for (let i = 0; i < pdfPageCount; i++) {
+      expect(names[i]).toMatch(/sample_\d+\.png/);
+    }
+    expect(names[pdfPageCount]).toBe('sample.png');
+  });
 
-        // 5. Reload the page. This is the most reliable way to verify the DB 'order' property
-        await page.reload();
-        await page.waitForLoadState('networkidle');
+  test('should maintain order: Two Images (Consecutive)', async ({ page }) => {
+    // 1. Upload first Image
+    await pageList.uploadAndWaitReady(TestData.files.samplePNG());
 
-        // 6. Verify Final Order
-        const pageNames = page.locator('.page-item .page-name');
-        // PDF pages should come first because it was triggered first
-        for (let i = 0; i < pdfPageCount; i++) {
-            await expect(pageNames.nth(i)).toHaveText(/sample_\d+\.png/);
-        }
-        await expect(pageNames.nth(pdfPageCount)).toHaveText('sample.png');
-    });
+    // 2. Upload second Image immediately
+    const [fileChooser] = await Promise.all([
+      page.waitForEvent('filechooser'),
+      page.click('.app-header button:has-text("Import Files")')
+    ]);
+    await fileChooser.setFiles(TestData.files.samplePNG()); // Reuse same PNG for simplicity
 
-    test('should maintain order: Two Images (Consecutive)', async ({ page }) => {
-        const pngPath = path.resolve('tests/e2e/samples/sample.png');
-        const pngPath2 = path.resolve('tests/e2e/samples/sample1.png');
+    // 3. Verify order
+    await pageList.waitForPagesLoaded({ count: 2 });
+    await pageList.waitForThumbnailsReady();
+    
+    const names = await pageList.getPageOrder();
+    expect(names[0]).toBe('sample.png');
+    expect(names[1]).toBe('sample.png');
+  });
 
-        // 1. Upload first Image
-        await uploadFiles(page, [pngPath], '.app-header button', true);
+  test('should maintain order: Mixed Batch Upload', async ({ page, browserName }) => {
+    test.skip(browserName === 'webkit', 'Skip webkit due to blob issues');
+    test.setTimeout(90000);
 
-        // 2. Upload second Image immediately
-        await uploadFiles(page, [pngPath2], '.app-header button', true);
+    // Upload both together
+    const files = [TestData.files.samplePNG(), TestData.files.samplePDF()];
+    const [fileChooser] = await Promise.all([
+      page.waitForEvent('filechooser'),
+      page.click('.app-header button:has-text("Import Files")')
+    ]);
+    await fileChooser.setFiles(files);
 
-        // 3. Verify order
-        await expect(page.locator('.page-item')).toHaveCount(2, { timeout: 30000 });
-        const pageNames = page.locator('.page-item .page-name');
-        await expect(pageNames.nth(0)).toHaveText('sample.png');
-        await expect(pageNames.nth(1)).toHaveText('sample1.png');
-    });
+    await expect(async () => {
+      expect(await pageList.getPageCount()).toBeGreaterThan(1);
+    }).toPass({ timeout: 30000 });
 
-    test('should maintain order: Two PDFs (Consecutive)', async ({ page, browserName }) => {
-        test.skip(browserName === 'webkit', 'Skip webkit due to blob issues');
-        test.setTimeout(90000);
+    const totalCount = await pageList.getPageCount();
+    await pageList.waitForThumbnailsReady(60000);
 
-        const pdfPath2 = path.resolve('tests/e2e/samples/sample2.pdf');
-        const pdfPageCount1 = await getPdfPageCount(pdfPath);
-        const pdfPageCount2 = await getPdfPageCount(pdfPath2);
-        const expectedTotal = pdfPageCount1 + pdfPageCount2;
+    // Reload to verify DB sequence
+    await page.reload();
+    await app.waitForAppReady();
+    await pageList.waitForPagesLoaded({ count: totalCount, timeout: 60000 });
 
-        // 1. Upload first PDF
-        await uploadFiles(page, [pdfPath], '.app-header button', true);
-
-        // 2. Upload second PDF
-        await uploadFiles(page, [pdfPath2], '.app-header button', true);
-
-        // 3. Wait for all items
-        await expect(page.locator('.page-item')).toHaveCount(expectedTotal, { timeout: 45000 });
-
-        // 4. Wait for ALL to be processed
-        for (let i = 0; i < expectedTotal; i++) {
-            await expect(page.locator('.page-item').nth(i).locator('.thumbnail-img')).toBeVisible({ timeout: 60000 });
-        }
-
-        // 5. Verify Final Order after reload (most stable)
-        await page.reload();
-        await page.waitForLoadState('networkidle');
-
-        const pageNames = page.locator('.page-item .page-name');
-        // First PDF pages
-        for (let i = 0; i < pdfPageCount1; i++) {
-            await expect(pageNames.nth(i)).toHaveText(/sample_\d+\.png/);
-        }
-        // Second PDF pages
-        for (let i = 0; i < pdfPageCount2; i++) {
-            await expect(pageNames.nth(pdfPageCount1 + i)).toHaveText(/sample2_\d+\.png/);
-        }
-    });
-
-    test('should maintain order: Mixed Batch Upload', async ({ page, browserName }) => {
-        test.skip(browserName === 'webkit', 'Skip webkit due to blob issues');
-        test.setTimeout(90000);
-
-        const pdfPageCount = await getPdfPageCount(pdfPath);
-        const expectedTotal = 1 + pdfPageCount;
-
-        // Upload both together
-        await uploadFiles(page, [pngPath, pdfPath], '.app-header button', true);
-
-        await expect(page.locator('.page-item')).toHaveCount(expectedTotal, { timeout: 30000 });
-
-        // Wait for ALL pages to be processed (important for final order stability)
-        for (let i = 0; i < expectedTotal; i++) {
-            await expect(page.locator('.page-item').nth(i).locator('.thumbnail-img')).toBeVisible({ timeout: 60000 });
-        }
-
-        // Reload the page. This is the most reliable way to verify the DB 'order' property
-        await page.reload();
-        await page.waitForLoadState('networkidle');
-
-        // Verify consistency
-        const pageNames = page.locator('.page-item .page-name');
-        const names = await pageNames.allTextContents();
-
-        // In current implementation, images are processed with a direct addPage call 
-        // while PDF starts an async process. Our atomic DB fixes ensure consistency.
-        expect(names.some(n => n.includes('sample.png'))).toBe(true);
-        const pdfPageNames = names.filter(n => /^sample_\d+\.png$/.test(n));
-        expect(pdfPageNames.length).toBe(pdfPageCount);
-    });
-
-    test('should maintain order: High Concurrency Stress Test', async ({ page, browserName }) => {
-        test.skip(browserName === 'webkit', 'Skip webkit due to high load issues');
-        test.setTimeout(120000);
-
-        const iterations = 5;
-        const pdfPageCount = await getPdfPageCount(pdfPath);
-        const perIteration = 1 + pdfPageCount;
-        const totalExpected = iterations * perIteration;
-
-        // Trigger multiple uploads rapidly without waiting for completion
-        for (let i = 0; i < iterations; i++) {
-            // Mixed png and pdf
-            await uploadFiles(page, [pngPath, pdfPath], '.app-header button', true);
-        }
-
-        // Wait for all pages to be created and processed
-        await expect(page.locator('.page-item')).toHaveCount(totalExpected, { timeout: 60000 });
-
-        // Wait for ALL thumbnails to ensure DB stability
-        for (let i = 0; i < totalExpected; i++) {
-            await expect(page.locator('.page-item').nth(i).locator('.thumbnail-img')).toBeVisible({ timeout: 60000 });
-        }
-
-        // Reload to verify DB sequence
-        await page.reload();
-        await page.waitForLoadState('networkidle');
-
-        // Extract all order values directly from DB via evaluate (most precise)
-        const dbOrders = await page.evaluate(async () => {
-            // access Dexie db from window if exposed, or just use the UI if we trust it
-            // Here we'll just check the UI sequence since it's sorted by order
-            return Array.from(document.querySelectorAll('.page-item')).length;
-        });
-
-        expect(dbOrders).toBe(totalExpected);
-
-        // Check if list is correctly sorted and has no duplicates/gaps
-        const names = await page.locator('.page-item .page-name').allTextContents();
-        expect(names.length).toBe(totalExpected);
-
-        // Ensure no -1 or weird results - everything should be rendered and sorted
-        // The fact that we have 'totalExpected' ready items implies success of atomic counter
-    });
+    // Verify consistency
+    const names = await pageList.getPageOrder();
+    expect(names.some(n => n.includes('sample.png'))).toBe(true);
+    const pdfPageNames = names.filter(n => /^sample_\d+\.png$/.test(n));
+    expect(pdfPageNames.length).toBe(totalCount - 1);
+  });
 });

@@ -8,6 +8,7 @@ export const TestData = {
     samplePNG: () => path.resolve('tests/e2e/samples/sample.png'),
     sampleJPG: () => path.resolve('tests/e2e/samples/sample.jpg'),
     largePDF: () => path.resolve('tests/e2e/samples/sample3.pdf'),
+    sample3PDF: () => path.resolve('tests/e2e/samples/sample3.pdf'),
     
     // 批量文件
     multipleImages: () => [

@@ -28,6 +28,10 @@ export class PreviewPage {
    * 检查是否已折叠
    */
   async isCollapsed(): Promise<boolean> {
+    // 如果容器不可见或不存在，则认为是折叠状态
+    const isVisible = await this.container.isVisible();
+    if (!isVisible) return true;
+    
     const classList = await this.container.getAttribute('class');
     return classList?.includes('collapsed') || false;
   }

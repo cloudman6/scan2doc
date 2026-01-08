@@ -4,10 +4,6 @@
  */
 
 import { test, expect } from '../fixtures/base-test';
-import { AppPage } from '../pages/AppPage';
-import { PageListPage } from '../pages/PageListPage';
-import { ExportPage } from '../pages/ExportPage';
-import { OCRPage } from '../pages/OCRPage';
 import { APIMocks } from '../mocks/APIMocks';
 import { TestData } from '../data/TestData';
 import { uploadFiles } from '../utils/file-upload';
@@ -16,18 +12,10 @@ import { PDFDocument } from 'pdf-lib';
 import fs from 'fs';
 
 test.describe('Batch Export (Refactored)', () => {
-  let app: AppPage;
-  let pageList: PageListPage;
-  let exportPage: ExportPage;
-  let ocrPage: OCRPage;
   let apiMocks: APIMocks;
 
   test.beforeEach(async ({ page }) => {
     // 初始化 Page Objects
-    app = new AppPage(page);
-    pageList = new PageListPage(page);
-    exportPage = new ExportPage(page);
-    ocrPage = new OCRPage(page);
     apiMocks = new APIMocks(page);
 
     // 设置 Mock（必须在 goto 之前）

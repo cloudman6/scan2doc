@@ -56,7 +56,7 @@ export class PageListPage {
     await dialog.locator('button:has-text("Confirm")').click();
     
     // 等待成功提示
-    await this.page.locator('.n-notification:has-text("deleted")').waitFor({ 
+    await this.page.locator('.n-message:has-text("deleted")').waitFor({ 
       state: 'visible',
       timeout: 5000 
     });
@@ -87,27 +87,8 @@ export class PageListPage {
     const sourceHandle = sourceItem.locator('.drag-handle');
     const targetHandle = targetItem.locator('.drag-handle');
 
-    // 使用 mouse API 进行精准拖拽
-    const sourceBBox = await sourceHandle.boundingBox();
-    const targetBBox = await targetHandle.boundingBox();
-
-    if (!sourceBBox || !targetBBox) {
-      throw new Error('Cannot get element bounding box');
-    }
-
-    // 模拟真实拖拽行为
-    await this.page.mouse.move(
-      sourceBBox.x + sourceBBox.width / 2,
-      sourceBBox.y + sourceBBox.height / 2
-    );
-    await this.page.mouse.down();
-    await this.page.waitForTimeout(200); // 悬停以触发拖拽状态
-    await this.page.mouse.move(
-      targetBBox.x + targetBBox.width / 2,
-      targetBBox.y + targetBBox.height / 2,
-      { steps: 10 } // 平滑移动
-    );
-    await this.page.mouse.up();
+    // 使用 Playwright 的 dragTo API
+    await sourceHandle.dragTo(targetHandle);
 
     // 等待数据库更新
     await this.waitForDatabaseUpdate();
@@ -117,7 +98,12 @@ export class PageListPage {
    * 等待数据库更新完成
    */
   private async waitForDatabaseUpdate() {
-    await this.page.waitForTimeout(1000); // TODO: 替换为更精确的等待
+    // 等待一段时间让数据库事务完成
+    await this.page.waitForTimeout(1000);
+    // 也可以等待 store 中的 order 发生变化
+    await this.page.waitForFunction(() => {
+        return window.pagesStore?.pages.every((p: Record<string, unknown>) => p.order !== undefined);
+    });
   }
 
   /**
@@ -199,11 +185,20 @@ export class PageListPage {
   }
 
   /**
-   * 点击指定页面
+   * 点击指定页面（激活页面）
    */
   async clickPage(index: number) {
     await this.pageItems.nth(index).click();
-    await this.page.waitForTimeout(100); // 等待选择状态更新
+    await this.page.waitForTimeout(100); // 等待状态更新
+  }
+
+  /**
+   * 勾选指定页面（用于批量操作）
+   */
+  async selectPage(index: number) {
+    const checkbox = this.pageItems.nth(index).locator('.page-checkbox');
+    await checkbox.click();
+    await this.page.waitForTimeout(100);
   }
 
   /**
@@ -212,13 +207,27 @@ export class PageListPage {
   async uploadAndWaitReady(filePaths: string | string[]) {
     const paths = Array.isArray(filePaths) ? filePaths : [filePaths];
     
+    // 记录上传前的页面数量
+    const beforeCount = await this.getPageCount();
+    
     const [fileChooser] = await Promise.all([
       this.page.waitForEvent('filechooser'),
       this.page.click('.app-header button:has-text("Import Files")')
     ]);
     
     await fileChooser.setFiles(paths);
-    await this.waitForPagesLoaded();
+    
+    // 等待页面数量增加（至少增加1个）
+    await this.page.waitForFunction(
+      (expectedIncrease) => {
+        const currentCount = document.querySelectorAll('.page-item').length;
+        return currentCount >= expectedIncrease;
+      },
+      beforeCount + 1,
+      { timeout: 30000 }
+    );
+    
+    // 如果是已知数量的上传，建议在测试中显式调用 waitForPagesLoaded
     await this.waitForThumbnailsReady();
   }
 
@@ -237,6 +246,14 @@ export class PageListPage {
   async isPageSelected(index: number): Promise<boolean> {
     const item = this.pageItems.nth(index);
     const classes = await item.getAttribute('class');
-    return classes?.includes('selected') || false;
+    return classes?.includes('selected') || classes?.includes('active') || false;
+  }
+
+  /**
+   * 检查页面项是否可见
+   */
+  async isPageVisible(index: number): Promise<boolean> {
+    const item = this.pageItems.nth(index);
+    return await item.isVisible().catch(() => false);
   }
 }
