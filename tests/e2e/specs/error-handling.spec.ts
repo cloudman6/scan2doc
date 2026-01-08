@@ -50,7 +50,7 @@ test.describe('Error Handling', () => {
     ).toBeVisible({ timeout: 5000 });
   });
 
-  test('should handle network timeout during OCR', async ({ page }) => {
+  test('should handle network timeout during OCR', async () => {
     // Mock 较大的延迟以测试前端处理
     await apiMocks.mockOCR({ delay: 35000 });
 
@@ -58,8 +58,9 @@ test.describe('Error Handling', () => {
     await ocrPage.triggerOCR(0);
 
     // 验证系统在长时间处理时仍然稳定 (处于 recognizing 状态)
-    await page.waitForTimeout(2000);
-    expect(await ocrPage.getPageStatus(0)).toBe('recognizing');
+    await expect.poll(async () => await ocrPage.getPageStatus(0), {
+      timeout: 10000
+    }).toBe('recognizing');
   });
 
   test('should handle export failure gracefully', async ({ page }) => {

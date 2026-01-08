@@ -91,7 +91,9 @@ test.describe('File Adding - Refactored', () => {
     await pageList.uploadAndWaitReady([pngPath]);
 
     // 等待选择状态更新
-    await page.waitForTimeout(500);
+    await expect.poll(async () => await pageList.isPageSelected(0), {
+      timeout: 3000
+    }).toBe(true);
 
     // 验证 PNG 被选中
     expect(await pageList.isPageSelected(0)).toBe(true);
@@ -107,8 +109,10 @@ test.describe('File Adding - Refactored', () => {
     // 等待两个页面都可见
     expect(await pageList.getPageCount()).toBe(2);
 
-    // 等待选择状态更新
-    await page.waitForTimeout(500);
+    // 等待选择状态更新（第二张图片被选中）
+    await expect.poll(async () => await pageList.isPageSelected(1), {
+      timeout: 3000
+    }).toBe(true);
 
     // 验证第二张图片（JPG）现在被选中（自动切换）
     expect(await pageList.isPageSelected(1)).toBe(true);
@@ -145,8 +149,8 @@ test.describe('File Adding - Refactored', () => {
     ]);
     
     // 模拟取消：在 Playwright 中，如果不调用 setFiles，就相当于取消了对话框
-    // 但我们可能需要稍微等待一下确认没有上传发生
-    await page.waitForTimeout(1000);
+    // 等待一段时间后验证页面数量没有变化
+    await page.waitForLoadState('networkidle');
     
     expect(await pageList.getPageCount()).toBe(initialCount);
   });

@@ -22,8 +22,13 @@ export class PageListPage {
    */
   async selectAll() {
     await this.page.getByTestId('select-all-checkbox').check();
-    // 等待选择状态更新
-    await this.page.waitForTimeout(100);
+    // 等待至少一个页面被选中
+    await this.page.locator('.page-item.selected').first().waitFor({ 
+      state: 'visible',
+      timeout: 3000 
+    }).catch(() => {
+      // 如果没有 .selected 类，可能使用其他选中标记，继续执行
+    });
   }
 
   /**
@@ -31,7 +36,13 @@ export class PageListPage {
    */
   async unselectAll() {
     await this.page.getByTestId('select-all-checkbox').uncheck();
-    await this.page.waitForTimeout(100);
+    // 等待所有选中状态清除
+    await this.page.waitForFunction(() => {
+      const selectedItems = document.querySelectorAll('.page-item.selected');
+      return selectedItems.length === 0;
+    }, { timeout: 3000 }).catch(() => {
+      // 如果没有选中项，继续执行
+    });
   }
 
   /**
@@ -98,12 +109,13 @@ export class PageListPage {
    * 等待数据库更新完成
    */
   private async waitForDatabaseUpdate() {
-    // 等待一段时间让数据库事务完成
-    await this.page.waitForTimeout(1000);
-    // 也可以等待 store 中的 order 发生变化
+    // 等待 store 中的 order 更新完成
     await this.page.waitForFunction(() => {
         return window.pagesStore?.pages.every((p: Record<string, unknown>) => p.order !== undefined);
-    });
+    }, { timeout: 5000 });
+    
+    // 等待网络空闲，确保数据库写入完成
+    await this.page.waitForLoadState('networkidle');
   }
 
   /**
@@ -189,7 +201,13 @@ export class PageListPage {
    */
   async clickPage(index: number) {
     await this.pageItems.nth(index).click();
-    await this.page.waitForTimeout(100); // 等待状态更新
+    // 等待页面变为 active 状态
+    await this.pageItems.nth(index).locator('.page-item.active, .active').waitFor({
+      state: 'attached',
+      timeout: 3000
+    }).catch(() => {
+      // 页面可能使用不同的激活标记，继续执行
+    });
   }
 
   /**
@@ -198,7 +216,8 @@ export class PageListPage {
   async selectPage(index: number) {
     const checkbox = this.pageItems.nth(index).locator('.page-checkbox');
     await checkbox.click();
-    await this.page.waitForTimeout(100);
+    // 等待 checkbox 状态改变
+    await checkbox.waitFor({ state: 'visible', timeout: 3000 });
   }
 
   /**

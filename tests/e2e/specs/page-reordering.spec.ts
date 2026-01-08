@@ -82,7 +82,12 @@ test.describe('Page Reordering - Refactored', () => {
 
     // 3. 拖拽第一个页面到第三个位置
     await pageList.dragAndDrop(0, 2);
-    await page.waitForTimeout(1000);
+    
+    // 等待拖拽操作完成（通过验证顺序改变）
+    await expect.poll(async () => {
+      const order = await pageList.getPageOrder();
+      return order[0] !== initialOrder[0];
+    }, { timeout: 5000 }).toBe(true);
 
     // 4. 验证顺序改变
     const newOrder = await pageList.getPageOrder();
@@ -132,7 +137,12 @@ test.describe('Page Reordering - Refactored', () => {
     // 5. 拖拽页面
     const targetIndex = readyPageIndex === 0 ? 2 : 0;
     await pageList.dragAndDrop(readyPageIndex, targetIndex);
-    await page.waitForTimeout(2000);
+    
+    // 等待拖拽操作完成
+    await expect.poll(async () => {
+      const order = await pageList.getPageOrder();
+      return order[targetIndex] === draggedPageName;
+    }, { timeout: 5000 }).toBe(true);
 
     // 6. 验证顺序改变
     const newOrder = await pageList.getPageOrder();
@@ -180,7 +190,12 @@ test.describe('Page Reordering - Refactored', () => {
     // 5. 拖拽页面
     const targetIndex = nonReadyPageIndex === 0 ? 2 : 0;
     await pageList.dragAndDrop(nonReadyPageIndex, targetIndex);
-    await page.waitForTimeout(2000);
+    
+    // 等待拖拽操作完成
+    await expect.poll(async () => {
+      const order = await pageList.getPageOrder();
+      return order[targetIndex] === draggedPageName;
+    }, { timeout: 5000 }).toBe(true);
 
     // 6. 验证顺序改变
     const newOrder = await pageList.getPageOrder();

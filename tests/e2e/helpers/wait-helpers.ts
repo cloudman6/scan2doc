@@ -67,13 +67,21 @@ export async function waitForNotification(
 
 /**
  * 等待数据库操作完成
+ * 使用网络空闲状态作为数据库同步完成的指示
  */
 export async function waitForDatabaseSync(
   page: Page,
-  timeout = 2000
+  timeout = 5000
 ): Promise<void> {
-  // 当前使用固定等待,未来可以监听 IndexedDB 事件
-  await page.waitForTimeout(timeout);
+  // 等待网络空闲，确保所有异步数据库操作完成
+  await page.waitForLoadState('networkidle', { timeout });
+  
+  // 可选：等待 store 中的数据更新完成
+  await page.waitForFunction(() => {
+    return window.pagesStore !== undefined;
+  }, { timeout: 3000 }).catch(() => {
+    // Store 可能还未初始化，继续执行
+  });
 }
 
 /**

@@ -35,8 +35,8 @@ test.describe('Batch Export (Refactored)', () => {
       }
     });
 
-    // 等待一下让应用稳定
-    await page.waitForTimeout(1000);
+    // 等待应用稳定
+    await page.waitForLoadState('domcontentloaded');
   });
 
   /**
@@ -58,23 +58,30 @@ test.describe('Batch Export (Refactored)', () => {
       // 2. 触发前 2 页的 OCR
       for (let i = 0; i < 2; i++) {
         await pageItems.nth(i).click();
-        await page.waitForTimeout(500);
+        // 等待页面被选中（active 表示当前选中的页面）
+        await expect(pageItems.nth(i)).toHaveClass(/active/);
         await page.locator('.ocr-actions .trigger-btn').click();
         
         await page.waitForFunction((idx) => {
           const pages = window.pagesStore?.pages || [];
           return pages[idx]?.status === 'ocr_success';
         }, i, { timeout: 30000 });
-        await page.waitForTimeout(500);
+        
+        // 等待OCR结果保存
+        await page.waitForLoadState('networkidle');
       }
 
       // 刷新 store
       await page.evaluate(() => window.pagesStore?.loadPagesFromDB());
-      await page.waitForTimeout(1000);
+      await page.waitForLoadState('networkidle');
 
       // 3. 全选并导出
       await page.locator('.selection-toolbar .n-checkbox').click();
-      await page.waitForTimeout(1000);
+      // 等待所有页面被选中
+      await expect(async () => {
+        const selectedCount = await page.locator('.page-item.selected').count();
+        expect(selectedCount).toBe(3);
+      }).toPass({ timeout: 3000 });
 
       // 4. 触发导出
       const exportTrigger = page.locator('.export-selected-btn');
@@ -127,23 +134,30 @@ test.describe('Batch Export (Refactored)', () => {
       // 2. 触发所有页面的 OCR
       for (let i = 0; i < 2; i++) {
         await pageItems.nth(i).click();
-        await page.waitForTimeout(500);
+        // 等待页面被选中（active 表示当前选中的页面）
+        await expect(pageItems.nth(i)).toHaveClass(/active/);
         await page.locator('.ocr-actions .trigger-btn').click();
         
         await page.waitForFunction((idx) => {
           const pages = window.pagesStore?.pages || [];
           return pages[idx]?.status === 'ocr_success';
         }, i, { timeout: 30000 });
-        await page.waitForTimeout(500);
+        
+        // 等待OCR结果保存
+        await page.waitForLoadState('networkidle');
       }
 
       // 刷新 store
       await page.evaluate(() => window.pagesStore?.loadPagesFromDB());
-      await page.waitForTimeout(1000);
+      await page.waitForLoadState('networkidle');
 
       // 3. 全选
       await page.locator('.selection-toolbar .n-checkbox').click();
-      await page.waitForTimeout(1000);
+      // 等待所有页面被选中
+      await expect(async () => {
+        const selectedCount = await page.locator('.page-item.selected').count();
+        expect(selectedCount).toBe(2);
+      }).toPass({ timeout: 3000 });
 
       // 4. 触发导出
       const exportTrigger = page.locator('.export-selected-btn');

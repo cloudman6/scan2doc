@@ -44,23 +44,34 @@ test.describe('Edge Cases', () => {
     
     // 快速移动 0 -> 2
     await pageList.dragAndDrop(0, 2);
-    // 等待 UI 更新
-    await page.waitForTimeout(500);
+    // 等待顺序改变
+    await expect.poll(async () => {
+      const order = await pageList.getPageOrder();
+      return JSON.stringify(order) !== JSON.stringify(originalOrder);
+    }, { timeout: 3000 }).toBe(true);
+    
     let currentOrder = await pageList.getPageOrder();
     expect(currentOrder).not.toEqual(originalOrder);
 
     // 快速移动回来 2 -> 0
     await pageList.dragAndDrop(2, 0);
-    // 等待 UI 更新
-    await page.waitForTimeout(500);
+    // 等待顺序恢复
+    await expect.poll(async () => {
+      const order = await pageList.getPageOrder();
+      return JSON.stringify(order) === JSON.stringify(originalOrder);
+    }, { timeout: 3000 }).toBe(true);
 
     // 验证顺序最终恢复
     const finalOrder = await pageList.getPageOrder();
     expect(finalOrder).toEqual(originalOrder);
     
     // 验证 store 中的数据也是一致的
+    interface WindowWithStore extends Window {
+      pagesStore?: { pages: Array<{ fileName: string }> };
+    }
+    
     const isStoreConsistent = await page.evaluate((expected) => {
-        const actual = window.pagesStore?.pages.map((p: { fileName: string }) => p.fileName); // fileName used in store
+        const actual = (window as WindowWithStore).pagesStore?.pages.map((p) => p.fileName); // fileName used in store
         return JSON.stringify(actual) === JSON.stringify(expected);
     }, originalOrder);
     expect(isStoreConsistent).toBe(true);
