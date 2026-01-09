@@ -1,5 +1,6 @@
 <template>
   <n-layout-header
+    data-testid="app-header"
     class="app-header"
     bordered
   >

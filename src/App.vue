@@ -3,6 +3,7 @@
     <n-notification-provider placement="bottom-left">
       <n-dialog-provider>
         <n-layout
+          data-testid="app-container"
           class="app-container"
           @drop="handleDrop"
           @dragover="handleDragOver"
@@ -29,13 +30,17 @@
               <!-- Page List with custom collapse trigger -->
               <n-layout-sider
                 v-model:collapsed="pageListCollapsed"
+                data-testid="page-list-sider"
                 :width="260"
                 :collapsed-width="0"
                 collapse-mode="width"
                 bordered
                 :show-trigger="false"
               >
-                <div class="page-list-container">
+                <div
+                  data-testid="page-list-container"
+                  class="page-list-container"
+                >
                   <PageList
                     :pages="pagesStore.pages"
                     :selected-id="selectedPageId"
@@ -78,7 +83,10 @@
                   class="panel page-viewer-panel"
                   :style="{ width: pageViewerWidth }"
                 >
-                  <div class="page-viewer-container">
+                  <div
+                    data-testid="page-viewer-container"
+                    class="page-viewer-container"
+                  >
                     <PageViewer
                       :current-page="currentPage"
                     />
@@ -160,7 +168,10 @@
                   class="panel preview-panel"
                   :style="{ width: previewWidth }"
                 >
-                  <div class="preview-container">
+                  <div
+                    data-testid="preview-container"
+                    class="preview-container"
+                  >
                     <Preview
                       :current-page="currentPage"
                     />
@@ -286,6 +297,7 @@ async function handleDeletion(pagesToDelete: Page[]) {
     content,
     positiveText: t('app.deletePositive'),
     negativeText: t('app.deleteNegative'),
+    class: 'delete-confirm-dialog',
     onPositiveClick: async () => {
       try {
         const pageIds = pagesToDelete.map(page => page.id)
@@ -303,6 +315,7 @@ async function handleDeletion(pagesToDelete: Page[]) {
             : t('app.pagesDeleted', [pagesToDelete.length])
 
           // Show success message using Naive UI message
+          // 注意: Naive UI 的 message API 不支持 class 选项
           message.success(successMsg)
 
           // Update current page if it was deleted
@@ -315,6 +328,7 @@ async function handleDeletion(pagesToDelete: Page[]) {
         }
       } catch (error) {
         uiLogger.error('Delete failed:', error)
+        // 注意: Naive UI 的 message API 不支持 class 选项
         message.error(isSingle ? 'Failed to delete page' : 'Failed to delete pages')
       }
     }
@@ -403,6 +417,7 @@ onMounted(async () => {
   ocrEvents.on('ocr:error', ({ pageId, error }) => {
     const page = pagesStore.pages.find(p => p.id === pageId)
     const name = page ? page.fileName : pageId
+    // 注意: Naive UI 的 message API 不支持 class 选项
     message.error(`${t('ocr.ocrFailed', [error.message])} (${name})`)
   })
 

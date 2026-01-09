@@ -10,8 +10,8 @@ test('Smoke Verification', async ({ page }) => {
   expect(await app.getTitle()).toMatch(/scan2doc/i);
 
   // Verify main layout elements
-  await expect(page.locator('.app-container').first()).toBeVisible();
-  await expect(page.locator('.app-header').first()).toBeVisible();
+  await expect(page.getByTestId('app-container')).toBeVisible();
+  await expect(page.getByTestId('app-header')).toBeVisible();
 
   // Verify core business elements
   await expect(page.getByRole('button', { name: /import files/i })).toBeVisible();
@@ -21,7 +21,7 @@ test('Smoke Verification', async ({ page }) => {
   await expect(page.getByRole('button', { name: /select files/i })).toBeVisible();
 
   // Verify core three-column layout is HIDDEN initially
-  await expect(page.locator('.page-list-container')).not.toBeVisible();
-  await expect(page.locator('.page-viewer-container')).not.toBeVisible();
-  await expect(page.locator('.preview-container')).not.toBeVisible();
+  await expect(page.getByTestId('page-list-container')).not.toBeVisible();
+  await expect(page.getByTestId('page-viewer-container')).not.toBeVisible();
+  await expect(page.getByTestId('preview-container')).not.toBeVisible();
 });

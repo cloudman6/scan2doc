@@ -23,6 +23,8 @@
         @select="handleExportSelect"
       >
         <NButton
+          data-testid="export-selected-btn"
+          role="button"
           text
           size="tiny"
           circle
@@ -43,12 +45,13 @@
       <!-- Batch OCR button -->
       <NButton
         v-if="hasSelection"
+        data-testid="batch-ocr-btn"
+        role="button"
         text
         size="tiny"
         circle
         :title="$t('pageList.scanSelected')"
         class="batch-ocr-btn"
-        data-testid="batch-ocr-button"
         @click="handleBatchOCR"
       >
         <template #icon>
@@ -64,6 +67,8 @@
       <!-- Delete button -->
       <NButton
         v-if="hasSelection"
+        data-testid="delete-selected-btn"
+        role="button"
         text
         size="tiny"
         circle
@@ -73,7 +78,6 @@
         }"
         :title="$t('pageList.deleteSelected')"
         class="delete-selected-btn"
-        data-testid="batch-delete-button"
         @click="handleBatchDelete"
         @mouseenter="isDeleteHovered = true"
         @mouseleave="isDeleteHovered = false"
@@ -239,12 +243,14 @@ async function handleBatchOCR() {
   if (result.queued > 0) {
     const msg = t('pageList.addedToQueue', [result.queued, result.queued > 1 ? 's' : ''])
     if (result.skipped > 0) {
+      // 注意: Naive UI 的 notification API 不支持 class 选项
       notification.success({
         content: msg + ` (${t('pageList.skippedProcessed', [result.skipped])})`,
         duration: 2500,
         closable: false
       })
     } else {
+      // 注意: Naive UI 的 notification API 不支持 class 选项
       notification.success({
         content: msg,
         duration: 2500,
@@ -252,6 +258,7 @@ async function handleBatchOCR() {
       })
     }
   } else {
+    // 注意: Naive UI 的 notification API 不支持 class 选项
     notification.warning({
       content: t('pageList.allProcessed'),
       duration: 2500,
@@ -382,6 +389,7 @@ async function showExportConfirmDialog(
   return new Promise((resolve) => {
     dialog.warning({
       title: t('pageList.somePagesNotReady'),
+      class: 'export-warning-dialog',
       content: () => h('div', { class: 'export-warning-content' }, [
         h('p', { style: 'margin-bottom: 12px' },
           t('pageList.pagesNotReady', [invalidPages.length, validPages.length + invalidPages.length, format.toUpperCase()])
@@ -436,6 +444,7 @@ async function performExport(pages: Page[], format: ExportFormat) {
     }
   } catch (error) {
     uiLogger.error('Export failed:', error)
+    // 注意: Naive UI 的 message API 不支持 class 选项
     message.error(t('errors.failedToExportMarkdown'))
   }
 }

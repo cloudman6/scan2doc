@@ -16,10 +16,10 @@ test.describe('Edge Cases', () => {
 
   test('should handle empty page list operations', async ({ page }) => {
     // 验证初始状态下相关按钮不在页面上 (v-if="pages.length > 0")
-    const batchOCRBtn = page.getByTestId('batch-ocr-button');
-    const exportBtn = page.locator('.export-selected-btn');
+    const batchOCRBtn = page.getByTestId('batch-ocr-btn');
+    const exportBtn = page.getByTestId('export-selected-btn');
     const selectAllCheckbox = page.getByTestId('select-all-checkbox');
-    const deleteBtn = page.locator('.delete-selected-btn');
+    const deleteBtn = page.getByTestId('delete-selected-btn');
 
     await expect(batchOCRBtn).not.toBeVisible();
     await expect(exportBtn).not.toBeVisible();

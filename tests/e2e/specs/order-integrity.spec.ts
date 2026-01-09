@@ -114,17 +114,63 @@ test.describe('Order Integrity (Mixed Files)', () => {
     ]);
     await fileChooser.setFiles(files);
 
+    // Wait for pages to start appearing
     await expect(async () => {
       expect(await pageList.getPageCount()).toBeGreaterThan(1);
     }).toPass({ timeout: 30000 });
 
+    // Wait for page count to stabilize (all pages loaded, including PDF pages)
+    // This ensures we get the accurate total count before reload
+    let previousCount = await pageList.getPageCount();
+    let stableIterations = 0;
+    
+    await expect(async () => {
+      const currentCount = await pageList.getPageCount();
+      if (currentCount === previousCount && currentCount > 1) {
+        stableIterations++;
+        // Require 3 consecutive stable checks (with delays) to ensure count is truly stable
+        if (stableIterations >= 3) {
+          return;
+        }
+        await page.waitForTimeout(1000);
+      } else {
+        stableIterations = 0;
+        previousCount = currentCount;
+      }
+      throw new Error(`Page count not stable: ${currentCount} (stable iterations: ${stableIterations})`);
+    }).toPass({ timeout: 60000 });
+
+    // Get the actual total count after pages have stabilized
     const totalCount = await pageList.getPageCount();
     await pageList.waitForThumbnailsReady(60000);
 
     // Reload to verify DB sequence
     await page.reload();
     await app.waitForAppReady();
-    await pageList.waitForPagesLoaded({ count: totalCount, timeout: 60000 });
+    
+    // Wait for pages to load from DB and stabilize after reload
+    previousCount = 0;
+    stableIterations = 0;
+    
+    await expect(async () => {
+      const currentCount = await pageList.getPageCount();
+      if (currentCount === previousCount && currentCount > 0) {
+        stableIterations++;
+        // Require 3 consecutive stable checks to ensure count is truly stable
+        if (stableIterations >= 3) {
+          return;
+        }
+        await page.waitForTimeout(1000);
+      } else {
+        stableIterations = 0;
+        previousCount = currentCount;
+      }
+      throw new Error(`Page count not stable after reload: ${currentCount} (stable iterations: ${stableIterations})`);
+    }).toPass({ timeout: 60000 });
+    
+    // Verify the count matches
+    const reloadedCount = await pageList.getPageCount();
+    expect(reloadedCount).toBe(totalCount);
 
     // Verify consistency
     const names = await pageList.getPageOrder();

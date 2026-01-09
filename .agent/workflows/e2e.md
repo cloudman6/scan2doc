@@ -565,42 +565,111 @@ test('test 2', async ({ page }) => {
 
 ### Locator 策略优先级
 
-Playwright 推荐按以下优先级选择定位器，优先使用**面向用户**的定位器而非技术实现：
+#### ⚠️ i18n 环境特别说明
 
-#### 优先级排序
+**本项目支持国际化（i18n）**，因此定位器策略需要特别调整：
 
-1. ⭐⭐⭐⭐⭐ **`getByRole()`** - 最推荐，基于 ARIA 角色和可访问性
-2. ⭐⭐⭐⭐ **`getByLabel()`** - 通过关联的 label 定位表单元素
-3. ⭐⭐⭐⭐ **`getByPlaceholder()`** - 通过 placeholder 定位输入框
-4. ⭐⭐⭐ **`getByText()`** - 通过可见文本定位
-5. ⭐⭐ **`getByTestId()`** - 通过 data-testid 定位（当上述方法不适用时）
-6. ⭐ **CSS/XPath** - 最后的选择，应尽量避免
+#### i18n 环境下的优先级排序
 
-#### 示例对比
+1. ⭐⭐⭐⭐⭐ **`getByTestId()`** - **i18n 环境首选**，完全语言无关
+2. ⭐⭐⭐⭐ **固定的 `aria-label` + `getByRole()`** - 适合图标按钮
+3. ⭐⭐⭐⭐ **`getByRole()` (不带 `name`)** - 配合 testid 使用
+4. ⭐⭐⭐ **`data-*` 自定义属性** - 备选方案
+5. ⭐ **CSS/XPath** - 最后选择
+
+#### ❌ i18n 环境下不可用的方法
 
 ```typescript
-// ❌ 不推荐：依赖 CSS 类名（容易因样式变化而失效）
-await page.locator('.submit-button').click();
-
-// ⚠️ 可接受：使用 data-testid（但不是最佳）
-await page.locator('[data-testid="submit-button"]').click();
-
-// ✅ 推荐：使用 getByRole（最接近用户行为）
-await page.getByRole('button', { name: 'Submit' }).click();
-
-// ✅ 推荐：使用 getByLabel（表单元素）
-await page.getByLabel('Username').fill('admin');
-
-// ✅ 推荐：使用 getByText（可见文本）
-await page.getByText('Import Files').click();
+// ❌ 这些方法在切换语言后会失败
+page.getByRole('button', { name: 'Submit' })      // 'Submit' 会变成 '提交'
+page.getByText('Import Files')                    // '导入文件'
+page.getByLabel('Username')                       // '用户名'
+page.getByPlaceholder('Enter email')              // '请输入邮箱'
+page.locator('button:has-text("Confirm")')        // '确认'
 ```
 
-#### 为什么优先使用面向用户的定位器？
+#### ✅ i18n 环境下的推荐方式
 
-1. **可访问性**: 如果你的测试能用 `getByRole` 找到元素，说明屏幕阅读器也能找到
-2. **稳定性**: 不依赖 CSS 类名或 DOM 结构，更能抵抗重构
-3. **可读性**: 测试代码更接近用户的操作方式
-4. **维护性**: 当 UI 改变时，基于语义的定位器更不容易失效
+```typescript
+// ✅ 方案 1: 使用 data-testid（最推荐）
+await page.getByTestId('submit-btn').click();
+
+// ✅ 方案 2: testid + role 组合（验证可访问性）
+const submitBtn = page.getByTestId('submit-btn');
+await expect(submitBtn).toHaveRole('button');
+await submitBtn.click();
+
+// ✅ 方案 3: 固定的 aria-label（适合图标按钮）
+// 组件中:
+<n-button 
+  data-testid="delete-btn"
+  aria-label="delete-page-button"  <!-- 固定不翻译 -->
+  :title="$t('actions.delete')"    <!-- tooltip 翻译 -->
+>
+  <TrashIcon />
+</n-button>
+
+// 测试中:
+await page.getByTestId('delete-btn').click();
+// 或
+await page.getByRole('button', { name: 'delete-page-button' }).click();
+
+// ✅ 方案 4: role 不带 name（配合 testid 使用）
+const pageItem = page.getByTestId('page-item-0');
+const deleteBtn = pageItem.getByRole('button');  // 不指定 name
+await deleteBtn.click();
+
+// ❌ 避免: 依赖文本内容
+// await page.getByRole('button', { name: 'Submit' }).click();
+// await page.getByText('Import Files').click();
+```
+
+#### 传统 Playwright 优先级（仅供参考）
+
+在**不支持 i18n** 的项目中，Playwright 推荐的优先级是：
+
+1. ⭐⭐⭐⭐⭐ `getByRole()` - 基于 ARIA 角色
+2. ⭐⭐⭐⭐ `getByLabel()` - 表单元素
+3. ⭐⭐⭐⭐ `getByPlaceholder()` - 输入框
+4. ⭐⭐⭐ `getByText()` - 可见文本
+5. ⭐⭐ `getByTestId()` - data-testid
+6. ⭐ CSS/XPath - 最后选择
+
+但在本项目中，由于 i18n 的需求，**`getByTestId()` 被提升为首选**。
+
+#### 为什么在 i18n 环境下优先使用 data-testid？
+
+1. **语言无关**: 不受任何文本内容影响，在所有语言下都能正常工作
+2. **明确的测试意图**: testid 专门为测试设计，不会因业务逻辑改变而失效
+3. **易于搜索和重构**: 在代码库中可以轻松追踪所有使用点
+4. **Playwright 官方认可**: 在复杂场景（如 i18n）下推荐使用
+5. **可维护性**: 前端和测试团队可以协商统一的命名规范
+6. **可访问性**: 结合 `role` 属性仍可保证可访问性验证
+
+#### 组件标注最佳实践
+
+```vue
+<template>
+  <!-- 有文本的按钮 -->
+  <n-button
+    data-testid="import-files-btn"      <!-- ⭐ 主要：测试定位 -->
+    role="button"                       <!-- ✅ 辅助：可访问性 -->
+    @click="handleImport"
+  >
+    {{ $t('common.importFiles') }}      <!-- ✅ 用户文本（翻译） -->
+  </n-button>
+
+  <!-- 图标按钮 -->
+  <n-button
+    data-testid="delete-page-btn"       <!-- ⭐ 主要：测试定位 -->
+    aria-label="delete-page-button"     <!-- ✅ 辅助：固定标识 -->
+    :title="$t('actions.delete')"       <!-- ✅ Tooltip（翻译） -->
+  >
+    <TrashIcon />
+  </n-button>
+</template>
+```
+
 
 ### 智能等待策略
 
@@ -1211,16 +1280,23 @@ async uploadAndWaitReady(filePaths: string[]) {
 | Trace 查看 | `npx playwright show-trace trace.zip` | 查看测试录制 |
 | 环境清理 | `npm run test:e2e:cleanup` | 清理测试环境 |
 
-### 选择器优先级速查
+### 选择器优先级速查（i18n 环境）
 
-| 优先级 | 选择器 | 示例 | 推荐指数 |
-|--------|--------|------|---------|
-| 1 | `getByRole()` | `page.getByRole('button', { name: 'Submit' })` | ⭐⭐⭐⭐⭐ |
-| 2 | `getByLabel()` | `page.getByLabel('Username')` | ⭐⭐⭐⭐ |
-| 3 | `getByPlaceholder()` | `page.getByPlaceholder('Enter email')` | ⭐⭐⭐⭐ |
-| 4 | `getByText()` | `page.getByText('Import Files')` | ⭐⭐⭐ |
-| 5 | `getByTestId()` | `page.getByTestId('submit-btn')` | ⭐⭐ |
-| 6 | CSS/XPath | `page.locator('.submit-button')` | ⭐ |
+| 优先级 | 选择器 | 示例 | 推荐指数 | i18n 兼容 |
+|--------|--------|------|---------|----------|
+| 1 | `getByTestId()` | `page.getByTestId('submit-btn')` | ⭐⭐⭐⭐⭐ | ✅ |
+| 2 | 固定 `aria-label` + `getByRole()` | `page.getByRole('button', { name: 'delete-page-button' })` | ⭐⭐⭐⭐ | ✅ |
+| 3 | `getByRole()` (不带 `name`) | `page.getByRole('button')` | ⭐⭐⭐⭐ | ✅ |
+| 4 | `data-*` 自定义属性 | `page.locator('[data-action="delete"]')` | ⭐⭐⭐ | ✅ |
+| 5 | CSS/XPath | `page.locator('.submit-button')` | ⭐ | ✅ |
+| - | `getByRole()` (带 `name`) | `page.getByRole('button', { name: 'Submit' })` | ❌ | ❌ |
+| - | `getByText()` | `page.getByText('Import Files')` | ❌ | ❌ |
+| - | `getByLabel()` | `page.getByLabel('Username')` | ❌ | ❌ |
+| - | `getByPlaceholder()` | `page.getByPlaceholder('Enter email')` | ❌ | ❌ |
+
+**说明**: 
+- ✅ 表示在 i18n 环境下可以安全使用
+- ❌ 表示依赖文本内容，在多语言环境下会失效
 
 ### 等待方法速查
 

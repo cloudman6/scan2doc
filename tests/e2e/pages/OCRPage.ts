@@ -76,9 +76,20 @@ export class OCRPage {
    */
   async triggerOCR(pageIndex: number) {
     // 先点击页面选中
-    await this.page.locator('.page-item').nth(pageIndex).click();
+    const pageItem = this.page.locator('[data-testid^="page-item-"]').nth(pageIndex);
+    const pageId = await pageItem.getAttribute('data-page-id');
+    await pageItem.click();
+    
+    // 等待 PageViewer 上下文切换到正确的页面
+    await this.page.waitForFunction((id) => {
+      const viewer = document.querySelector('[data-testid="page-viewer"]');
+      return viewer?.dataset?.currentPageId === id;
+    }, pageId, { timeout: 5000 });
+    
     // 点击 OCR 按钮
-    await this.page.locator('.ocr-actions .trigger-btn').click();
+    const ocrButton = this.page.getByTestId('ocr-trigger-btn');
+    await ocrButton.waitFor({ state: 'visible', timeout: 5000 });
+    await ocrButton.click();
   }
 
   /**

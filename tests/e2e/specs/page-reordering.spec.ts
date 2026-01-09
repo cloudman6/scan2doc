@@ -59,7 +59,7 @@ test.describe('Page Reordering - Refactored', () => {
 
     // 等待所有缩略图加载
     await expect(async () => {
-      const readyCount = await page.locator('.page-item .thumbnail-img').count();
+      const readyCount = await page.getByTestId('page-thumbnail').count();
       expect(readyCount).toBe(totalPages);
     }).toPass({ timeout: 60000 });
 
@@ -110,7 +110,7 @@ test.describe('Page Reordering - Refactored', () => {
 
     // 2. 等待至少2个页面就绪
     await page.waitForFunction(() => {
-      const readyCount = document.querySelectorAll('.page-item .thumbnail-img').length;
+      const readyCount = document.querySelectorAll('[data-testid="page-thumbnail"]').length;
       return readyCount >= 2;
     }, { timeout: 60000 });
 
@@ -118,7 +118,7 @@ test.describe('Page Reordering - Refactored', () => {
     const pageItems = page.locator('.page-item');
     let readyPageIndex = -1;
     for (let i = 0; i < totalPages; i++) {
-      const thumbnail = pageItems.nth(i).locator('.thumbnail-img');
+      const thumbnail = pageItems.nth(i).getByTestId('page-thumbnail');
       if (await thumbnail.isVisible()) {
         readyPageIndex = i;
         break;
@@ -163,7 +163,7 @@ test.describe('Page Reordering - Refactored', () => {
 
     // 2. 等待至少2个页面就绪
     await page.waitForFunction(() => {
-      const readyCount = document.querySelectorAll('.page-item .thumbnail-img').length;
+      const readyCount = document.querySelectorAll('[data-testid="page-thumbnail"]').length;
       return readyCount >= 2;
     }, { timeout: 60000 });
 
@@ -171,7 +171,7 @@ test.describe('Page Reordering - Refactored', () => {
     const pageItems = page.locator('.page-item');
     let nonReadyPageIndex = -1;
     for (let i = 0; i < totalPages; i++) {
-      const thumbnail = pageItems.nth(i).locator('.thumbnail-img');
+      const thumbnail = pageItems.nth(i).getByTestId('page-thumbnail');
       if (!(await thumbnail.isVisible())) {
         nonReadyPageIndex = i;
         break;

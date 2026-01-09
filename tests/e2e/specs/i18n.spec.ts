@@ -18,11 +18,11 @@ test.describe('Internationalization (i18n) - Refactored', () => {
 
   test.describe('P0: Language Selector Visibility', () => {
     test('should display language selector button in header', async ({ page }) => {
-      await expect(page.locator('[data-testid="language-selector-button"]')).toBeVisible();
+      await expect(page.getByTestId('language-selector-button')).toBeVisible();
     });
 
     test('should display current language label', async ({ page }) => {
-      const label = page.locator('[data-testid="current-language-label"]');
+      const label = page.getByTestId('current-language-label');
       await expect(label).toBeVisible();
       const text = await label.textContent();
       expect(text).toMatch(/^(English|中文)$/);
@@ -71,13 +71,13 @@ test.describe('Internationalization (i18n) - Refactored', () => {
 
         // 切换语言
         await app.switchLanguage(lang as 'en' | 'zh-CN');
-        await expect(page.locator('[data-testid="current-language-label"]')).toContainText(langLabel);
+        await expect(page.getByTestId('current-language-label')).toContainText(langLabel);
 
         // 重载页面
         await page.reload();
 
         // 验证语言持久化
-        await expect(page.locator('[data-testid="current-language-label"]')).toContainText(langLabel);
+        await expect(page.getByTestId('current-language-label')).toContainText(langLabel);
         await expect(page.getByText(texts.emptyState)).toBeVisible();
       });
     }
@@ -91,7 +91,7 @@ test.describe('Internationalization (i18n) - Refactored', () => {
       });
       await page.reload();
 
-      await expect(page.locator('[data-testid="current-language-label"]')).toContainText('English');
+      await expect(page.getByTestId('current-language-label')).toContainText('English');
     });
 
     test('should prioritize localStorage over browser language', async ({ page }) => {
@@ -101,7 +101,7 @@ test.describe('Internationalization (i18n) - Refactored', () => {
       });
       await page.reload();
 
-      await expect(page.locator('[data-testid="current-language-label"]')).toContainText('中文');
+      await expect(page.getByTestId('current-language-label')).toContainText('中文');
     });
   });
 

@@ -1,6 +1,9 @@
 <template>
   <div
     :class="['page-item', { active: isActive, dragging: isDragging, selected: isSelected }]"
+    role="listitem"
+    :data-testid="`page-item-${page.id}`"
+    :data-page-id="page.id"
     @click="handleClick"
     @mouseenter="isPageHovered = true"
     @mouseleave="isPageHovered = false"
@@ -9,6 +12,8 @@
       ⋮⋮
     </div>
     <NCheckbox
+      data-testid="page-checkbox"
+      role="checkbox"
       :checked="isSelected"
       size="small"
       class="page-checkbox"
@@ -17,6 +22,7 @@
     />
     
     <div 
+      data-testid="page-actions"
       class="actions-container"
       :style="{
         opacity: isPageHovered || isActionHovered ? 1 : 0,
@@ -24,6 +30,8 @@
       }"
     >
       <NButton
+        data-testid="scan-page-btn"
+        role="button"
         text
         size="tiny"
         circle
@@ -45,6 +53,8 @@
       </NButton>
 
       <NButton
+        data-testid="delete-page-btn"
+        role="button"
         text
         size="tiny"
         circle
@@ -70,8 +80,9 @@
       <transition name="fade">
         <img
           v-if="page.thumbnailData"
+          data-testid="page-thumbnail"
           :src="page.thumbnailData"
-          alt=""
+          alt="Page thumbnail"
           class="thumbnail-img"
         >
         <div
@@ -206,6 +217,7 @@ async function handleScan() {
       return
     }
 
+    // 注意: Naive UI 的 notification API 不支持 class 选项
     notification.success({
       content: 'Added to OCR Queue',
       duration: 2500,
@@ -215,6 +227,7 @@ async function handleScan() {
 
   } catch (error) {
     console.error('OCR Error:', error)
+    // 注意: Naive UI 的 message API 不支持 class 选项
     message.error('OCR Failed: ' + (error instanceof Error ? error.message : String(error)))
   }
 }

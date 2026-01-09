@@ -38,16 +38,16 @@ test.describe('Error Handling', () => {
         return pages[0]?.status === 'error';
     }, { timeout: 15000 });
 
-    // 验证 OCR 按钮重新变为可用 (即“重试”机制)
+    // 验证 OCR 按钮重新变为可用 (即"重试"机制)
     // 在 error 状态下，isScanning 为 false，按钮恢复可用
-    const ocrBtn = page.locator('.page-item').first().locator('.action-btn').first();
+    const pageItem = page.locator('[data-testid^="page-item-"]').first();
+    const ocrBtn = pageItem.getByTestId('scan-page-btn');
     await expect(ocrBtn).toBeEnabled();
     
-    // 验证错误提示确实出现了 (刚才 14 个测试通过了，说明其它 matching 没问题)
-    // 再次尝试匹配提示
-    await expect(
-      page.locator('body').filter({ hasText: /fail|error|OCR/i }).first()
-    ).toBeVisible({ timeout: 5000 });
+    // 验证错误消息出现
+    // 注意: Naive UI 的 message API 不支持 class 选项，通过通用的 .n-message 验证
+    // 我们已经通过按钮状态和页面状态验证了错误处理逻辑，消息出现作为额外验证
+    await expect(page.locator('.n-message').first()).toBeVisible({ timeout: 5000 });
   });
 
   test('should handle network timeout during OCR', async () => {
@@ -80,12 +80,9 @@ test.describe('Error Handling', () => {
     await exportPage.clickExportButton();
     await exportPage.selectExportFormat('Markdown');
 
-    // 验证错误提示
-    await expect(
-      page.locator('body').filter({ hasText: /fail|error|export/i }).first()
-    ).toBeVisible({
-      timeout: 10000
-    });
+    // 验证错误消息出现
+    // 注意: Naive UI 的 message API 不支持 class 选项，通过通用的 .n-message 验证
+    await expect(page.locator('.n-message').first()).toBeVisible({ timeout: 10000 });
   });
 
   test('should handle offline status during export', async ({ page, context }) => {
@@ -104,10 +101,9 @@ test.describe('Error Handling', () => {
     await exportPage.clickExportButton();
     await exportPage.selectExportFormat('Markdown');
 
-    // 验证错误提示
-    await expect(
-      page.locator('body').filter({ hasText: /fail|error|export/i }).first()
-    ).toBeVisible({ timeout: 10000 });
+    // 验证错误消息出现（网络错误也会触发导出错误）
+    // 注意: Naive UI 的 message API 不支持 class 选项，通过通用的 .n-message 验证
+    await expect(page.locator('.n-message').first()).toBeVisible({ timeout: 10000 });
 
     // 恢复网络
     await context.setOffline(false);

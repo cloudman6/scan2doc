@@ -14,7 +14,7 @@ export class PageListPage {
    * 获取所有页面项
    */
   private get pageItems() {
-    return this.page.locator('.page-item');
+    return this.page.locator('[data-testid^="page-item-"]');
   }
 
   /**
@@ -23,7 +23,7 @@ export class PageListPage {
   async selectAll() {
     await this.page.getByTestId('select-all-checkbox').check();
     // 等待至少一个页面被选中
-    await this.page.locator('.page-item.selected').first().waitFor({ 
+    await this.page.locator('[data-testid^="page-item-"].selected').first().waitFor({ 
       state: 'visible',
       timeout: 3000 
     }).catch(() => {
@@ -38,7 +38,7 @@ export class PageListPage {
     await this.page.getByTestId('select-all-checkbox').uncheck();
     // 等待所有选中状态清除
     await this.page.waitForFunction(() => {
-      const selectedItems = document.querySelectorAll('.page-item.selected');
+      const selectedItems = document.querySelectorAll('[data-testid^="page-item-"].selected');
       return selectedItems.length === 0;
     }, { timeout: 3000 }).catch(() => {
       // 如果没有选中项，继续执行
@@ -49,7 +49,7 @@ export class PageListPage {
    * 点击批量 OCR 按钮
    */
   async clickBatchOCR() {
-    await this.page.getByTestId('batch-ocr-button').click();
+    await this.page.getByTestId('batch-ocr-btn').click();
   }
 
   /**
@@ -59,7 +59,7 @@ export class PageListPage {
     const initialCount = await this.getPageCount();
     
     // 点击删除按钮
-    await this.page.click('.delete-selected-btn');
+    await this.page.getByTestId('delete-selected-btn').click();
     
     // 确认弹窗
     const dialog = this.page.locator('.n-dialog.n-modal');
@@ -75,7 +75,7 @@ export class PageListPage {
     // 等待列表更新
     await this.page.waitForFunction(
       (expected) => {
-        const items = document.querySelectorAll('.page-item');
+        const items = document.querySelectorAll('[data-testid^="page-item-"]');
         return items.length < expected;
       },
       initialCount,
@@ -159,14 +159,27 @@ export class PageListPage {
     const { count, timeout = 30000 } = options;
 
     if (count !== undefined) {
+      // 使用更健壮的等待策略：等待页面项数量达到预期，并且所有项都已渲染
       await this.page.waitForFunction(
         (expectedCount) => {
-          const items = document.querySelectorAll('.page-item');
-          return items.length === expectedCount;
+          const items = document.querySelectorAll('[data-testid^="page-item-"]');
+          // 确保数量匹配，并且所有项都有内容（不是空元素）
+          if (items.length !== expectedCount) {
+            return false;
+          }
+          // 验证所有页面项都是可见的（至少有一个子元素）
+          for (let i = 0; i < items.length; i++) {
+            if (!items[i] || items[i].children.length === 0) {
+              return false;
+            }
+          }
+          return true;
         },
         count,
         { timeout }
       );
+      // 额外等待一下，确保 DOM 完全稳定
+      await this.page.waitForTimeout(100);
     } else {
       await this.pageItems.first().waitFor({ state: 'visible', timeout });
     }
@@ -181,7 +194,7 @@ export class PageListPage {
     for (let i = 0; i < count; i++) {
       await this.pageItems
         .nth(i)
-        .locator('.thumbnail-img')
+        .getByTestId('page-thumbnail')
         .waitFor({ state: 'visible', timeout });
     }
   }
@@ -191,7 +204,7 @@ export class PageListPage {
    */
   async areAllThumbnailsVisible(): Promise<boolean> {
     const count = await this.getPageCount();
-    const thumbnails = this.page.locator('.page-item .thumbnail-img');
+    const thumbnails = this.page.getByTestId('page-thumbnail');
     const visibleCount = await thumbnails.count();
     return visibleCount === count;
   }
@@ -202,7 +215,7 @@ export class PageListPage {
   async clickPage(index: number) {
     await this.pageItems.nth(index).click();
     // 等待页面变为 active 状态
-    await this.pageItems.nth(index).locator('.page-item.active, .active').waitFor({
+    await this.pageItems.nth(index).locator('.active').waitFor({
       state: 'attached',
       timeout: 3000
     }).catch(() => {
@@ -214,7 +227,7 @@ export class PageListPage {
    * 勾选指定页面（用于批量操作）
    */
   async selectPage(index: number) {
-    const checkbox = this.pageItems.nth(index).locator('.page-checkbox');
+    const checkbox = this.pageItems.nth(index).getByTestId('page-checkbox');
     await checkbox.click();
     // 等待 checkbox 状态改变
     await checkbox.waitFor({ state: 'visible', timeout: 3000 });
@@ -239,7 +252,7 @@ export class PageListPage {
     // 等待页面数量增加（至少增加1个）
     await this.page.waitForFunction(
       (expectedIncrease) => {
-        const currentCount = document.querySelectorAll('.page-item').length;
+        const currentCount = document.querySelectorAll('[data-testid^="page-item-"]').length;
         return currentCount >= expectedIncrease;
       },
       beforeCount + 1,

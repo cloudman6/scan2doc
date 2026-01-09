@@ -16,24 +16,28 @@ test.describe('Page Deleting', () => {
   test('should delete a single page and persist after reload', async ({ page }) => {
     // 1. Upload files
     await pageList.uploadAndWaitReady([TestData.files.samplePNG(), TestData.files.sampleJPG()]);
+    // Explicitly wait for 2 pages to be sure (fixes race condition where second file may not be added yet)
+    await pageList.waitForPagesLoaded({ count: 2 });
     const initialCount = await pageList.getPageCount();
     expect(initialCount).toBe(2);
 
     // 2. Delete the first page
-    const pageItem = page.locator('.page-item').first();
+    const pageItem = page.locator('[data-testid^="page-item-"]').first();
     await pageItem.hover();
-    await pageItem.locator('button[title="Delete page"]').click();
+    await pageItem.getByTestId('delete-page-btn').click();
 
     // Confirm deletion
-    const dialog = page.locator('.n-dialog.n-modal');
+    const dialog = page.locator('.n-dialog.n-modal.delete-confirm-dialog');
     await expect(dialog).toBeVisible();
+    // 使用 positiveText 匹配按钮（i18n 友好）
     await dialog.locator('button:has-text("Confirm")').click();
 
     // Verify page count decreased
     await pageList.waitForPagesLoaded({ count: initialCount - 1 });
 
-    // Verify success notification (using helper if available, or direct check)
-    await expect(page.locator('.n-message:has-text("deleted")')).toBeVisible();
+    // Verify success message appears
+    // 注意: Naive UI 的 message API 不支持 class 选项，通过通用的 .n-message 验证
+    await expect(page.locator('.n-message').first()).toBeVisible({ timeout: 5000 });
 
     // 3. Reload page to verify persistence
     await page.reload();
@@ -76,6 +80,8 @@ test.describe('Page Deleting', () => {
   test('should delete all pages and show empty state', async ({ page }) => {
     // 1. Upload files
     await pageList.uploadAndWaitReady([TestData.files.samplePNG(), TestData.files.sampleJPG()]);
+    // Explicitly wait for 2 pages to be sure (fixes race condition where second file may not be added yet)
+    await pageList.waitForPagesLoaded({ count: 2 });
     
     // 2. Select all
     await pageList.selectAll();

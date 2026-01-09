@@ -2,6 +2,8 @@
   <div class="ocr-mode-selector">
     <n-button-group size="small">
       <n-button
+        data-testid="ocr-trigger-btn"
+        role="button"
         :type="buttonType"
         :loading="loading"
         :disabled="disabled"
@@ -21,6 +23,8 @@
         @select="handleSelect"
       >
         <n-button
+          data-testid="ocr-mode-dropdown"
+          role="button"
           :type="buttonType"
           :disabled="disabled"
           class="dropdown-trigger"

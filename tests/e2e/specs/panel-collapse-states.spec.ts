@@ -39,8 +39,9 @@ test.describe('Panel Collapse States', () => {
       await page.waitForTimeout(1000);
 
       // 视觉快照（mask 掉动态内容）
+      // 使用 data-testid 定位动态元素
       await expect(page).toHaveScreenshot(`panel-state-${state.name}.png`, {
-        mask: [page.locator('.page-image'), page.locator('.timestamp')],
+        mask: [page.getByTestId('page-image'), page.locator('.timestamp')],
         maxDiffPixelRatio: 0.02,
         threshold: 0.2
       });
@@ -48,13 +49,19 @@ test.describe('Panel Collapse States', () => {
   }
 
   test('should toggle Page List state correctly', async ({ page }) => {
-    // S1 -> S2
+    const container = page.getByTestId('page-list-container');
+    
+    // S1 -> S2 (折叠)
+    // 初始状态：侧边栏应该可见
+    await expect(container).toBeVisible();
     await page.click('[data-testid="collapse-list-button"]');
-    await expect(page.locator('.n-layout-sider--collapsed')).toBeVisible();
+    // 验证侧边栏被折叠（collapsed-width="0" 时会完全隐藏）
+    await expect(container).not.toBeVisible({ timeout: 2000 });
 
-    // S2 -> S1
+    // S2 -> S1 (展开)
     await page.click('[data-testid="collapse-list-button"]');
-    await expect(page.locator('.n-layout-sider--collapsed')).not.toBeVisible();
+    // 验证侧边栏展开
+    await expect(container).toBeVisible({ timeout: 2000 });
   });
 
   test('should toggle Preview state correctly', async ({ page }) => {

@@ -1,5 +1,9 @@
 <template>
-  <div class="page-viewer">
+  <div 
+    data-testid="page-viewer"
+    :data-current-page-id="currentPage?.id"
+    class="page-viewer"
+  >
     <!-- Header with page info and controls -->
     <n-card
       class="viewer-header"
@@ -17,7 +21,10 @@
           align="center"
           size="small"
         >
-          <div class="ocr-actions">
+          <div 
+            data-testid="ocr-actions-container"
+            class="ocr-actions"
+          >
             <OCRModeSelector 
               :loading="status === 'recognizing'"
               :disabled="!currentPage || isPageProcessing"
@@ -74,9 +81,10 @@
           }"
         >
           <img
+            data-testid="page-image"
             :src="fullImageUrl"
             class="page-image"
-            alt=""
+            alt="Page image"
             @load="onImageLoad"
             @error="onImageError"
           >
@@ -538,6 +546,7 @@ async function submitOCR(mode: OCRPromptType, extraOptions: { custom_prompt?: st
     }
 
     uiLogger.info(`Adding page to OCR Queue (${mode}):`, props.currentPage.id)
+    // 注意: Naive UI 的 notification API 不支持 class 选项
     notification.success({
       content: t('ocr.addedToQueue'),
       duration: 2500,
@@ -551,6 +560,7 @@ async function submitOCR(mode: OCRPromptType, extraOptions: { custom_prompt?: st
 
   } catch (error) {
     uiLogger.error('OCR Error:', error)
+    // 注意: Naive UI 的 message API 不支持 class 选项
     message.error(t('ocr.ocrFailed', [(error instanceof Error ? error.message : String(error))]))
   }
 }

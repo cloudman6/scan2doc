@@ -16,9 +16,9 @@ test.describe('Page-List UI Interactions', () => {
   test('should show/hide delete button on page-item hover', async ({ page }) => {
     await pageList.uploadAndWaitReady([TestData.files.samplePNG()]);
     
-    const pageItem = page.locator('.page-item').first();
-    const actionsContainer = pageItem.locator('.actions-container');
-    const deleteButton = pageItem.locator('button[title="Delete page"]');
+    const pageItem = page.locator('[data-testid^="page-item-"]').first();
+    const actionsContainer = pageItem.getByTestId('page-actions');
+    const deleteButton = pageItem.getByTestId('delete-page-btn');
 
     // 1. Verify actions container is hidden by default
     await expect(actionsContainer).toHaveCSS('opacity', '0');
@@ -44,7 +44,7 @@ test.describe('Page-List UI Interactions', () => {
     await pageList.uploadAndWaitReady([TestData.files.samplePNG(), TestData.files.sampleJPG()]);
     const totalPages = await pageList.getPageCount();
 
-    const toolbarDeleteBtn = page.locator('.delete-selected-btn');
+    const toolbarDeleteBtn = page.getByTestId('delete-selected-btn');
 
     // 1. Verify toolbar delete button is NOT visible by default
     await expect(toolbarDeleteBtn).not.toBeVisible();
@@ -54,7 +54,8 @@ test.describe('Page-List UI Interactions', () => {
 
     // 3. Verify all page-item checkboxes are checked
     for (let i = 0; i < totalPages; i++) {
-      const pageCheckbox = page.locator('.page-item').nth(i).locator('.page-checkbox');
+      const pageItem = page.locator('[data-testid^="page-item-"]').nth(i);
+      const pageCheckbox = pageItem.getByTestId('page-checkbox');
       await expect(pageCheckbox).toHaveAttribute('aria-checked', 'true');
     }
 
@@ -66,7 +67,8 @@ test.describe('Page-List UI Interactions', () => {
 
     // 6. Verify all page-item checkboxes are unchecked
     for (let i = 0; i < totalPages; i++) {
-      const pageCheckbox = page.locator('.page-item').nth(i).locator('.page-checkbox');
+      const pageItem = page.locator('[data-testid^="page-item-"]').nth(i);
+      const pageCheckbox = pageItem.getByTestId('page-checkbox');
       await expect(pageCheckbox).toHaveAttribute('aria-checked', 'false');
     }
 
@@ -77,7 +79,7 @@ test.describe('Page-List UI Interactions', () => {
   test('should show/hide toolbar delete button on single page selection', async ({ page }) => {
     await pageList.uploadAndWaitReady([TestData.files.samplePNG(), TestData.files.sampleJPG()]);
     
-    const toolbarDeleteBtn = page.locator('.delete-selected-btn');
+    const toolbarDeleteBtn = page.getByTestId('delete-selected-btn');
 
     // 1. Verify toolbar delete button is NOT visible by default
     await expect(toolbarDeleteBtn).not.toBeVisible();

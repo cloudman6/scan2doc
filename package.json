@@ -13,7 +13,10 @@
     "lint": "eslint . --fix",
     "lint:complexity": "eslint .",
     "test:e2e": "playwright test",
-    "test:e2e:cleanup": "pkill -f \"playwright\" || true"
+    "test:e2e:cleanup": "pkill -f \"playwright\" || true",
+    "test:e2e:stability": "bash scripts/stability-test.sh",
+    "test:e2e:quick-stability": "bash scripts/quick-stability-test.sh",
+    "test:e2e:report": "playwright test --reporter=json > final_report.json"
   },
   "dependencies": {
     "@hungknguyen/docx-math-converter": "^1.1.4",
