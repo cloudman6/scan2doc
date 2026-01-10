@@ -363,7 +363,11 @@ export const usePagesStore = defineStore('pages', () => {
   }
 
   async function deletePagesFromDB(ids: string[]) {
-    await Promise.all(ids.map(id => db.deletePage(id)))
+    if (ids.length === 1 && ids[0]) {
+      await db.deletePage(ids[0])
+    } else if (ids.length > 1) {
+      await db.deletePagesBatch(ids)
+    }
   }
 
   async function reorderPages(updates: { id: string; order: number }[]) {

@@ -11,6 +11,7 @@ export default {
     deleteConfirmTitle: 'Confirm Deletion',
     deleteConfirmSingle: 'Are you sure you want to delete "{0}"?',
     deleteConfirmMultiple: 'Are you sure you want to delete {0} selected pages?',
+    deleteProcessingWarning: 'Warning: {0} pages are currently being processed. Deleting them will cancel their tasks.',
     deletePositive: 'Confirm',
     deleteNegative: 'Cancel',
     pageDeleted: 'Page "{0}" deleted',

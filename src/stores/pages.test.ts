@@ -12,6 +12,7 @@ vi.mock('@/db/index', () => ({
         getNextOrder: vi.fn(),
         savePage: vi.fn(),
         deletePage: vi.fn(),
+        deletePagesBatch: vi.fn(),
         deletePages: vi.fn((_pageIds: string[]) => {
             return Promise.resolve()
         }),
@@ -302,10 +303,20 @@ describe('Pages Store', () => {
             }
         })
 
-        it('deletePagesFromDB should call db.deletePage for each id', async () => {
+        it('deletePagesFromDB should call db.deletePage for single id', async () => {
+            const store = usePagesStore()
+            await store.deletePagesFromDB(['1'])
+            expect(db.deletePage).toHaveBeenCalledTimes(1)
+            expect(db.deletePage).toHaveBeenCalledWith('1')
+            expect(db.deletePagesBatch).not.toHaveBeenCalled()
+        })
+
+        it('deletePagesFromDB should call db.deletePagesBatch for multiple ids', async () => {
             const store = usePagesStore()
             await store.deletePagesFromDB(['1', '2'])
-            expect(db.deletePage).toHaveBeenCalledTimes(2)
+            expect(db.deletePagesBatch).toHaveBeenCalledTimes(1)
+            expect(db.deletePagesBatch).toHaveBeenCalledWith(['1', '2'])
+            expect(db.deletePage).not.toHaveBeenCalled()
         })
     })
 

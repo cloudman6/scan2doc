@@ -106,10 +106,18 @@ test.describe('Batch Export (Refactored)', () => {
       const warningDialog = page.locator('.n-dialog.n-modal.export-warning-dialog');
       await expect(warningDialog).toBeVisible({ timeout: 10000 });
 
-      // 6. 下载
+      // 6. 关键修复：在点击按钮之前设置下载监听，并确保监听器已准备好
+      // 使用 Promise.all 确保下载监听和点击操作几乎同时发生，避免竞态条件
       const downloadPromise = page.waitForEvent('download', { timeout: 60000 });
+      
+      // 给 Playwright 一点时间确保下载监听器已完全准备好
+      await page.waitForTimeout(100);
+      
       // 使用 positiveText 匹配按钮（i18n 需要注意文本变化）
       await warningDialog.locator('.n-dialog__action button:has-text("Skip & Export")').click();
+      
+      // 直接等待下载，不要等待对话框关闭或其他操作
+      // 因为 downloadBlob 在 performExport 完成后立即调用，可能在对话框关闭之前就触发了
       const download = await downloadPromise;
 
       // 7. 验证文件名

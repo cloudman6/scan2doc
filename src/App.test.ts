@@ -34,6 +34,7 @@ interface MockStore {
   addFiles: ReturnType<typeof vi.fn>
   setupOCREventListeners: ReturnType<typeof vi.fn>
   setupDocGenEventListeners: ReturnType<typeof vi.fn>
+  cancelOCRTasks: ReturnType<typeof vi.fn>
 }
 
 interface MockDiscreteApi {
@@ -122,7 +123,8 @@ const mockStore: MockStore = reactive({
   clearSelection: vi.fn(),
   addFiles: vi.fn(),
   setupOCREventListeners: vi.fn(),
-  setupDocGenEventListeners: vi.fn()
+  setupDocGenEventListeners: vi.fn(),
+  cancelOCRTasks: vi.fn()
 })
 
 vi.mock('./stores/pages', () => ({
@@ -264,12 +266,42 @@ describe('App.vue', () => {
 
       const wrapper = mountApp()
 
+      // The method is async now
       await (wrapper.vm as AppInstance).handlePageDeleted(mockPage as Page)
 
       expect(mockDialog.warning).toHaveBeenCalled()
       expect(mockStore.deletePages).toHaveBeenCalledWith(['p1'])
       expect(mockStore.deletePagesFromDB).toHaveBeenCalledWith(['p1'])
       expect(mockMessage.success).toHaveBeenCalledWith('Page "test.png" deleted')
+    })
+
+    it('handles processing page deletion with warning and cancellation', async () => {
+      const processingPage = { ...mockPage, status: 'recognizing' }
+      mockStore.pages = [processingPage]
+      mockStore.cancelOCRTasks = vi.fn()
+      mockStore.deletePages.mockReturnValue(processingPage)
+
+      const mockDialog = {
+        warning: vi.fn(({ onPositiveClick }) => {
+          if (onPositiveClick) onPositiveClick()
+        })
+      }
+      vi.mocked(createDiscreteApi).mockReturnValue({ message: mockMessage, dialog: mockDialog } as any)
+
+      const wrapper = mountApp()
+
+      await (wrapper.vm as AppInstance).handlePageDeleted(processingPage as Page)
+
+      // Warning should be part of the content
+      expect(mockDialog.warning).toHaveBeenCalledWith(expect.objectContaining({
+        content: expect.stringContaining('Warning')
+      }))
+      
+      // Should cancel tasks
+      expect(mockStore.cancelOCRTasks).toHaveBeenCalledWith(['p1'])
+      
+      // Should proceed to delete
+      expect(mockStore.deletePages).toHaveBeenCalledWith(['p1'])
     })
 
     it('handles batch deletion after confirmation', async () => {

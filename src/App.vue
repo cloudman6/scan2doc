@@ -288,9 +288,23 @@ async function handleBatchDeleted(pages: Page[]) {
 // Unified deletion handler for both single and batch operations
 async function handleDeletion(pagesToDelete: Page[]) {
   const isSingle = pagesToDelete.length === 1
-  const content = isSingle
+
+  // Check for processing pages
+  const processingPages = pagesToDelete.filter(p =>
+    p.status === 'recognizing' ||
+    p.status === 'pending_ocr' ||
+    p.status === 'generating_markdown' ||
+    p.status === 'generating_pdf' ||
+    p.status === 'generating_docx'
+  )
+
+  let content = isSingle
     ? t('app.deleteConfirmSingle', [pagesToDelete[0]!.fileName])
     : t('app.deleteConfirmMultiple', [pagesToDelete.length])
+
+  if (processingPages.length > 0) {
+    content += `\n\n⚠️ ${t('app.deleteProcessingWarning', [processingPages.length])}`
+  }
 
   dialog.warning({
     title: t('app.deleteConfirmTitle'),
@@ -300,39 +314,76 @@ async function handleDeletion(pagesToDelete: Page[]) {
     class: 'delete-confirm-dialog',
     onPositiveClick: async () => {
       try {
-        const pageIds = pagesToDelete.map(page => page.id)
-
-        // Delete pages from store
-        const deletedResult = pagesStore.deletePages(pageIds)
-
-        if (deletedResult) {
-          // Delete from database using batch operation
-          await pagesStore.deletePagesFromDB(pageIds)
-
-          // Create appropriate message
-          const successMsg = isSingle
-            ? t('app.pageDeleted', [pagesToDelete[0]!.fileName])
-            : t('app.pagesDeleted', [pagesToDelete.length])
-
-          // Show success message using Naive UI message
-          // 注意: Naive UI 的 message API 不支持 class 选项
-          message.success(successMsg)
-
-          // Update current page if it was deleted
-          if (currentPage.value && pageIds.includes(currentPage.value.id)) {
-            selectedPageId.value = pagesStore.pages[0]?.id || null
-          }
-
-          // Clear selection after deletion
-          pagesStore.clearSelection()
-        }
+        await executeDeletion(pagesToDelete, isSingle, processingPages)
       } catch (error) {
         uiLogger.error('Delete failed:', error)
-        // 注意: Naive UI 的 message API 不支持 class 选项
         message.error(isSingle ? 'Failed to delete page' : 'Failed to delete pages')
       }
     }
   })
+}
+
+async function executeDeletion(pagesToDelete: Page[], isSingle: boolean, processingPages: Page[]) {
+  const pageIds = pagesToDelete.map(page => page.id)
+
+  // Cancel running tasks first
+  if (processingPages.length > 0) {
+    await pagesStore.cancelOCRTasks(processingPages.map(p => p.id))
+  }
+
+  // Calculate next selection BEFORE deletion to avoid watcher race conditions
+  const nextSelectedId = calculateNextSelection(pagesToDelete, pageIds)
+
+  // Delete pages from store
+  const deletedResult = pagesStore.deletePages(pageIds)
+
+  if (deletedResult) {
+    // Delete from database using batch operation
+    await pagesStore.deletePagesFromDB(pageIds)
+
+    // Create appropriate message
+    const successMsg = isSingle
+      ? t('app.pageDeleted', [pagesToDelete[0]!.fileName])
+      : t('app.pagesDeleted', [pagesToDelete.length])
+
+    // Show success message using Naive UI message
+    message.success(successMsg)
+
+    // Apply pre-calculated selection
+    applyNextSelection(nextSelectedId, pageIds)
+  }
+}
+
+function calculateNextSelection(pagesToDelete: Page[], pageIds: string[]): string | null {
+  if (currentPage.value && pageIds.includes(currentPage.value.id)) {
+    const deletedSelectedPage = pagesToDelete.find(p => p.id === currentPage.value!.id)
+    if (deletedSelectedPage) {
+      const remainingPages = pagesStore.pages.filter(p => !pageIds.includes(p.id))
+      const nextCandidates = remainingPages.filter(p => p.order > deletedSelectedPage.order)
+      const prevCandidates = remainingPages.filter(p => p.order < deletedSelectedPage.order)
+
+      if (nextCandidates.length > 0) {
+        return nextCandidates[0]!.id
+      } else if (prevCandidates.length > 0) {
+        return prevCandidates[prevCandidates.length - 1]!.id
+      }
+    }
+  }
+  return null
+}
+
+function applyNextSelection(nextSelectedId: string | null, deletedPageIds: string[]) {
+  if (nextSelectedId) {
+    handlePageSelected(pagesStore.pages.find(p => p.id === nextSelectedId)!)
+  } else if (currentPage.value && deletedPageIds.includes(currentPage.value.id)) {
+    // Fallback if we couldn't find next/prev but current is gone
+    if (pagesStore.pages.length > 0) {
+      handlePageSelected(pagesStore.pages[0]!)
+    } else {
+      selectedPageId.value = null
+      pagesStore.clearSelection()
+    }
+  }
 }
 
 

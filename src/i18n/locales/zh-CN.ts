@@ -11,6 +11,7 @@ export default {
     deleteConfirmTitle: '确认删除',
     deleteConfirmSingle: '确定要删除 "{0}" 吗？',
     deleteConfirmMultiple: '确定要删除选中的 {0} 个页面吗？',
+    deleteProcessingWarning: '警告：有 {0} 个页面正在处理中。删除它们将取消其任务。',
     deletePositive: '确认',
     deleteNegative: '取消',
     pageDeleted: '已删除页面 "{0}"',

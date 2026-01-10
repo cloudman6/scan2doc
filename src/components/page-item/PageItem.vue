@@ -60,7 +60,6 @@
         circle
         class="action-btn"
         :title="t('pageItem.deletePage')"
-        :disabled="isScanning"
         @click.stop="handleDelete"
         @mouseenter="isDeleteHovered = true"
         @mouseleave="isDeleteHovered = false"

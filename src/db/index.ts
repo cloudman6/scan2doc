@@ -349,9 +349,49 @@ export class Scan2DocDB extends Dexie {
   }
 
   async deletePage(id: string): Promise<void> {
-    await this.pages.delete(id)
-    await this.pageImages.delete(id)
-    await this.processingQueue.where('pageId').equals(id).delete()
+    await this.transaction('rw', [
+      this.pages,
+      this.pageImages,
+      this.processingQueue,
+      this.pageOCRs,
+      this.pageMarkdowns,
+      this.pagePDFs,
+      this.pageDOCXs,
+      this.pageExtractedImages
+    ], async () => {
+      await this.pages.delete(id)
+      await this.pageImages.delete(id)
+      await this.processingQueue.where('pageId').equals(id).delete()
+      // Cleanup related data
+      await this.pageOCRs.delete(id)
+      await this.pageMarkdowns.delete(id)
+      await this.pagePDFs.delete(id)
+      await this.pageDOCXs.delete(id)
+      await this.pageExtractedImages.where('pageId').equals(id).delete()
+    })
+  }
+
+  async deletePagesBatch(ids: string[]): Promise<void> {
+    await this.transaction('rw', [
+      this.pages,
+      this.pageImages,
+      this.processingQueue,
+      this.pageOCRs,
+      this.pageMarkdowns,
+      this.pagePDFs,
+      this.pageDOCXs,
+      this.pageExtractedImages
+    ], async () => {
+      await this.pages.bulkDelete(ids)
+      await this.pageImages.bulkDelete(ids)
+      await this.processingQueue.where('pageId').anyOf(ids).delete()
+      // Cleanup related data
+      await this.pageOCRs.bulkDelete(ids)
+      await this.pageMarkdowns.bulkDelete(ids)
+      await this.pagePDFs.bulkDelete(ids)
+      await this.pageDOCXs.bulkDelete(ids)
+      await this.pageExtractedImages.where('pageId').anyOf(ids).delete()
+    })
   }
 
   async deleteAllPages(): Promise<void> {
