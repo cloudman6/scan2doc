@@ -49,10 +49,10 @@ describe('OCRInputModal.vue', () => {
             },
             global: { plugins: [i18n] }
         })
-        expect(wrapper.vm.title).toBe('Locate Object')
+        expect((wrapper.vm as any).title).toBe('Locate Object')
 
         await wrapper.setProps({ mode: 'freeform' })
-        expect(wrapper.vm.title).toBe('Custom Prompt')
+        expect((wrapper.vm as any).title).toBe('Custom Prompt')
         expect(wrapper.find('textarea').attributes('placeholder')).toContain('custom prompt')
     })
 
@@ -66,12 +66,12 @@ describe('OCRInputModal.vue', () => {
         })
 
         // Set some value internally
-        await wrapper.vm.$nextTick()
-        wrapper.vm.inputValue = 'some initial value'
+        await wrapper.vm.$nextTick();
+        (wrapper.vm as any).inputValue = 'some initial value'
 
         // Open
         await wrapper.setProps({ show: true })
-        expect(wrapper.vm.inputValue).toBe('')
+        expect((wrapper.vm as any).inputValue).toBe('')
     })
 
     it('emits submit and update:show when positive button clicked', async () => {

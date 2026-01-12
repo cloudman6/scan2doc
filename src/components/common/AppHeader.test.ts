@@ -22,8 +22,8 @@ vi.mock('@/components/common/LanguageSelector.vue', () => ({
 
 // Manual store mock
 const mockStore = reactive({
-    activeOCRTasks: [],
-    queuedOCRTasks: [],
+    activeOCRTasks: [] as any[],
+    queuedOCRTasks: [] as any[],
     ocrTaskCount: 0
 })
 
@@ -110,9 +110,7 @@ describe('AppHeader', () => {
 
     it('displays OCR status pill when tasks are present', async () => {
         // Set store state BEFORE mount
-        // @ts-expect-error - manual store mock
         mockStore.activeOCRTasks = [{ id: '1', status: 'recognizing' }]
-        // @ts-expect-error - manual store mock
         mockStore.ocrTaskCount = 1
 
         const wrapper = mount(AppHeader, createMountOptions({ pageCount: 1 }))

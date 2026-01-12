@@ -69,7 +69,7 @@ describe('OCRModeSelector.vue', () => {
         // Simulate selection from dropdown (via handleSelect)
         await (wrapper.vm as any).handleSelect('ocr')
 
-        expect(wrapper.vm.selectedMode).toBe('ocr')
+        expect((wrapper.vm as any).selectedMode).toBe('ocr')
         expect(wrapper.find('.trigger-btn').text()).toContain('General OCR')
         expect(wrapper.emitted('run')![0]).toEqual(['ocr'])
     })
@@ -81,10 +81,10 @@ describe('OCRModeSelector.vue', () => {
                 plugins: [i18n]
             }
         })
-        expect(wrapper.vm.buttonType).toBe('info')
+        expect((wrapper.vm as any).buttonType).toBe('info')
 
         await wrapper.setProps({ loading: false })
-        expect(wrapper.vm.buttonType).toBe('primary')
+        expect((wrapper.vm as any).buttonType).toBe('primary')
     })
 
     it('disables buttons when disabled prop is true', () => {
@@ -106,12 +106,12 @@ describe('OCRModeSelector.vue', () => {
                 plugins: [i18n]
             }
         })
-        const options = wrapper.vm.menuOptions
+        const options = (wrapper.vm as any).menuOptions
         expect(options.length).toBe(7)
         expect(options[0].label).toBe('Scan to Document')
 
         // Test icon rendering function
         const iconVNode = (options[0].icon as () => import('vue').VNode)()
-        expect(iconVNode.type.name).toBe('NIcon')
+        expect((iconVNode.type as any).name).toBe('NIcon')
     })
 })

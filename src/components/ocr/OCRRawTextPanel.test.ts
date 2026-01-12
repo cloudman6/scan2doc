@@ -60,15 +60,15 @@ describe('OCRRawTextPanel.vue', () => {
         })
 
         // Default is expanded
-        expect(wrapper.vm.expanded).toBe(true)
+        expect((wrapper.vm as any).expanded).toBe(true)
 
         // Convert to any to access private/internal elements if needed,
         // but better to interact via UI
         await wrapper.find('.panel-header').trigger('click')
-        expect(wrapper.vm.expanded).toBe(false)
+        expect((wrapper.vm as any).expanded).toBe(false)
 
         await wrapper.find('.panel-header').trigger('click')
-        expect(wrapper.vm.expanded).toBe(true)
+        expect((wrapper.vm as any).expanded).toBe(true)
     })
 
     it('copies text to clipboard using navigator API', async () => {

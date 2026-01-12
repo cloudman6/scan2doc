@@ -479,14 +479,16 @@ onMounted(async () => {
   ocrEvents.on('ocr:error', ({ pageId, error }) => {
     const page = pagesStore.pages.find(p => p.id === pageId)
     const name = page ? page.fileName : pageId
+    const errorMsg = error?.message || 'Unknown error'
     // 注意: Naive UI 的 message API 不支持 class 选项
-    message.error(`${t('ocr.ocrFailed', [error.message])} (${name})`)
+    message.error(`${t('ocr.ocrFailed', [errorMsg])} (${name})`)
   })
 
   ocrEvents.on('doc:gen:error', ({ pageId, type: _type, error }) => {
     const page = pagesStore.pages.find(p => p.id === pageId)
     const name = page ? page.fileName : pageId
-    message.error(`${t('errors.failedToLoadMarkdown')}: ${error.message} (${name})`)
+    const errorMsg = error?.message || 'Unknown error'
+    message.error(`${t('errors.failedToLoadMarkdown')}: ${errorMsg} (${name})`)
   })
 
   // Resume any interrupted PDF processing

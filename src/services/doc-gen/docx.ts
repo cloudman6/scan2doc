@@ -16,7 +16,7 @@ import { consola } from 'consola'
 import MarkdownIt from 'markdown-it'
 // @ts-expect-error -- No types for this specific plugin
 import MarkdownItKatex from '@iktakahiro/markdown-it-katex'
-import type Token from 'markdown-it/lib/token'
+import type Token from 'markdown-it/lib/token.mjs'
 import { convertMathMl2Math } from '@hungknguyen/docx-math-converter'
 import katex from 'katex'
 
@@ -156,7 +156,7 @@ export class DocxGenerator {
 
                 // Parse width attribute
                 const widthMatch = attributes.match(/width="(\d+)%?"/)
-                const cellWidth = widthMatch ? parseInt(widthMatch[1]) : null
+                const cellWidth = (widthMatch && widthMatch[1]) ? parseInt(widthMatch[1]) : null
 
                 // Parse cell content as Markdown to support images and formatting
                 const children = await this.parseCellContent(cellContent, isHeader)
@@ -206,7 +206,7 @@ export class DocxGenerator {
         const inlineToken = tokens[index + 1]!
 
         const level = parseInt(openToken.tag.replace('h', ''))
-        let headingLevel = HeadingLevel.HEADING_1
+        let headingLevel: any = HeadingLevel.HEADING_1
         if (level === 2) headingLevel = HeadingLevel.HEADING_2
         if (level === 3) headingLevel = HeadingLevel.HEADING_3
         if (level >= 4) headingLevel = HeadingLevel.HEADING_4
@@ -232,7 +232,7 @@ export class DocxGenerator {
         let paragraph: Paragraph | null = null
 
         if (contentToken.type === 'inline') {
-            const imageToken = contentToken.children?.find(c => c.type === 'image')
+            const imageToken = contentToken.children?.find((c: Token) => c.type === 'image')
             // If only one child and it's image
             if (contentToken.children?.length === 1 && imageToken) {
                 const imageId = imageToken.attrGet('src')?.split(':')[1]
@@ -412,7 +412,10 @@ export class DocxGenerator {
                     const styledChildren = isHeader
                         ? children.map(child => {
                             if (child instanceof TextRun) {
-                                return new TextRun({ text: child.text, bold: true })
+                                // Accessing internal text property of TextRun for cloning with bold
+                                // This is a bit hacky but needed for cell header styling
+                                const text = (child as any).options?.text || ""
+                                return new TextRun({ text, bold: true })
                             }
                             return child
                         })

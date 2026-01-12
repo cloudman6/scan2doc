@@ -255,7 +255,6 @@ describe('OCRQueuePopover', () => {
 
     it('renders empty state when no tasks', async () => {
         const s = usePagesStore(pinia)
-        // @ts-expect-error - testing-pinia stubs
         s.pages = []
         // @ts-expect-error - testing-pinia stubs
         s.activeOCRTasks = []

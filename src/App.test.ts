@@ -570,11 +570,11 @@ describe('App.vue', () => {
       await flushPromises()
 
       // Find the ocr:error handler
-      const ocrErrorCall = vi.mocked(ocrEvents.on).mock.calls.find(call => call[0] === 'ocr:error')
+      const ocrErrorCall = vi.mocked(ocrEvents.on).mock.calls.find(call => (call[0] as any) === 'ocr:error')
       expect(ocrErrorCall).toBeDefined()
 
       // Trigger the handler
-      const handler = ocrErrorCall![1]
+      const handler = ocrErrorCall![1] as any
       handler({ pageId: 'p1', error: new Error('OCR failed') })
 
       expect(mockMessage.error).toHaveBeenCalledWith(expect.stringContaining('test.png'))
@@ -589,11 +589,11 @@ describe('App.vue', () => {
       await flushPromises()
 
       // Find the ocr:error handler
-      const ocrErrorCall = vi.mocked(ocrEvents.on).mock.calls.find(call => call[0] === 'ocr:error')
+      const ocrErrorCall = vi.mocked(ocrEvents.on).mock.calls.find(call => (call[0] as any) === 'ocr:error')
       expect(ocrErrorCall).toBeDefined()
 
       // Trigger the handler with unknown pageId
-      const handler = ocrErrorCall![1]
+      const handler = ocrErrorCall![1] as any
       handler({ pageId: 'unknown-page', error: new Error('OCR failed') })
 
       expect(mockMessage.error).toHaveBeenCalledWith(expect.stringContaining('unknown-page'))
@@ -608,11 +608,11 @@ describe('App.vue', () => {
       await flushPromises()
 
       // Find the doc:gen:error handler
-      const docGenErrorCall = vi.mocked(ocrEvents.on).mock.calls.find(call => call[0] === 'doc:gen:error')
+      const docGenErrorCall = vi.mocked(ocrEvents.on).mock.calls.find(call => (call[0] as any) === 'doc:gen:error')
       expect(docGenErrorCall).toBeDefined()
 
       // Trigger the handler
-      const handler = docGenErrorCall![1]
+      const handler = docGenErrorCall![1] as any
       handler({ pageId: 'p2', type: 'docx', error: new Error('Generation failed') })
 
       expect(mockMessage.error).toHaveBeenCalledWith(expect.stringContaining('doc.png'))
@@ -627,11 +627,11 @@ describe('App.vue', () => {
       await flushPromises()
 
       // Find the doc:gen:error handler
-      const docGenErrorCall = vi.mocked(ocrEvents.on).mock.calls.find(call => call[0] === 'doc:gen:error')
+      const docGenErrorCall = vi.mocked(ocrEvents.on).mock.calls.find(call => (call[0] as any) === 'doc:gen:error')
       expect(docGenErrorCall).toBeDefined()
 
       // Trigger the handler with unknown pageId
-      const handler = docGenErrorCall![1]
+      const handler = docGenErrorCall![1] as any
       handler({ pageId: 'unknown-doc', type: 'pdf', error: new Error('Generation failed') })
 
       expect(mockMessage.error).toHaveBeenCalledWith(expect.stringContaining('unknown-doc'))

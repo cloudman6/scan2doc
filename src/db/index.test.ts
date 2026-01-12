@@ -395,20 +395,20 @@ describe('Scan2DocDB', () => {
     describe('Phase 2: Cascading Deletion and Batch Operations', () => {
         it('deletePage should remove related records in all tables', async () => {
             const pageId = 'page_cascade_test'
-            
+
             // 1. Create records in all tables
             await db.savePage(createTestPage(pageId))
             await db.savePageImage(pageId, new Blob(['img']))
             await db.addToQueue(pageId, 1)
-            await db.savePageOCR({ 
-                pageId, 
-                data: { success: true, text: 't', raw_text: 't', boxes: [], image_dims: {w:1,h:1}, prompt_type: 'text' }, 
-                createdAt: new Date() 
+            await db.savePageOCR({
+                pageId,
+                data: { success: true, text: 't', raw_text: 't', boxes: [], image_dims: { w: 1, h: 1 }, prompt_type: 'text' },
+                createdAt: new Date()
             })
             await db.savePageMarkdown({ pageId, content: 'md' })
             await db.savePagePDF(pageId, new Blob(['pdf']))
             await db.savePageDOCX(pageId, new Blob(['docx']))
-            await db.savePageExtractedImage({ id: 'ex_img_1', pageId, blob: new Blob(['ex']), box: [0,0,0,0] })
+            await db.savePageExtractedImage({ id: 'ex_img_1', pageId, blob: new Blob(['ex']), box: [0, 0, 0, 0] })
 
             // 2. Perform deletion
             await db.deletePage(pageId)
@@ -433,17 +433,16 @@ describe('Scan2DocDB', () => {
             for (const id of ids) {
                 await db.savePage(createTestPage(id))
                 await db.savePageImage(id, new Blob(['img']))
-                await db.savePageOCR({ 
-                    pageId: id, 
-                    data: { success: true, text: 't', raw_text: 't', boxes: [], image_dims: {w:1,h:1}, prompt_type: 'text' }, 
-                    createdAt: new Date() 
+                await db.savePageOCR({
+                    pageId: id,
+                    data: { success: true, text: 't', raw_text: 't', boxes: [], image_dims: { w: 1, h: 1 }, prompt_type: 'text' },
+                    createdAt: new Date()
                 })
                 // Add p1 to queue, p2 not (to vary it)
                 if (id === p1) await db.addToQueue(id, 1)
             }
 
             // 2. Perform batch deletion
-            // @ts-expect-error - Method not implemented yet
             await db.deletePagesBatch(ids)
 
             // 3. Verify

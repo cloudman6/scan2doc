@@ -67,7 +67,7 @@ describe('OCRService', () => {
   it('should pass options to provider', async () => {
     const service = new OCRService()
     service.registerProvider('test', mockProvider)
-    const options = { prompt_type: 'format_instruction' }
+    const options = { prompt_type: 'format_instruction' as any }
 
     await service.processImage('data...', 'test', options)
 
@@ -290,7 +290,7 @@ describe('OCRService', () => {
       vi.spyOn(queueManager, 'addOCRTask').mockResolvedValue(undefined)
       vi.spyOn(db, 'getPageImage')
         .mockResolvedValueOnce(new Blob(['test1']))
-        .mockResolvedValueOnce(null) // Second page fails
+        .mockResolvedValueOnce(undefined) // Second page fails
 
       const result = await service.queueBatchOCR(pages as any)
 

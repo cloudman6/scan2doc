@@ -55,7 +55,16 @@ description: Pipeline for validating quality gates before committing and pushing
    - ❌ 如果任何文件的覆盖率未达标，**报告用户并询问**：是否需要补充测试？
 
 // turbo
-4. **验证代码质量（复杂度 + Lint）**
+4. **验证构建与类型检查 (Build & Type Check)**
+   ```bash
+   npm run build
+   ```
+   - ❌ 如果构建失败，**报告用户并询问**：是否需要修复？
+   - > [!NOTE]
+   - > 本步骤包含 `vue-tsc` 类型检查。如果测试文件中存在类型错误（即便测试能通过），构建也会失败。
+
+// turbo
+5. **验证代码质量（复杂度 + Lint）**
    ```bash
    npm run lint:complexity
    ```

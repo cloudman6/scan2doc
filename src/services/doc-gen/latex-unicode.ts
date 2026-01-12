@@ -79,7 +79,7 @@ export class LatexToUnicodeConverter {
         // 4. Superscripts: x^2 -> x²
         // Handle grouped superscripts x^{10} or x^{°}
         // If content is already converted symbol (like °), remove ^ and braces
-        text = text.replace(/\^\{([^{}]+)\}/g, (match, group) => {
+        text = text.replace(/\^\{([^{}]+)\}/g, (_, group) => {
             // If group is a known symbol (like °), just return it
             if (group === '°') return '°'
             // Otherwise try mapping digits
