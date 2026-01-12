@@ -384,8 +384,8 @@ describe('PageList.vue', () => {
     const deleteBtn = wrapper.find('.delete-selected-btn')
     const icon = deleteBtn.findComponent({ name: 'NIcon' })
 
-    // Initial state
-    expect(icon.props('color')).toBe('#666')
+    // Initial state (now defaults to red for cancellation)
+    expect(icon.props('color')).toBe('#d03050')
 
     // Hover
     await deleteBtn.trigger('mouseenter')
@@ -393,7 +393,7 @@ describe('PageList.vue', () => {
 
     // Leave
     await deleteBtn.trigger('mouseleave')
-    expect(icon.props('color')).toBe('#666')
+    expect(icon.props('color')).toBe('#d03050')
   })
 
   it('renders empty state with icon when no pages', () => {

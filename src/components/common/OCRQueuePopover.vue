@@ -10,32 +10,6 @@
         />
       </div>
       <div class="header-actions">
-        <!-- Remove Selected -->
-        <n-button
-          v-if="hasSelection"
-          size="tiny"
-          type="error"
-          secondary
-          class="action-btn"
-          @click="handleStopSelected"
-        >
-          <template #icon>
-            <n-icon><CloseCircleOutline /></n-icon>
-          </template>
-          {{ t('ocrQueuePopover.cancelSelected') }}
-        </n-button>
-
-        <!-- Remove All -->
-        <n-button
-          v-if="store.ocrTaskCount > 0"
-          size="tiny"
-          type="error"
-          quaternary
-          class="action-btn"
-          @click="handleStopAll"
-        >
-          {{ t('ocrQueuePopover.cancelAll') }}
-        </n-button>
       </div>
     </div>
 
@@ -63,8 +37,26 @@
             size="small"
             @update:checked="handleSelectAll"
           >
-            {{ t('ocrQueuePopover.selectAll') }}
           </n-checkbox>
+
+          <!-- Remove Selected -->
+          <n-button
+            v-if="hasSelection"
+            size="medium"
+            text
+            :title="t('ocrQueuePopover.cancelSelected')"
+            class="action-btn"
+            @click="handleStopSelected"
+            @mouseenter="hoveredBtnId = 'batch'"
+            @mouseleave="hoveredBtnId = null"
+          >
+            <template #icon>
+              <n-icon color="#d03050">
+                <CloseCircle v-if="hoveredBtnId === 'batch'" />
+                <CloseCircleOutline v-else />
+              </n-icon>
+            </template>
+          </n-button>
         </div>
 
         <!-- Processing Tasks -->
@@ -74,6 +66,7 @@
           class="task-item processing"
         >
           <n-checkbox 
+            size="small"
             :checked="selectedIds.has(page.id)"
             @update:checked="(v) => handleItemSelect(page.id, v)"
           />
@@ -85,14 +78,20 @@
             </div>
           </div>
           <n-button
-            size="tiny"
+            size="medium"
             circle
-            quaternary
-            type="error"
+            text
+            class="cancel-btn"
+            :title="t('ocrQueuePopover.cancelTask')"
             @click="handleStopSingle(page.id)"
+            @mouseenter="hoveredBtnId = page.id"
+            @mouseleave="hoveredBtnId = null"
           >
             <template #icon>
-              <n-icon><CloseCircleOutline /></n-icon>
+              <n-icon color="#d03050">
+                <CloseCircle v-if="hoveredBtnId === page.id" />
+                <CloseCircleOutline v-else />
+              </n-icon>
             </template>
           </n-button>
         </div>
@@ -120,13 +119,20 @@
             </div>
           </div>
           <n-button
-            size="tiny"
+            size="medium"
             circle
-            quaternary
+            text
+            class="cancel-btn"
+            :title="t('ocrQueuePopover.cancelTask')"
             @click="handleStopSingle(page.id)"
+            @mouseenter="hoveredBtnId = page.id"
+            @mouseleave="hoveredBtnId = null"
           >
             <template #icon>
-              <n-icon><CloseCircleOutline /></n-icon>
+              <n-icon color="#d03050">
+                <CloseCircle v-if="hoveredBtnId === page.id" />
+                <CloseCircleOutline v-else />
+              </n-icon>
             </template>
           </n-button>
         </div>
@@ -136,11 +142,17 @@
     <!-- Footer -->
     <div class="queue-footer">
       <n-button
-        size="small"
+        type="primary"
+        size="medium"
         block
-        secondary
+        class="footer-close-btn"
         @click="$emit('close')"
       >
+        <template #icon>
+          <n-icon>
+            <CloseCircle />
+          </n-icon>
+        </template>
         {{ t('ocrQueuePopover.close') }}
       </n-button>
     </div>
@@ -152,7 +164,7 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { usePagesStore } from '@/stores/pages'
 import { NButton, NIcon, NBadge, NScrollbar, NEmpty, NCheckbox, NSpin, createDiscreteApi } from 'naive-ui'
-import { CloseCircleOutline, TimeOutline } from '@vicons/ionicons5'
+import { CloseCircleOutline, CloseCircle, TimeOutline } from '@vicons/ionicons5'
 
 const store = usePagesStore()
 const { t } = useI18n()
@@ -164,6 +176,7 @@ defineEmits<{
 
 // Local selection state
 const selectedIds = ref<Set<string>>(new Set())
+const hoveredBtnId = ref<string | null>(null) // 'batch' or page.id
 
 // Computed
 const allTaskIds = computed(() => [
@@ -203,9 +216,10 @@ async function handleStopSelected() {
   const ids = Array.from(selectedIds.value)
   if (ids.length === 0) return
 
+  const originalCount = ids.length
   await store.cancelOCRTasks(ids)
   selectedIds.value.clear()
-  message.success(t('ocrQueuePopover.tasksCancelled', { n: ids.length }))
+  message.success(t('ocrQueuePopover.tasksCancelled', { n: originalCount }))
 }
 
 // Remove All
@@ -258,9 +272,13 @@ defineExpose({
 }
 
 .list-toolbar {
-  padding: 8px 16px;
+  padding: 4px 16px;
   background: #fafafa;
   border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 38px;
 }
 
 .task-list {
@@ -279,6 +297,15 @@ defineExpose({
 
 .task-item:hover {
   background: #fdfdfd;
+}
+
+.task-item .cancel-btn {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.task-item:hover .cancel-btn {
+  opacity: 1;
 }
 
 .task-item.processing {

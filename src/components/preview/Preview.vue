@@ -20,40 +20,52 @@
       >
         <!-- Generic download button for binary outputs -->
         <n-button
-          size="small"
-          secondary
-          type="primary"
-          :disabled="isBinaryLoading"
+          size="large"
+          text
+          :disabled="isBinaryLoading || !hasBinary"
           @click="downloadBinary(currentView)"
+          @mouseenter="isHeaderDownloadHovered = true"
+          @mouseleave="isHeaderDownloadHovered = false"
         >
-          {{ $t('preview.download', [currentView.toUpperCase()]) }}
+          <template #icon>
+            <n-icon color="#18a058">
+              <Download v-if="isHeaderDownloadHovered" />
+              <DownloadOutline v-else />
+            </n-icon>
+          </template>
         </n-button>
       </div>
       <div
         v-if="currentView === 'md'"
         class="header-actions"
       >
+        <n-button
+          size="large"
+          text
+          :disabled="!mdContent || isLoadingMd"
+          @click="handleDownloadMarkdown"
+          @mouseenter="isHeaderDownloadHovered = true"
+          @mouseleave="isHeaderDownloadHovered = false"
+        >
+          <template #icon>
+            <n-icon color="#18a058">
+              <Download v-if="isHeaderDownloadHovered" />
+              <DownloadOutline v-else />
+            </n-icon>
+          </template>
+        </n-button>
         <n-switch
           v-model:value="mdViewMode"
           size="small"
           :round="false"
         >
-          <template #checked>
-            {{ $t('preview.preview') }}
+          <template #checked-icon>
+            <n-icon :component="Eye" />
           </template>
-          <template #unchecked>
-            {{ $t('preview.source') }}
+          <template #unchecked-icon>
+            <n-icon :component="CodeSlash" />
           </template>
         </n-switch>
-        <n-button
-          size="small"
-          secondary
-          type="primary"
-          :disabled="!mdContent || isLoadingMd"
-          @click="handleDownloadMarkdown"
-        >
-          {{ $t('preview.downloadMD') }}
-        </n-button>
       </div>
     </div>
 
@@ -102,15 +114,6 @@
             class="word-container"
             :class="{ 'spacing-zh': isChineseDominant }"
           />
-          <div class="docx-footer">
-            <n-button
-              type="primary"
-              ghost
-              @click="downloadBinary('docx')"
-            >
-              {{ $t('preview.downloadDOCX') }}
-            </n-button>
-          </div>
         </div>
       </div>
 
@@ -139,15 +142,6 @@
             height="100%" 
             title="PDF Preview"
           />
-          <div class="pdf-footer">
-            <n-button
-              type="primary"
-              size="small"
-              @click="downloadBinary('pdf')"
-            >
-              {{ $t('preview.downloadSearchablePDF') }}
-            </n-button>
-          </div>
         </div>
       </div>
     </div>
@@ -157,7 +151,8 @@
 <script setup lang="ts">
 import { ref, watch, onUnmounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NTabs, NTabPane, NEmpty, NButton, NSpin, NSwitch } from 'naive-ui'
+import { NTabs, NTabPane, NEmpty, NButton, NSpin, NSwitch, NIcon } from 'naive-ui'
+import { Eye, CodeSlash, DownloadOutline, Download } from '@vicons/ionicons5'
 import { renderAsync } from 'docx-preview'
 import MarkdownIt from 'markdown-it'
 // @ts-expect-error -- @iktakahiro/markdown-it-katex does not have type definitions currently
@@ -186,6 +181,7 @@ const hasBinary = ref(false)
 const wordPreviewContainer = ref<HTMLElement | null>(null)
 const docxBlob = ref<Blob | null>(null)
 const mdViewMode = ref<boolean>(true) // true for preview, false for source
+const isHeaderDownloadHovered = ref(false)
 const renderedMd = ref<string>('')
 const mdRenderer = new MarkdownIt({
     html: true,
@@ -766,4 +762,11 @@ onUnmounted(() => {
     letter-spacing: normal !important;
     font-family: Arial, sans-serif !important;
 }
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: 16px;
+}
+
 </style>

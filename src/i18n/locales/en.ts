@@ -182,12 +182,13 @@ export default {
   // OCR Queue Popover
   ocrQueuePopover: {
     title: 'OCR Queue',
-    cancelSelected: 'Cancel Selected',
+    cancelSelected: 'Cancel selected tasks',
     cancelAll: 'Cancel All',
     selectAll: 'Select All',
     recognizing: 'Recognizing...',
     waiting: 'Waiting...',
     close: 'Close',
+    cancelTask: 'Cancel Task',
     taskCancelled: 'Task cancelled',
     tasksCancelled: '{n} tasks cancelled',
     allTasksCancelled: 'All tasks cancelled'

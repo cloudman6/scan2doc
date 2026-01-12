@@ -30,13 +30,16 @@
           circle
           :title="$t('pageList.exportAs', [$t('common.export')])"
           class="export-selected-btn"
+          @mouseenter="isExportHovered = true"
+          @mouseleave="isExportHovered = false"
         >
           <template #icon>
             <n-icon
               size="18"
               color="#18a058"
             >
-              <DownloadOutline />
+              <Download v-if="isExportHovered" />
+              <DownloadOutline v-else />
             </n-icon>
           </template>
         </NButton>
@@ -53,13 +56,16 @@
         :title="$t('pageList.scanSelected')"
         class="batch-ocr-btn"
         @click="handleBatchOCR"
+        @mouseenter="isScanHovered = true"
+        @mouseleave="isScanHovered = false"
       >
         <template #icon>
           <n-icon
             size="18"
             color="#18a058"
           >
-            <DocumentTextOutline />
+            <DocumentText v-if="isScanHovered" />
+            <DocumentTextOutline v-else />
           </n-icon>
         </template>
       </NButton>
@@ -73,7 +79,6 @@
         size="tiny"
         circle
         :style="{
-          transform: isDeleteHovered ? 'scale(1.1)' : 'scale(1)',
           transition: 'all 0.2s ease'
         }"
         :title="$t('pageList.deleteSelected')"
@@ -85,9 +90,10 @@
         <template #icon>
           <n-icon
             size="18"
-            :color="isDeleteHovered ? '#d03050' : '#666'"
+            :color="isDeleteHovered ? '#d03050' : '#d03050'"
           >
-            <TrashOutline />
+            <Trash v-if="isDeleteHovered" />
+            <TrashOutline v-else />
           </n-icon>
         </template>
       </NButton>
@@ -162,8 +168,11 @@ import draggable from 'vuedraggable'
 import { usePagesStore } from '@/stores/pages'
 import PageItem from '@/components/page-item/PageItem.vue'
 import type { Page, PageStatus } from '@/stores/pages'
-import { TrashOutline, DownloadOutline, DocumentTextOutline } from '@vicons/ionicons5'
+import { TrashOutline, DownloadOutline, DocumentTextOutline, Trash, DocumentText, Download } from '@vicons/ionicons5'
 import { NScrollbar, NEmpty, NCheckbox, NButton, NIcon, NDropdown, useMessage, useNotification, useDialog } from 'naive-ui'
+import IconWord from '@/components/icons/IconWord.vue'
+import IconPDF from '@/components/icons/IconPDF.vue'
+import IconMarkdown from '@/components/icons/IconMarkdown.vue'
 import { exportService } from '@/services/export'
 import { ocrService } from '@/services/ocr'
 import { db } from '@/db'
@@ -187,6 +196,8 @@ const emit = defineEmits<{
 
 const pagesStore = usePagesStore()
 const isDeleteHovered = ref(false)
+const isScanHovered = ref(false)
+const isExportHovered = ref(false)
 const isDragging = ref(false)
 const message = useMessage()
 const notification = useNotification()
@@ -277,19 +288,19 @@ const exportMenuOptions = computed(() => {
       label: t('pageList.exportAs', [`Markdown (${stats.markdown}/${stats.total})`]),
       key: 'markdown',
       disabled: stats.markdown === 0,
-      icon: () => h(NIcon, null, { default: () => h(DocumentTextOutline) })
+      icon: () => h(NIcon, { color: '#24292e' }, { default: () => h(IconMarkdown) })
     },
     {
       label: t('pageList.exportAs', [`DOCX (${stats.docx}/${stats.total})`]),
       key: 'docx',
       disabled: stats.docx === 0,
-      icon: () => h(NIcon, null, { default: () => h(DownloadOutline) })
+      icon: () => h(NIcon, { color: '#2b579a' }, { default: () => h(IconWord) })
     },
     {
       label: t('pageList.exportAs', [`PDF (${stats.pdf}/${stats.total})`]),
       key: 'pdf',
       disabled: stats.pdf === 0,
-      icon: () => h(NIcon, null, { default: () => h(DownloadOutline) })
+      icon: () => h(NIcon, { color: '#b30b00' }, { default: () => h(IconPDF) })
     }
   ]
 })
@@ -518,8 +529,11 @@ defineExpose({})
   min-height: 40px;
 }
 
-.delete-selected-btn {
+.export-selected-btn {
   margin-left: auto;
+}
+
+.delete-selected-btn {
   margin-right: 8px;
 }
 

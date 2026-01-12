@@ -45,9 +45,10 @@
         <template #icon>
           <n-icon
             size="18"
-            :color="isScanHovered ? '#3b82f6' : '#666'"
+            :color="isScanHovered ? '#18a058' : '#18a058'"
           >
-            <DocumentTextOutline />
+            <DocumentText v-if="isScanHovered" />
+            <DocumentTextOutline v-else />
           </n-icon>
         </template>
       </NButton>
@@ -67,9 +68,10 @@
         <template #icon>
           <n-icon
             size="18"
-            :color="isDeleteHovered ? '#d03050' : '#666'"
+            :color="isDeleteHovered ? '#d03050' : '#d03050'"
           >
-            <TrashOutline />
+            <Trash v-if="isDeleteHovered" />
+            <TrashOutline v-else />
           </n-icon>
         </template>
       </NButton>
@@ -150,7 +152,7 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { NButton, NTag, NCheckbox, NSpin, NIcon, useMessage, useNotification } from 'naive-ui'
-import { TrashOutline, DocumentTextOutline } from '@vicons/ionicons5'
+import { TrashOutline, DocumentTextOutline, Trash, DocumentText } from '@vicons/ionicons5'
 import { usePagesStore } from '@/stores/pages'
 import type { Page } from '@/stores/pages'
 import { db } from '@/db'
@@ -386,7 +388,6 @@ function getStatusType(status: Page['status']): 'success' | 'info' | 'warning' |
 }
 
 .action-btn:hover {
-  transform: scale(1.1);
   background-color: rgba(0, 0, 0, 0.05);
 }
 

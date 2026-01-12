@@ -182,12 +182,13 @@ export default {
   // OCR Queue Popover
   ocrQueuePopover: {
     title: 'OCR 队列',
-    cancelSelected: '取消选中',
+    cancelSelected: '取消选中的任务',
     cancelAll: '取消全部',
     selectAll: '全选',
     recognizing: '识别中...',
     waiting: '等待中...',
     close: '关闭',
+    cancelTask: '取消任务',
     taskCancelled: '任务已取消',
     tasksCancelled: '已取消 {n} 个任务',
     allTasksCancelled: '已取消所有任务'

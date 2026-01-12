@@ -162,14 +162,15 @@ describe('OCRQueuePopover', () => {
         await vm.$nextTick()
 
         await vm.handleItemSelect('p1', true)
+        await vm.$nextTick()
 
-        const cancelSelectedBtn = wrapper.findAll('button').find(b => b.text().includes('Cancel Selected'))
-        expect(cancelSelectedBtn).toBeDefined()
-        await cancelSelectedBtn?.trigger('click')
+        const cancelSelectedBtn = wrapper.find('.list-toolbar button.action-btn')
+        expect(cancelSelectedBtn.exists()).toBe(true)
+        await cancelSelectedBtn.trigger('click')
         expect(cancelSpy).toHaveBeenCalledWith(['p1'])
     })
 
-    it('cancels all tasks via header button', async () => {
+    it('cancels all tasks via expose method', async () => {
         const s = usePagesStore(pinia)
         s.cancelOCRTasks = vi.fn()
         // @ts-expect-error - testing-pinia stubs
@@ -180,11 +181,11 @@ describe('OCRQueuePopover', () => {
         s.ocrTaskCount = 1
 
         const wrapper = mountComponent()
-        await wrapper.vm.$nextTick()
+        const vm = wrapper.vm as unknown as PopoverVM
+        await vm.$nextTick()
 
-        const cancelAllBtn = wrapper.findAll('button').find(b => b.text().includes('Cancel All'))
-        expect(cancelAllBtn).toBeDefined()
-        await cancelAllBtn?.trigger('click')
+        await vm.handleStopAll()
+
 
         expect((s.cancelOCRTasks as Mock).mock.calls[0]![0]).toContain('p1')
     })
@@ -192,9 +193,9 @@ describe('OCRQueuePopover', () => {
     it('closes on footer button click', async () => {
         const wrapper = mountComponent()
         await wrapper.vm.$nextTick()
-        const closeBtn = wrapper.findAll('button').find(b => b.text().includes('Close'))
-        expect(closeBtn).toBeDefined()
-        await closeBtn?.trigger('click')
+        const closeBtn = wrapper.find('.queue-footer button.footer-close-btn')
+        expect(closeBtn.exists()).toBe(true)
+        await closeBtn.trigger('click')
         expect(wrapper.emitted('close')).toBeTruthy()
     })
 
