@@ -15,7 +15,7 @@
         align="center"
       >
         <h3 class="page-title">
-          Page {{ currentPage?.id?.toString().padStart(3, '0') || '---' }}
+          {{ currentPage?.fileName || '---' }}
         </h3>
         <n-space
           align="center"

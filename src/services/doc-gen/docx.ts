@@ -47,6 +47,9 @@ const convertLatexToDocxMath = (latex: string) => {
     }
 }
 
+// Custom type for docx runs including text, images and math
+type DocxRun = TextRun | ImageRun | ReturnType<typeof convertMathMl2Math>
+
 export class DocxGenerator {
     private md: MarkdownIt
     private isChineseDoc = false
@@ -206,7 +209,7 @@ export class DocxGenerator {
         const inlineToken = tokens[index + 1]!
 
         const level = parseInt(openToken.tag.replace('h', ''))
-        let headingLevel: any = HeadingLevel.HEADING_1
+        let headingLevel: typeof HeadingLevel[keyof typeof HeadingLevel] = HeadingLevel.HEADING_1
         if (level === 2) headingLevel = HeadingLevel.HEADING_2
         if (level === 3) headingLevel = HeadingLevel.HEADING_3
         if (level >= 4) headingLevel = HeadingLevel.HEADING_4
@@ -214,8 +217,7 @@ export class DocxGenerator {
         return {
             paragraph: new Paragraph({
                 text: inlineToken.content,
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                heading: headingLevel as any,
+                heading: headingLevel,
                 spacing: {
                     before: 240,
                     after: this.isChineseDoc ? 0 : 240,
@@ -262,10 +264,8 @@ export class DocxGenerator {
         })
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    private async createParagraphChildren(inlineToken: Token): Promise<(TextRun | ImageRun | any)[]> {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const runs: (TextRun | ImageRun | any)[] = []
+    private async createParagraphChildren(inlineToken: Token): Promise<DocxRun[]> {
+        const runs: DocxRun[] = []
         if (!inlineToken.children) {
             runs.push(new TextRun(inlineToken.content))
             return runs
@@ -275,6 +275,32 @@ export class DocxGenerator {
 
         for (const child of inlineToken.children) {
             if (this.updateStyle(child, style)) continue
+
+            const result = await this.processInlineChild(child, style)
+            if (result) {
+                if (Array.isArray(result)) runs.push(...result)
+                else runs.push(result)
+            }
+        }
+        return runs
+    }
+
+    private async boldifyParagraphChildren(inlineToken: Token): Promise<DocxRun[]> {
+        const runs: DocxRun[] = []
+        if (!inlineToken.children) {
+            runs.push(new TextRun({ text: inlineToken.content, bold: true }))
+            return runs
+        }
+
+        let style = { bold: true, italic: false }
+
+        for (const child of inlineToken.children) {
+            // Inner bold tags in header cell are redundant but we respect them for style object state
+            if (this.updateStyle(child, style)) {
+                // Keep base bold true even if child.type === 'strong_close'
+                style.bold = true
+                continue
+            }
 
             const result = await this.processInlineChild(child, style)
             if (result) {
@@ -410,15 +436,7 @@ export class DocxGenerator {
 
                     // Apply bold style if this is a header cell
                     const styledChildren = isHeader
-                        ? children.map(child => {
-                            if (child instanceof TextRun) {
-                                // Accessing internal text property of TextRun for cloning with bold
-                                // This is a bit hacky but needed for cell header styling
-                                const text = (child as any).options?.text || ""
-                                return new TextRun({ text, bold: true })
-                            }
-                            return child
-                        })
+                        ? await this.boldifyParagraphChildren(inlineToken)
                         : children
 
                     paragraphs.push(new Paragraph({ children: styledChildren }))
