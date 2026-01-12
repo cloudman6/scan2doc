@@ -1,24 +1,29 @@
 <template>
-  <n-layout-header
+  <NLayoutHeader
     data-testid="app-header"
     class="app-header"
     bordered
   >
     <!-- Left: Branding -->
     <div class="header-brand">
-      <n-icon
+      <NIcon
         size="24"
         color="#18a058"
         class="brand-icon"
       >
         <DocumentText />
-      </n-icon>
-      <span class="app-title">{{ $t('header.scan2Doc') }}</span>
+      </NIcon>
+      <span
+        class="app-title"
+        data-testid="app-title"
+      >
+        {{ $t('header.scan2Doc') }}
+      </span>
     </div>
 
     <!-- Center: OCR Queue Status -->
     <div class="header-center">
-      <n-popover
+      <NPopover
         v-if="store.ocrTaskCount > 0"
         v-model:show="showQueue"
         trigger="click"
@@ -28,7 +33,7 @@
       >
         <template #trigger>
           <div class="status-pill">
-            <n-spin
+            <NSpin
               size="small"
               :stroke-width="20"
               class="status-spinner"
@@ -39,7 +44,7 @@
           </div>
         </template>
         <OCRQueuePopover @close="showQueue = false" />
-      </n-popover>
+      </NPopover>
     </div>
 
     <!-- Right: Actions -->
@@ -48,33 +53,35 @@
       <LanguageSelector />
 
       <!-- Page Count Badge -->
-      <n-tag
+      <NTag
         v-if="pageCount > 0"
         round
         :bordered="false"
         type="info"
         size="small"
         class="page-count-badge"
+        data-testid="page-count-badge"
       >
         {{ pageCountText }}
-      </n-tag>
+      </NTag>
 
       <!-- Primary CTA -->
-      <n-button
+      <NButton
         type="primary"
         size="medium"
         class="add-btn"
+        data-testid="import-files-button"
         @click="handleAddFiles"
       >
         <template #icon>
-          <n-icon>
+          <NIcon>
             <CloudUpload />
-          </n-icon>
+          </NIcon>
         </template>
         {{ $t('header.importFiles') }}
-      </n-button>
+      </NButton>
     </div>
-  </n-layout-header>
+  </NLayoutHeader>
 </template>
 
 <script setup lang="ts">

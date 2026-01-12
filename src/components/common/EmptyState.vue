@@ -1,41 +1,47 @@
 <template>
   <div class="empty-state-container">
     <div class="empty-state-hero">
-      <div class="icon-wrapper">
-        <n-icon
-          size="120"
-          color="#e0e0e0"
+      <div class="empty-icon-container">
+        <NIcon
+          size="64"
+          color="#18a058"
         >
-          <CloudUpload />
-        </n-icon>
+          <CloudUploadOutline />
+        </NIcon>
       </div>
-      <h1 class="hero-title">
-        {{ $t('emptyState.title') }}
-      </h1>
-      <p class="hero-subtitle">
-        {{ $t('emptyState.subtitle') }}
+      <h2
+        class="empty-title"
+        data-testid="welcome-title"
+      >
+        {{ $t('app.welcomeTitle') }}
+      </h2>
+      <p
+        class="empty-description"
+        data-testid="welcome-description"
+      >
+        {{ $t('app.welcomeDescription') }}
       </p>
-
-      <n-button
+      <NButton
         type="primary"
         size="large"
-        class="select-files-btn"
+        class="select-files-btn empty-add-btn"
+        data-testid="start-import-button"
         @click="$emit('add-files')"
       >
         <template #icon>
-          <n-icon>
-            <Add />
-          </n-icon>
+          <NIcon>
+            <AddOutline />
+          </NIcon>
         </template>
-        {{ $t('emptyState.selectFiles') }}
-      </n-button>
+        {{ $t('app.startImport') }}
+      </NButton>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { NIcon, NButton } from 'naive-ui'
-import { CloudUpload, Add } from '@vicons/ionicons5'
+import { CloudUploadOutline, AddOutline } from '@vicons/ionicons5'
 
 defineEmits<{
   (e: 'add-files'): void

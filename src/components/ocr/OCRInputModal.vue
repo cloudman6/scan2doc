@@ -1,5 +1,5 @@
 <template>
-  <n-modal
+  <NModal
     :show="show"
     preset="dialog"
     :title="title"
@@ -10,7 +10,7 @@
     @negative-click="$emit('update:show', false)"
   >
     <div class="ocr-input-content">
-      <n-input
+      <NInput
         v-model:value="inputValue"
         type="textarea"
         :placeholder="placeholder"
@@ -19,7 +19,7 @@
         @keydown.enter.prevent="handleSubmit"
       />
     </div>
-  </n-modal>
+  </NModal>
 </template>
 
 <script setup lang="ts">

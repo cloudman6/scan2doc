@@ -9,14 +9,14 @@ export const TestData = {
     sampleJPG: () => path.resolve('tests/e2e/samples/sample.jpg'),
     largePDF: () => path.resolve('tests/e2e/samples/sample3.pdf'),
     sample3PDF: () => path.resolve('tests/e2e/samples/sample3.pdf'),
-    
+
     // 批量文件
     multipleImages: () => [
       TestData.files.samplePNG(),
       TestData.files.sampleJPG(),
       TestData.files.samplePNG()
     ],
-    
+
     pdfAndImages: () => [
       TestData.files.samplePDF(),
       TestData.files.samplePNG(),
@@ -27,7 +27,9 @@ export const TestData = {
   // 国际化翻译
   translations: {
     en: {
-      emptyState: 'Drop PDF or Images here to start',
+      welcomeTitle: 'Scan2Doc',
+      welcomeDescription: 'Drop PDF or Images here to start',
+      startImport: 'Select Files',
       importButton: 'Import Files',
       selectFiles: 'Select Files',
       pageCounter: (n: number) => `${n} Pages Loaded`,
@@ -40,7 +42,9 @@ export const TestData = {
       downloadMD: 'Download MD'
     },
     'zh-CN': {
-      emptyState: '拖放 PDF 或图片到此处开始',
+      welcomeTitle: 'Scan2Doc',
+      welcomeDescription: '拖放 PDF 或图片到此处开始',
+      startImport: '选择文件',
       importButton: '导入文件',
       selectFiles: '选择文件',
       pageCounter: (n: number) => `已加载 ${n} 个页面`,

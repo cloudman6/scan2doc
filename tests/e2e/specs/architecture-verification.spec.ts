@@ -22,7 +22,7 @@ test.describe('架构验证测试', () => {
     // 验证应用标题
     const title = await app.getTitle();
     expect(title.toLowerCase()).toContain('scan2doc');
-    
+
     // 验证页面数量初始为 0
     const count = await pageList.getPageCount();
     expect(count).toBe(0);
@@ -34,17 +34,17 @@ test.describe('架构验证测试', () => {
 
     // 验证 TestData 可以正常使用
     expect(TestData.files.samplePDF()).toContain('sample.pdf');
-    expect(TestData.translations.en.emptyState).toBeDefined();
+    expect(TestData.translations.en.welcomeDescription).toBeDefined();
     expect(TestData.exportFormats).toHaveLength(3);
     expect(TestData.pageStatuses.ready).toEqual(['ready']);
   });
 
   test('应该成功使用 APIMocks', async ({ page }) => {
     const apiMocks = new APIMocks(page);
-    
+
     // Mock OCR API
     await apiMocks.mockOCR();
-    
+
     // 验证 mock 已设置（通过导航验证路由已配置）
     await page.goto('/');
     await page.waitForLoadState('networkidle');
@@ -77,7 +77,7 @@ test.describe('架构验证测试', () => {
 
     // 触发操作产生通知
     await pageList.selectAll();
-    
+
     // 使用智能等待（此测试可能需要实际触发通知才能通过）
     // await waitForNotification(page, /selected/i, 5000);
   });

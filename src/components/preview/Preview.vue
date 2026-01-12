@@ -1,25 +1,25 @@
 <template>
   <div class="preview">
     <div class="preview-header">
-      <n-tabs
+      <NTabs
         v-model:value="currentView"
         type="segment"
         animated
         class="preview-tabs"
       >
-        <n-tab-pane
+        <NTabPane
           v-for="view in views"
           :key="view.key"
           :name="view.key"
           :tab="view.label"
         />
-      </n-tabs>
+      </NTabs>
       <div
         v-if="currentView !== 'md'"
         class="header-actions"
       >
         <!-- Generic download button for binary outputs -->
-        <n-button
+        <NButton
           size="large"
           text
           :disabled="isBinaryLoading || !hasBinary"
@@ -30,18 +30,18 @@
           @mouseleave="isHeaderDownloadHovered = false"
         >
           <template #icon>
-            <n-icon color="#18a058">
+            <NIcon color="#18a058">
               <Download v-if="isHeaderDownloadHovered" />
               <DownloadOutline v-else />
-            </n-icon>
+            </NIcon>
           </template>
-        </n-button>
+        </NButton>
       </div>
       <div
         v-if="currentView === 'md'"
         class="header-actions"
       >
-        <n-button
+        <NButton
           size="large"
           text
           :disabled="!mdContent || isLoadingMd"
@@ -52,24 +52,24 @@
           @mouseleave="isHeaderDownloadHovered = false"
         >
           <template #icon>
-            <n-icon color="#18a058">
+            <NIcon color="#18a058">
               <Download v-if="isHeaderDownloadHovered" />
               <DownloadOutline v-else />
-            </n-icon>
+            </NIcon>
           </template>
-        </n-button>
-        <n-switch
+        </NButton>
+        <NSwitch
           v-model:value="mdViewMode"
           size="small"
           :round="false"
         >
           <template #checked-icon>
-            <n-icon :component="Eye" />
+            <NIcon :component="Eye" />
           </template>
           <template #unchecked-icon>
-            <n-icon :component="CodeSlash" />
+            <NIcon :component="CodeSlash" />
           </template>
-        </n-switch>
+        </NSwitch>
       </div>
     </div>
 
@@ -79,7 +79,7 @@
         v-if="currentView === 'md'"
         class="markdown-wrapper"
       >
-        <n-spin
+        <NSpin
           v-if="isLoadingMd"
           :description="$t('preview.loadingMarkdown')"
         />
@@ -101,11 +101,11 @@
         v-else-if="currentView === 'docx'"
         class="docx-wrapper"
       >
-        <n-spin
+        <NSpin
           v-if="isBinaryLoading"
           :description="$t('preview.loadingDOCX')"
         />
-        <n-empty
+        <NEmpty
           v-else-if="!hasBinary"
           :description="$t('preview.docxNotReady')"
         />
@@ -126,11 +126,11 @@
         v-else-if="currentView === 'pdf'"
         class="binary-preview"
       >
-        <n-spin
+        <NSpin
           v-if="isBinaryLoading"
           :description="$t('preview.checkingPDF')"
         />
-        <n-empty
+        <NEmpty
           v-else-if="!hasBinary"
           :description="$t('preview.pdfNotReady')"
         />

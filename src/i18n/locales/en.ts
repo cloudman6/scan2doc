@@ -17,7 +17,10 @@ export default {
     pageDeleted: 'Page "{0}" deleted',
     pagesDeleted: '{0} pages deleted',
     deleteFailed: 'Failed to delete {0}',
-    addFailed: 'Add failed. Please try again.'
+    addFailed: 'Add failed. Please try again.',
+    welcomeTitle: 'Scan2Doc',
+    welcomeDescription: 'Drop PDF or Images here to start',
+    startImport: 'Select Files'
   },
 
   // Header
@@ -132,12 +135,6 @@ export default {
     fit: 'Fit'
   },
 
-  // Empty State
-  emptyState: {
-    title: 'Scan2Doc',
-    subtitle: 'Drop PDF or Images here to start',
-    selectFiles: 'Select Files'
-  },
 
   // OCR Queue Popover
   ocrQueue: {

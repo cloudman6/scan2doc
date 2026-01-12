@@ -17,7 +17,10 @@ export default {
     pageDeleted: '已删除页面 "{0}"',
     pagesDeleted: '已删除 {0} 个页面',
     deleteFailed: '删除{0}失败',
-    addFailed: '添加失败，请重试。'
+    addFailed: '添加失败，请重试。',
+    welcomeTitle: 'Scan2Doc',
+    welcomeDescription: '拖放 PDF 或图片到此处开始',
+    startImport: '选择文件'
   },
 
   // Header
@@ -132,12 +135,6 @@ export default {
     fit: '适应'
   },
 
-  // Empty State
-  emptyState: {
-    title: 'Scan2Doc',
-    subtitle: '拖放 PDF 或图片到此处开始',
-    selectFiles: '选择文件'
-  },
 
   // OCR Queue Popover
   ocrQueue: {

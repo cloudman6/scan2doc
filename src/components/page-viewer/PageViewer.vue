@@ -96,7 +96,7 @@
           />
         </div>
         
-        <n-empty
+        <NEmpty
           v-else-if="!imageLoading"
           :description="$t('pageViewer.noImageAvailable')"
         >
@@ -125,10 +125,10 @@
               <polyline points="21 15 16 10 5 21" />
             </svg>
           </template>
-        </n-empty>
+        </NEmpty>
 
         <!-- Loading overlay -->
-        <n-spin
+        <NSpin
           v-if="imageLoading"
           size="large"
           class="loading-overlay"
@@ -136,17 +136,17 @@
           <template #description>
             {{ $t('pageViewer.loadingImage') }}
           </template>
-        </n-spin>
+        </NSpin>
 
         <!-- Error overlay -->
-        <n-result
+        <NResult
           v-if="imageError"
           status="error"
           :title="imageError"
           class="error-overlay"
         />
       </div>
-      <n-empty
+      <NEmpty
         v-else
         :description="$t('pageViewer.selectPageToView')"
         class="placeholder-select"
@@ -177,47 +177,47 @@
             <polyline points="10 9 9 9 8 9" />
           </svg>
         </template>
-      </n-empty>
+      </NEmpty>
     </div>
 
     <!-- Bottom toolbar -->
-    <n-card
+    <NCard
       class="viewer-toolbar"
       size="small"
       :bordered="false"
     >
-      <n-space
+      <NSpace
         justify="space-between"
         align="center"
       >
-        <n-space size="medium">
-          <n-text depth="3">
-            {{ $t('pageViewer.status') }}: <n-text
+        <NSpace size="medium">
+          <NText depth="3">
+            {{ $t('pageViewer.status') }}: <NText
               :type="getStatusType()"
               depth="1"
             >
               {{ statusText }}
-            </n-text>
-          </n-text>
-          <n-text
+            </NText>
+          </NText>
+          <NText
             v-if="imageSize"
             depth="3"
           >
-            {{ $t('pageViewer.size') }}: <n-text depth="1">
+            {{ $t('pageViewer.size') }}: <NText depth="1">
               {{ imageSize }}
-            </n-text>
-          </n-text>
-          <n-text
+            </NText>
+          </NText>
+          <NText
             v-if="currentPage?.fileSize !== undefined"
             depth="3"
           >
-            {{ $t('pageViewer.file') }}: <n-text depth="1">
+            {{ $t('pageViewer.file') }}: <NText depth="1">
               {{ formatFileSize(currentPage.fileSize) }}
-            </n-text>
-          </n-text>
-        </n-space>
-      </n-space>
-    </n-card>
+            </NText>
+          </NText>
+        </NSpace>
+      </NSpace>
+    </NCard>
 
     <!-- Raw Text Panel -->
     <OCRRawTextPanel

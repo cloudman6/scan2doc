@@ -17,7 +17,7 @@ describe('EmptyState', () => {
     it('renders correctly', () => {
         const wrapper = mount(EmptyState, mountOptions)
 
-        expect(wrapper.text()).toContain('Drop PDF or Images here')
+        expect(wrapper.text()).toContain('Scan2Doc')
         expect(wrapper.find('.empty-state-hero').exists()).toBe(true)
     })
 
@@ -25,7 +25,7 @@ describe('EmptyState', () => {
         const wrapper = mount(EmptyState, mountOptions)
 
         // Find button and click
-        await wrapper.find('button.select-files-btn').trigger('click')
+        await wrapper.find('button.empty-add-btn').trigger('click')
         expect(wrapper.emitted('add-files')).toBeTruthy()
     })
 })

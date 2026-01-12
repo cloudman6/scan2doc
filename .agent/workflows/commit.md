@@ -39,6 +39,8 @@ description: Pipeline for validating quality gates before committing and pushing
    npm run test:e2e
    ```
    - ❌ 如果测试失败，**报告用户并询问**：是否需要先修复？
+   > [!IMPORTANT]
+   > 如果在此阶段发现 E2E 测试失败并需要修复，请务必遵循 `/e2e` @.agent/workflows/e2e.md 中的[最佳实践](./e2e.md#🎯-最佳实践大全)和[架构设计详解](./e2e.md#🏗️-架构设计详解)。
 
 // turbo
 3. **验证覆盖率阈值**
@@ -152,10 +154,10 @@ description: Pipeline for validating quality gates before committing and pushing
 
 ## 快速参考
 
-| 阶段 | 命令 | 用途 |
-|------|------|------|
-| 质量检查 | `npm run test:unit -- --run` | 验证单元测试 |
-| 覆盖率检查 | `npm run test:unit -- --run --coverage` | 验证覆盖率门禁 |
-| 复杂度检查 | `npm run lint:complexity` | 验证代码质量门禁 |
-| 同步代码 | `git pull origin <branch>` | 防止推送冲突 |
-| 提交推送 | `git commit && git push` | 同步到远程仓库 |
+| 阶段       | 命令                                    | 用途             |
+| ---------- | --------------------------------------- | ---------------- |
+| 质量检查   | `npm run test:unit -- --run`            | 验证单元测试     |
+| 覆盖率检查 | `npm run test:unit -- --run --coverage` | 验证覆盖率门禁   |
+| 复杂度检查 | `npm run lint:complexity`               | 验证代码质量门禁 |
+| 同步代码   | `git pull origin <branch>`              | 防止推送冲突     |
+| 提交推送   | `git commit && git push`                | 同步到远程仓库   |

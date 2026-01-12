@@ -4,7 +4,7 @@
     <div class="queue-header">
       <div class="header-title">
         <span class="title-text">{{ t('ocrQueuePopover.title') }}</span>
-        <n-badge
+        <NBadge
           :value="store.ocrTaskCount"
           type="success"
         />
@@ -13,12 +13,12 @@
     </div>
 
     <!-- Task List -->
-    <n-scrollbar style="max-height: 300px">
+    <NScrollbar style="max-height: 300px">
       <div
         v-if="store.ocrTaskCount === 0"
         class="empty-state"
       >
-        <n-empty
+        <NEmpty
           :description="t('ocrQueue.noActiveTasks')"
           size="small"
         />
@@ -30,7 +30,7 @@
       >
         <!-- Toolbar (Check All) -->
         <div class="list-toolbar">
-          <n-checkbox
+          <NCheckbox
             :checked="isAllSelected"
             :indeterminate="isPartiallySelected"
             size="small"
@@ -38,7 +38,7 @@
           />
 
           <!-- Remove Selected -->
-          <n-button
+          <NButton
             v-if="hasSelection"
             size="medium"
             text
@@ -49,12 +49,12 @@
             @mouseleave="hoveredBtnId = null"
           >
             <template #icon>
-              <n-icon color="#d03050">
+              <NIcon color="#d03050">
                 <CloseCircle v-if="hoveredBtnId === 'batch'" />
                 <CloseCircleOutline v-else />
-              </n-icon>
+              </NIcon>
             </template>
-          </n-button>
+          </NButton>
         </div>
 
         <!-- Processing Tasks -->
@@ -63,19 +63,19 @@
           :key="page.id"
           class="task-item processing"
         >
-          <n-checkbox 
+          <NCheckbox 
             size="small"
             :checked="selectedIds.has(page.id)"
             @update:checked="(v) => handleItemSelect(page.id, v)"
           />
           <div class="task-info">
-            <n-spin size="small" />
+            <NSpin size="small" />
             <div class="file-details">
               <span class="file-name">{{ page.fileName }}</span>
               <span class="status-text">{{ t('ocrQueuePopover.recognizing') }}</span>
             </div>
           </div>
-          <n-button
+          <NButton
             size="medium"
             circle
             text
@@ -86,12 +86,12 @@
             @mouseleave="hoveredBtnId = null"
           >
             <template #icon>
-              <n-icon color="#d03050">
+              <NIcon color="#d03050">
                 <CloseCircle v-if="hoveredBtnId === page.id" />
                 <CloseCircleOutline v-else />
-              </n-icon>
+              </NIcon>
             </template>
-          </n-button>
+          </NButton>
         </div>
 
         <!-- Queued Tasks -->
@@ -100,23 +100,23 @@
           :key="page.id"
           class="task-item queued"
         >
-          <n-checkbox 
+          <NCheckbox 
             :checked="selectedIds.has(page.id)"
             @update:checked="(v) => handleItemSelect(page.id, v)"
           />
           <div class="task-info">
-            <n-icon
+            <NIcon
               size="18"
               color="#666"
             >
               <TimeOutline />
-            </n-icon>
+            </NIcon>
             <div class="file-details">
               <span class="file-name">{{ page.fileName }}</span>
               <span class="status-text">{{ t('ocrQueuePopover.waiting') }}</span>
             </div>
           </div>
-          <n-button
+          <NButton
             size="medium"
             circle
             text
@@ -127,19 +127,19 @@
             @mouseleave="hoveredBtnId = null"
           >
             <template #icon>
-              <n-icon color="#d03050">
+              <NIcon color="#d03050">
                 <CloseCircle v-if="hoveredBtnId === page.id" />
                 <CloseCircleOutline v-else />
-              </n-icon>
+              </NIcon>
             </template>
-          </n-button>
+          </NButton>
         </div>
       </div>
-    </n-scrollbar>
+    </NScrollbar>
 
     <!-- Footer -->
     <div class="queue-footer">
-      <n-button
+      <NButton
         type="primary"
         size="medium"
         block
@@ -147,12 +147,12 @@
         @click="$emit('close')"
       >
         <template #icon>
-          <n-icon>
+          <NIcon>
             <CloseCircle />
-          </n-icon>
+          </NIcon>
         </template>
         {{ t('ocrQueuePopover.close') }}
-      </n-button>
+      </NButton>
     </div>
   </div>
 </template>

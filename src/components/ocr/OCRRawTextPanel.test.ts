@@ -50,7 +50,7 @@ describe('OCRRawTextPanel.vue', () => {
             global: { plugins: [i18n] }
         })
         expect(wrapper.find('.ocr-raw-text-panel').exists()).toBe(true)
-        expect(wrapper.find('.title').text()).toBe('OCR Raw Result')
+        expect(wrapper.find('.panel-title').text()).toBe('OCR Raw Result')
     })
 
     it('toggles expand/collapse', async () => {
@@ -79,7 +79,7 @@ describe('OCRRawTextPanel.vue', () => {
             global: { plugins: [i18n] }
         })
 
-        const copyButton = wrapper.find('.panel-header button') // Finding the copy button
+        const copyButton = wrapper.find('.panel-header .n-button') // Finding the copy button
         await copyButton.trigger('click')
 
         expect(writeTextMock).toHaveBeenCalledWith('Sample OCR Text')
@@ -128,7 +128,7 @@ describe('OCRRawTextPanel.vue', () => {
             global: { plugins: [i18n] }
         })
 
-        const copyButton = wrapper.find('.panel-header button')
+        const copyButton = wrapper.find('.panel-header .n-button')
         await copyButton.trigger('click')
 
         expect(execCommandMock).toHaveBeenCalledWith('copy')

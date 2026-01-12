@@ -34,13 +34,13 @@
           @mouseleave="isExportHovered = false"
         >
           <template #icon>
-            <n-icon
+            <NIcon
               size="18"
               color="#18a058"
             >
               <Download v-if="isExportHovered" />
               <DownloadOutline v-else />
-            </n-icon>
+            </NIcon>
           </template>
         </NButton>
       </NDropdown>
@@ -60,13 +60,13 @@
         @mouseleave="isScanHovered = false"
       >
         <template #icon>
-          <n-icon
+          <NIcon
             size="18"
             color="#18a058"
           >
             <DocumentText v-if="isScanHovered" />
             <DocumentTextOutline v-else />
-          </n-icon>
+          </NIcon>
         </template>
       </NButton>
 
@@ -88,18 +88,18 @@
         @mouseleave="isDeleteHovered = false"
       >
         <template #icon>
-          <n-icon
+          <NIcon
             size="18"
             :color="isDeleteHovered ? '#d03050' : '#d03050'"
           >
             <Trash v-if="isDeleteHovered" />
             <TrashOutline v-else />
-          </n-icon>
+          </NIcon>
         </template>
       </NButton>
     </div>
 
-    <n-scrollbar class="page-list">
+    <NScrollbar class="page-list">
       <div class="page-list-content">
         <draggable
           v-model="localPages"
@@ -121,7 +121,7 @@
         </draggable>
 
         <!-- Empty state when no pages -->
-        <n-empty
+        <NEmpty
           v-if="localPages.length === 0"
           :description="$t('pageList.noPages')"
           class="empty-state"
@@ -157,9 +157,9 @@
               />
             </svg>
           </template>
-        </n-empty>
+        </NEmpty>
       </div>
-    </n-scrollbar>
+    </NScrollbar>
   </div>
 </template>
 
@@ -526,7 +526,7 @@ defineExpose({})
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 8px 8px 18px; /* Align with page checkboxes: drag-handle(8px) + checkbox margin-left(8px) */
+  padding: 8px 31px 8px 26px; /* Align with page checkboxes: drag-handle(8px) + checkbox margin-left(8px) */
   border-bottom: 1px solid #f0f0f0;
   min-height: 40px;
 }

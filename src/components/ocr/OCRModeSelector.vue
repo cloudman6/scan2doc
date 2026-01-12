@@ -1,7 +1,7 @@
 <template>
   <div class="ocr-mode-selector">
-    <n-button-group size="small">
-      <n-button
+    <NButtonGroup size="small">
+      <NButton
         data-testid="ocr-trigger-btn"
         role="button"
         :type="buttonType"
@@ -11,18 +11,18 @@
         @click="handleMainClick"
       >
         <template #icon>
-          <n-icon>
+          <NIcon>
             <component :is="currentIcon" />
-          </n-icon>
+          </NIcon>
         </template>
         {{ currentLabel }}
-      </n-button>
-      <n-dropdown
+      </NButton>
+      <NDropdown
         trigger="click"
         :options="menuOptions"
         @select="handleSelect"
       >
-        <n-button
+        <NButton
           data-testid="ocr-mode-dropdown"
           role="button"
           :type="buttonType"
@@ -30,13 +30,13 @@
           class="dropdown-trigger"
         >
           <template #icon>
-            <n-icon>
+            <NIcon>
               <ChevronDownOutline />
-            </n-icon>
+            </NIcon>
           </template>
-        </n-button>
-      </n-dropdown>
-    </n-button-group>
+        </NButton>
+      </NDropdown>
+    </NButtonGroup>
   </div>
 </template>
 

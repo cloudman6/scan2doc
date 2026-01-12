@@ -43,13 +43,13 @@
         @mouseleave="isScanHovered = false"
       >
         <template #icon>
-          <n-icon
+          <NIcon
             size="18"
             :color="isScanHovered ? '#18a058' : '#18a058'"
           >
             <DocumentText v-if="isScanHovered" />
             <DocumentTextOutline v-else />
-          </n-icon>
+          </NIcon>
         </template>
       </NButton>
 
@@ -66,13 +66,13 @@
         @mouseleave="isDeleteHovered = false"
       >
         <template #icon>
-          <n-icon
+          <NIcon
             size="18"
             :color="isDeleteHovered ? '#d03050' : '#d03050'"
           >
             <Trash v-if="isDeleteHovered" />
             <TrashOutline v-else />
-          </n-icon>
+          </NIcon>
         </template>
       </NButton>
     </div>
@@ -98,7 +98,7 @@
           <div class="placeholder-content">
             <span class="page-hint">{{ page.order + 1 }}</span>
             <div class="status-indicator">
-              <n-spin
+              <NSpin
                 v-if="page.status === 'rendering'"
                 size="small"
               />
@@ -106,7 +106,7 @@
                 v-else-if="page.status === 'pending_render'"
                 class="pending-dot"
               >...</span>
-              <n-spin
+              <NSpin
                 v-else-if="page.status === 'pending_ocr'"
                 size="small"
               >
@@ -114,8 +114,8 @@
                   <!-- Custom Icon or Spinner for queue waiting -->
                   <!-- Default spin is fine, or maybe a clock icon -->
                 </template>
-              </n-spin>
-              <n-spin
+              </NSpin>
+              <NSpin
                 v-else-if="page.status === 'recognizing'"
                 size="small"
               />
@@ -137,12 +137,12 @@
         {{ formatFileSize(page.fileSize) }}
       </div>
       <div class="status-row">
-        <n-tag
+        <NTag
           :type="getStatusType(page.status)"
           size="small"
         >
           OCR
-        </n-tag>
+        </NTag>
       </div>
     </div>
   </div>
@@ -374,7 +374,7 @@ function getStatusType(status: Page['status']): 'success' | 'info' | 'warning' |
   right: 12px;
   transform: translateY(-50%);
   display: flex;
-  gap: 4px; /* Space between buttons */
+  gap: 8px; /* Space between buttons */
   z-index: 10;
   transition: opacity 0.2s ease;
   background: rgba(255, 255, 255, 0.8); /* Slight background to ensure visibility */

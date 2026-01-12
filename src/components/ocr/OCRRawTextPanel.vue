@@ -2,38 +2,38 @@
   <div class="ocr-raw-text-panel">
     <div
       class="panel-header"
-      @click="toggleExpand"
+      @click="expanded = !expanded"
     >
-      <div class="title-row">
-        <n-icon :class="{ rotated: expanded }">
-          <ChevronForwardOutline />
-        </n-icon>
-        <span class="title">{{ t('ocrRawTextPanel.title') }}</span>
+      <div class="title-section">
+        <NIcon :class="{ rotated: expanded }">
+          <ChevronForward />
+        </NIcon>
+        <span class="panel-title">{{ t('ocrRawTextPanel.title') }}</span>
       </div>
-      <n-button
+      <NButton
         size="tiny"
-        secondary
+        quaternary
+        circle
         @click.stop="handleCopy"
       >
         <template #icon>
-          <n-icon>
+          <NIcon>
             <CopyOutline />
-          </n-icon>
+          </NIcon>
         </template>
-        {{ t('ocrRawTextPanel.copy') }}
-      </n-button>
+      </NButton>
     </div>
-    
-    <n-collapse-transition :show="expanded">
+
+    <NCollapseTransition :show="expanded">
       <div class="panel-content">
-        <n-scrollbar
-          style="max-height: 300px"
-          :x-scrollable="false"
+        <NScrollbar
+          style="max-height: 200px"
+          trigger="hover"
         >
-          <pre class="raw-text-content">{{ text || t('ocrRawTextPanel.noRawText') }}</pre>
-        </n-scrollbar>
+          <pre class="raw-text">{{ text || t('ocrRawTextPanel.noText') }}</pre>
+        </NScrollbar>
       </div>
-    </n-collapse-transition>
+    </NCollapseTransition>
   </div>
 </template>
 
@@ -41,7 +41,7 @@
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { NButton, NIcon, NCollapseTransition, NScrollbar, useMessage } from 'naive-ui'
-import { ChevronForwardOutline, CopyOutline } from '@vicons/ionicons5'
+import { CopyOutline, ChevronForward } from '@vicons/ionicons5'
 import { uiLogger } from '@/utils/logger'
 
 interface Props {
@@ -52,10 +52,6 @@ const props = defineProps<Props>()
 const { t } = useI18n()
 const expanded = ref(true)
 const message = useMessage()
-
-function toggleExpand() {
-  expanded.value = !expanded.value
-}
 
 async function handleCopy() {
   if (!props.text) return

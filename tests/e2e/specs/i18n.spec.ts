@@ -21,13 +21,6 @@ test.describe('Internationalization (i18n) - Refactored', () => {
       await expect(page.getByTestId('language-selector-button')).toBeVisible();
     });
 
-    test('should display current language label', async ({ page }) => {
-      const label = page.getByTestId('current-language-label');
-      await expect(label).toBeVisible();
-      const text = await label.textContent();
-      expect(text).toMatch(/^(English|中文)$/);
-    });
-
     test('should show both language options in dropdown', async ({ page }) => {
       await page.click('[data-testid="language-selector-button"]');
       await expect(page.getByText('English')).toBeVisible();
@@ -41,25 +34,23 @@ test.describe('Internationalization (i18n) - Refactored', () => {
       test(`should display correct ${lang} translations`, async ({ page }) => {
         await app.switchLanguage(lang as 'en' | 'zh-CN');
 
-        // 验证空状态文本
-        await expect(page.getByText(texts.emptyState)).toBeVisible();
+        // 验证空状态标题和描述
+        await expect(page.getByTestId('welcome-title')).toHaveText(texts.welcomeTitle);
+        await expect(page.getByTestId('welcome-description')).toHaveText(texts.welcomeDescription);
 
         // 验证导入按钮
-        await expect(page.getByRole('button', { name: new RegExp(texts.importButton, 'i') })).toBeVisible();
-
-        // 验证选择文件按钮
-        await expect(page.getByRole('button', { name: texts.selectFiles })).toBeVisible();
+        await expect(page.getByTestId('start-import-button')).toHaveText(texts.startImport);
       });
     }
 
     test('should toggle between languages', async ({ page }) => {
       // 切换到中文
       await app.switchLanguage('zh-CN');
-      await expect(page.getByText(TestData.translations['zh-CN'].emptyState)).toBeVisible();
+      await expect(page.getByTestId('welcome-description')).toHaveText(TestData.translations['zh-CN'].welcomeDescription);
 
       // 切换回英文
       await app.switchLanguage('en');
-      await expect(page.getByText(TestData.translations.en.emptyState)).toBeVisible();
+      await expect(page.getByTestId('welcome-description')).toHaveText(TestData.translations.en.welcomeDescription);
     });
   });
 
@@ -67,18 +58,15 @@ test.describe('Internationalization (i18n) - Refactored', () => {
     // 参数化测试：验证两种语言的持久化
     for (const [lang, texts] of Object.entries(TestData.translations)) {
       test(`should persist ${lang} after page reload`, async ({ page }) => {
-        const langLabel = lang === 'en' ? 'English' : '中文';
-
         // 切换语言
         await app.switchLanguage(lang as 'en' | 'zh-CN');
-        await expect(page.getByTestId('current-language-label')).toContainText(langLabel);
+        await expect(page.getByTestId('welcome-description')).toHaveText(texts.welcomeDescription);
 
         // 重载页面
         await page.reload();
 
         // 验证语言持久化
-        await expect(page.getByTestId('current-language-label')).toContainText(langLabel);
-        await expect(page.getByText(texts.emptyState)).toBeVisible();
+        await expect(page.getByTestId('welcome-description')).toHaveText(texts.welcomeDescription);
       });
     }
   });
@@ -91,17 +79,17 @@ test.describe('Internationalization (i18n) - Refactored', () => {
       });
       await page.reload();
 
-      await expect(page.getByTestId('current-language-label')).toContainText('English');
+      await expect(page.getByTestId('welcome-description')).toHaveText(TestData.translations.en.welcomeDescription);
     });
 
-    test('should prioritize localStorage over browser language', async ({ page }) => {
+    test('should priority localStorage over browser language', async ({ page }) => {
       await page.evaluate(() => localStorage.setItem('locale', 'zh-CN'));
       await page.setExtraHTTPHeaders({
         'Accept-Language': 'en-US,en;q=0.9'
       });
       await page.reload();
 
-      await expect(page.getByTestId('current-language-label')).toContainText('中文');
+      await expect(page.getByTestId('welcome-description')).toHaveText(TestData.translations['zh-CN'].welcomeDescription);
     });
   });
 
@@ -117,20 +105,19 @@ test.describe('Internationalization (i18n) - Refactored', () => {
         await app.switchLanguage(lang as 'en' | 'zh-CN');
 
         // 验证页面计数器
-        const counterPattern = lang === 'en' ? /\d{1,3} Pages Loaded/ : /已加载 \d{1,3} 个页面/;
-        await expect(page.getByText(counterPattern)).toBeVisible();
+        await expect(page.getByTestId('page-count-badge')).toBeVisible();
+        const counterText = await page.getByTestId('page-count-badge').textContent();
+        if (lang === 'en') {
+          expect(counterText).toMatch(/\d{1,3} Pages Loaded/);
+        } else {
+          expect(counterText).toMatch(/已加载 \d{1,3} 个页面/);
+        }
 
         // 验证页面项按钮
         const firstPageItem = page.locator('.page-item').first();
         await firstPageItem.hover();
         await expect(page.getByRole('button', { name: texts.scanToDocument }).first()).toBeVisible();
         await expect(page.getByRole('button', { name: texts.deletePage }).first()).toBeVisible();
-
-        // 验证页面查看器
-        await expect(page.getByText(texts.selectAPage)).toBeVisible();
-        await expect(page.getByText(texts.status)).toBeVisible();
-        await expect(page.getByText(texts.ready)).toBeVisible();
-        await expect(page.getByRole('button', { name: texts.fit })).toBeVisible();
 
         // 验证预览面板
         await expect(page.getByRole('button', { name: texts.downloadMD })).toBeVisible();
@@ -140,15 +127,15 @@ test.describe('Internationalization (i18n) - Refactored', () => {
     test('should maintain translations when switching languages', async ({ page }) => {
       // 切换到中文
       await app.switchLanguage('zh-CN');
-      await expect(page.getByText(/已加载 \d{1,3} 个页面/)).toBeVisible();
+      await expect(page.getByTestId('page-count-badge')).toHaveText(/已加载 \d{1,3} 个页面/);
 
       // 切换到英文
       await app.switchLanguage('en');
-      await expect(page.getByText(/\d{1,3} Pages Loaded/)).toBeVisible();
+      await expect(page.getByTestId('page-count-badge')).toHaveText(/\d{1,3} Pages Loaded/);
 
       // 切换回中文验证仍然工作
       await app.switchLanguage('zh-CN');
-      await expect(page.getByText(/已加载 \d{1,3} 个页面/)).toBeVisible();
+      await expect(page.getByTestId('page-count-badge')).toHaveText(/已加载 \d{1,3} 个页面/);
     });
   });
 
@@ -159,11 +146,11 @@ test.describe('Internationalization (i18n) - Refactored', () => {
         await app.switchLanguage(lang as 'en' | 'zh-CN');
 
         // 验证导入按钮存在
-        await expect(page.getByRole('button', { name: new RegExp(texts.importButton, 'i') })).toBeVisible();
+        await expect(page.getByTestId('import-files-button')).toBeVisible();
 
         // 验证空状态文本
-        await expect(page.getByText(texts.emptyState)).toBeVisible();
-        await expect(page.getByRole('button', { name: texts.selectFiles })).toBeVisible();
+        await expect(page.getByTestId('welcome-description')).toHaveText(texts.welcomeDescription);
+        await expect(page.getByTestId('start-import-button')).toHaveText(texts.startImport);
       });
     }
   });

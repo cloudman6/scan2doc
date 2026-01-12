@@ -1,24 +1,25 @@
 <template>
-  <n-dropdown
+  <NDropdown
     placement="bottom-end"
-    :options="languageOptions"
     data-testid="language-selector-dropdown"
+    trigger="click"
+    :options="languageOptions"
     @select="handleLanguageChange"
   >
-    <n-button
-      secondary
+    <NButton
+      quaternary
+      circle
       size="small"
-      :title="$t('common.language')"
+      class="lang-selector-btn"
       data-testid="language-selector-button"
     >
       <template #icon>
-        <n-icon>
+        <NIcon size="20">
           <LanguageOutline />
-        </n-icon>
+        </NIcon>
       </template>
-      <span data-testid="current-language-label">{{ currentLabel }}</span>
-    </n-button>
-  </n-dropdown>
+    </NButton>
+  </NDropdown>
 </template>
 
 <script setup lang="ts">
@@ -43,11 +44,6 @@ const languageOptions = computed(() => [
   }
 ])
 
-const currentLabel = computed(() => {
-  return locale.value === 'en'
-    ? t('common.english')
-    : t('common.chinese')
-})
 
 function handleLanguageChange(key: string) {
   setLocale(key as SupportedLocale)

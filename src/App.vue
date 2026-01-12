@@ -1,8 +1,8 @@
 <template>
-  <n-message-provider placement="bottom-left">
-    <n-notification-provider placement="bottom-left">
-      <n-dialog-provider>
-        <n-layout
+  <NMessageProvider placement="bottom-left">
+    <NNotificationProvider placement="bottom-left">
+      <NDialogProvider>
+        <NLayout
           data-testid="app-container"
           class="app-container"
           @drop="handleDrop"
@@ -15,7 +15,7 @@
           />
 
           <!-- Main Content -->
-          <n-layout
+          <NLayout
             has-sider
             class="app-main"
           >
@@ -28,7 +28,7 @@
 
             <template v-else>
               <!-- Page List with custom collapse trigger -->
-              <n-layout-sider
+              <NLayoutSider
                 v-model:collapsed="pageListCollapsed"
                 data-testid="page-list-sider"
                 :width="260"
@@ -49,13 +49,13 @@
                     @batch-deleted="handleBatchDeleted"
                   />
                 </div>
-              </n-layout-sider>
+              </NLayoutSider>
 
               <!-- Custom Page List Collapse Trigger (BTN-PL) - positioned outside sider -->
               <div class="sider-trigger-container">
-                <n-tooltip :placement="pageListCollapsed ? 'right' : 'left'">
+                <NTooltip :placement="pageListCollapsed ? 'right' : 'left'">
                   <template #trigger>
-                    <n-button
+                    <NButton
                       size="small"
                       circle
                       quaternary
@@ -64,15 +64,15 @@
                       @click="pageListCollapsed = !pageListCollapsed"
                     >
                       <template #icon>
-                        <n-icon>
+                        <NIcon>
                           <ChevronBackOutline v-if="!pageListCollapsed" />
                           <ChevronForwardOutline v-else />
-                        </n-icon>
+                        </NIcon>
                       </template>
-                    </n-button>
+                    </NButton>
                   </template>
                   {{ pageListCollapsed ? $t('app.expandPageList') : $t('app.collapsePageList') }}
-                </n-tooltip>
+                </NTooltip>
               </div>
 
               <!-- Middle: Content area with PageViewer, Divider, and Preview -->
@@ -99,12 +99,12 @@
                   class="panel-divider"
                 >
                   <!-- PageViewer collapse: show when both expanded -->
-                  <n-tooltip
+                  <NTooltip
                     v-if="!pageViewerCollapsed"
                     placement="right"
                   >
                     <template #trigger>
-                      <n-button
+                      <NButton
                         size="small"
                         circle
                         quaternary
@@ -112,20 +112,20 @@
                         @click="pageViewerCollapsed = true"
                       >
                         <template #icon>
-                          <n-icon><ChevronBackOutline /></n-icon>
+                          <NIcon><ChevronBackOutline /></NIcon>
                         </template>
-                      </n-button>
+                      </NButton>
                     </template>
                     {{ $t('app.collapseViewer') }}
-                  </n-tooltip>
+                  </NTooltip>
 
                   <!-- PageViewer expand: show when PV collapsed -->
-                  <n-tooltip
+                  <NTooltip
                     v-if="pageViewerCollapsed"
                     placement="right"
                   >
                     <template #trigger>
-                      <n-button
+                      <NButton
                         size="small"
                         circle
                         quaternary
@@ -133,20 +133,20 @@
                         @click="pageViewerCollapsed = false"
                       >
                         <template #icon>
-                          <n-icon><ChevronForwardOutline /></n-icon>
+                          <NIcon><ChevronForwardOutline /></NIcon>
                         </template>
-                      </n-button>
+                      </NButton>
                     </template>
                     {{ $t('app.expandViewer') }}
-                  </n-tooltip>
+                  </NTooltip>
 
                   <!-- Preview collapse: show when both expanded -->
-                  <n-tooltip
+                  <NTooltip
                     v-if="!pageViewerCollapsed"
                     placement="left"
                   >
                     <template #trigger>
-                      <n-button
+                      <NButton
                         size="small"
                         circle
                         quaternary
@@ -154,12 +154,12 @@
                         @click="previewCollapsed = true"
                       >
                         <template #icon>
-                          <n-icon><ChevronForwardOutline /></n-icon>
+                          <NIcon><ChevronForwardOutline /></NIcon>
                         </template>
-                      </n-button>
+                      </NButton>
                     </template>
                     {{ $t('app.collapsePreview') }}
-                  </n-tooltip>
+                  </NTooltip>
                 </div>
 
                 <!-- Preview -->
@@ -183,9 +183,9 @@
                   v-if="previewCollapsed"
                   class="right-edge-trigger"
                 >
-                  <n-tooltip placement="left">
+                  <NTooltip placement="left">
                     <template #trigger>
-                      <n-button
+                      <NButton
                         size="small"
                         circle
                         quaternary
@@ -193,20 +193,20 @@
                         @click="previewCollapsed = false"
                       >
                         <template #icon>
-                          <n-icon><ChevronBackOutline /></n-icon>
+                          <NIcon><ChevronBackOutline /></NIcon>
                         </template>
-                      </n-button>
+                      </NButton>
                     </template>
                     {{ $t('app.expandPreview') }}
-                  </n-tooltip>
+                  </NTooltip>
                 </div>
               </div>
             </template>
-          </n-layout>
-        </n-layout>
-      </n-dialog-provider>
-    </n-notification-provider>
-  </n-message-provider>
+          </NLayout>
+        </NLayout>
+      </NDialogProvider>
+    </NNotificationProvider>
+  </NMessageProvider>
 </template>
 
 <script setup lang="ts">
