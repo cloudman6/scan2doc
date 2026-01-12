@@ -28,7 +28,7 @@ test.describe('Batch Export (Refactored)', () => {
 
     // 清空数据库
     await page.evaluate(async () => {
-      const { db } = await import('/src/db/index.ts').catch(() => import('./src/db/index.ts'));
+      const { db } = await import('/src/db/index.ts');
       await db.clearAllData();
       if (window.pagesStore) {
         window.pagesStore.pages = [];
