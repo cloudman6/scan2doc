@@ -1,12 +1,12 @@
 # DeepSeek-OCR-WebUI
 
-一个纯前端、仅限浏览器的文档处理工具，可利用 OCR 将扫描图像和多页 PDF 转换为 Markdown, DOCX, PDF等多种可编辑格式。
+一个纯前端、仅限浏览器的文档处理工具，利用 DeepSeek-OCR 将扫描图像和多页 PDF 转换为 Markdown, DOCX, PDF等多种可编辑格式。
 
 ## 🚀 概览
 
 DeepSeek-OCR-WebUI 旨在完全在浏览器内处理文档转换任务。通过利用 Web Workers 和 IndexedDB 等现代 Web 技术，它提供了一个功能强大、注重隐私的替代方案，取代了服务器端文档处理。
 
-- **仅限前端**：无需后端服务（可选的第三方 OCR API 除外）。
+- **仅限前端**：无需后端服务（除了调用 DeepSeek-OCR API）。
 - **隐私至上**：文档处理过程中绝不会离开您的浏览器。
 - **支持大文档**：通过虚拟列表和高效的内存管理，针对数百页文档进行了优化。
 - **状态持久化**：利用 IndexedDB，任务进度和中间结果在页面刷新后依然存在。
@@ -26,7 +26,7 @@ DeepSeek-OCR-WebUI 旨在完全在浏览器内处理文档转换任务。通过�
 ## ✨ 关键特性
 
 - **PDF 转图像**：使用 Web Workers 高性能地将 PDF 页面转换为图像。
-- **OCR 集成**：集成第三方 OCR API 进行文本识别。
+- **DeepSeek-OCR 集成**：集成 DeepSeek-OCR API 进行文本和图像识别。
 - **多格式导出**：
   - Markdown
   - DOCX (Microsoft Word)
