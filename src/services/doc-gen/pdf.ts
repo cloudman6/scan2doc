@@ -165,7 +165,7 @@ export class SandwichPDFBuilder {
             try {
                 page.drawText(line, {
                     x, y: currentY, size: fontSize,
-                    color: rgb(1, 0, 0), opacity: 1, font: font // Visible debug layer
+                    color: rgb(1, 0, 0), opacity: 0, font: font // opacity: 1 for debug
                 })
             } catch (e) {
                 console.warn('[SandwichPDFBuilder] Failed to draw text line:', line.substring(0, 20), e)
