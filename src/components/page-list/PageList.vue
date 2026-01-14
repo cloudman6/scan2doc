@@ -28,7 +28,7 @@
           text
           size="tiny"
           circle
-          :title="$t('pageList.exportAs', [$t('common.export')])"
+          :title="$t('common.export')"
           class="export-selected-btn"
           @mouseenter="isExportHovered = true"
           @mouseleave="isExportHovered = false"

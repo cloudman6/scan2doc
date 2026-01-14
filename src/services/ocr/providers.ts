@@ -42,7 +42,9 @@ export class DeepSeekOCRProvider implements OCRProvider {
         const formData = await this.createFormData(imageData, options)
 
         try {
-            const response = await fetch(config.ocrApiEndpoint, {
+            // Construct the full URL by appending the specific endpoint
+            const url = `${config.apiBaseUrl}/ocr`
+            const response = await fetch(url, {
                 method: 'POST',
                 body: formData,
                 signal: options?.signal
@@ -71,7 +73,7 @@ export class DeepSeekOCRProvider implements OCRProvider {
             }
 
             ocrLogger.error('[DeepSeekOCRProvider] Process failed:', {
-                endpoint: config.ocrApiEndpoint,
+                endpoint: `${config.apiBaseUrl}/ocr`,
                 error,
                 options
             })

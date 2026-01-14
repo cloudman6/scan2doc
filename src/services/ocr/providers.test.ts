@@ -5,7 +5,7 @@ import { DeepSeekOCRProvider } from './providers'
 vi.mock('@/config', () => ({
     config: {
         // eslint-disable-next-line sonarjs/no-clear-text-protocols
-        ocrApiEndpoint: 'http://mock-api/ocr'
+        apiBaseUrl: 'http://mock-api'
     }
 }))
 

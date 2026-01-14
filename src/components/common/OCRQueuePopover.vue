@@ -12,6 +12,38 @@
       <div class="header-actions" />
     </div>
 
+    <!-- Toolbar (Check All) - Fixed at top -->
+    <div
+      v-if="store.ocrTaskCount > 0"
+      class="list-toolbar"
+    >
+      <NCheckbox
+        :checked="isAllSelected"
+        :indeterminate="isPartiallySelected"
+        size="small"
+        @update:checked="handleSelectAll"
+      />
+
+      <!-- Remove Selected -->
+      <NButton
+        v-if="hasSelection"
+        size="medium"
+        text
+        :title="t('ocrQueuePopover.cancelSelected')"
+        class="action-btn"
+        @click="handleStopSelected"
+        @mouseenter="hoveredBtnId = 'batch'"
+        @mouseleave="hoveredBtnId = null"
+      >
+        <template #icon>
+          <NIcon color="#d03050">
+            <CloseCircle v-if="hoveredBtnId === 'batch'" />
+            <CloseCircleOutline v-else />
+          </NIcon>
+        </template>
+      </NButton>
+    </div>
+
     <!-- Task List -->
     <NScrollbar style="max-height: 300px">
       <div
@@ -28,35 +60,6 @@
         v-else
         class="task-list"
       >
-        <!-- Toolbar (Check All) -->
-        <div class="list-toolbar">
-          <NCheckbox
-            :checked="isAllSelected"
-            :indeterminate="isPartiallySelected"
-            size="small"
-            @update:checked="handleSelectAll"
-          />
-
-          <!-- Remove Selected -->
-          <NButton
-            v-if="hasSelection"
-            size="medium"
-            text
-            :title="t('ocrQueuePopover.cancelSelected')"
-            class="action-btn"
-            @click="handleStopSelected"
-            @mouseenter="hoveredBtnId = 'batch'"
-            @mouseleave="hoveredBtnId = null"
-          >
-            <template #icon>
-              <NIcon color="#d03050">
-                <CloseCircle v-if="hoveredBtnId === 'batch'" />
-                <CloseCircleOutline v-else />
-              </NIcon>
-            </template>
-          </NButton>
-        </div>
-
         <!-- Processing Tasks -->
         <div
           v-for="page in store.activeOCRTasks"

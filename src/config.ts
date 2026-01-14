@@ -1,17 +1,17 @@
 export interface AppConfig {
-    ocrApiEndpoint: string
+    apiBaseUrl: string
 }
 
-const DEV_OCR_API_ENDPOINT = 'https://ocr.cloudmantools.top/ocr'
-const PROD_OCR_API_ENDPOINT = '/ocr'
+const DEV_API_BASE_URL = 'https://ocr.cloudmantools.top'
+const PROD_API_BASE_URL = ''
 
 export const config: AppConfig = {
     /**
-     * OCR API Endpoint selection priority:
-     * 1. Environment Variable: VITE_OCR_API_ENDPOINT (Injected during CI/CD, e.g., GitHub Actions)
-     * 2. Development Mode: DEV_OCR_API_ENDPOINT (Used during local `npm run dev`)
-     * 3. Production Default: PROD_OCR_API_ENDPOINT (Fallback for local `npm run build`)
+     * API Base URL selection priority:
+     * 1. Environment Variable: VITE_API_BASE_URL (Injected during CI/CD, e.g., GitHub Actions)
+     * 2. Development Mode: DEV_API_BASE_URL (Used during local `npm run dev`)
+     * 3. Production Default: PROD_API_BASE_URL (Fallback for local `npm run build`)
      */
-    ocrApiEndpoint: import.meta.env.VITE_OCR_API_ENDPOINT
-        || (import.meta.env.DEV ? DEV_OCR_API_ENDPOINT : PROD_OCR_API_ENDPOINT),
+    apiBaseUrl: import.meta.env.VITE_API_BASE_URL
+        || (import.meta.env.DEV ? DEV_API_BASE_URL : PROD_API_BASE_URL),
 }
