@@ -5,3 +5,4 @@ export { OCRPage } from './OCRPage';
 export { ExportPage } from './ExportPage';
 export { PageViewerPage } from './PageViewerPage';
 export { PreviewPage } from './PreviewPage';
+export { OCRQueuePopoverPage } from './OCRQueuePopoverPage';

@@ -24,7 +24,7 @@
     <!-- Center: OCR Queue Status -->
     <div class="header-center">
       <NPopover
-        v-if="store.ocrTaskCount > 0"
+        v-if="store.ocrTaskCount > 0 || showQueue"
         v-model:show="showQueue"
         trigger="click"
         placement="bottom"
@@ -32,7 +32,11 @@
         raw
       >
         <template #trigger>
-          <div class="status-pill">
+          <div
+            v-show="store.ocrTaskCount > 0"
+            class="status-pill"
+            data-testid="ocr-queue-badge"
+          >
             <NSpin
               size="small"
               :stroke-width="20"

@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 
 export class PageListPage {
-  constructor(private page: Page) {}
+  constructor(private page: Page) { }
 
   /**
    * 获取页面列表容器
@@ -23,9 +23,9 @@ export class PageListPage {
   async selectAll() {
     await this.page.getByTestId('select-all-checkbox').check();
     // 等待至少一个页面被选中
-    await this.page.locator('[data-testid^="page-item-"].selected').first().waitFor({ 
+    await this.page.locator('[data-testid^="page-item-"].selected').first().waitFor({
       state: 'visible',
-      timeout: 3000 
+      timeout: 3000
     }).catch(() => {
       // 如果没有 .selected 类，可能使用其他选中标记，继续执行
     });
@@ -57,21 +57,21 @@ export class PageListPage {
    */
   async deleteSelected() {
     const initialCount = await this.getPageCount();
-    
+
     // 点击删除按钮
     await this.page.getByTestId('delete-selected-btn').click();
-    
+
     // 确认弹窗
     const dialog = this.page.locator('.n-dialog.n-modal');
     await dialog.waitFor({ state: 'visible' });
     await dialog.locator('button:has-text("Confirm")').click();
-    
+
     // 等待成功提示
-    await this.page.locator('.n-message:has-text("deleted")').waitFor({ 
+    await this.page.locator('.n-message:has-text("deleted")').waitFor({
       state: 'visible',
-      timeout: 5000 
+      timeout: 5000
     });
-    
+
     // 等待列表更新
     await this.page.waitForFunction(
       (expected) => {
@@ -111,9 +111,9 @@ export class PageListPage {
   private async waitForDatabaseUpdate() {
     // 等待 store 中的 order 更新完成
     await this.page.waitForFunction(() => {
-        return window.pagesStore?.pages.every((p: Record<string, unknown>) => p.order !== undefined);
+      return window.pagesStore?.pages.every((p: Record<string, unknown>) => p.order !== undefined);
     }, { timeout: 5000 });
-    
+
     // 等待网络空闲，确保数据库写入完成
     await this.page.waitForLoadState('networkidle');
   }
@@ -190,7 +190,7 @@ export class PageListPage {
    */
   async waitForThumbnailsReady(timeout: number = 30000) {
     const count = await this.getPageCount();
-    
+
     for (let i = 0; i < count; i++) {
       await this.pageItems
         .nth(i)
@@ -238,17 +238,17 @@ export class PageListPage {
    */
   async uploadAndWaitReady(filePaths: string | string[]) {
     const paths = Array.isArray(filePaths) ? filePaths : [filePaths];
-    
+
     // 记录上传前的页面数量
     const beforeCount = await this.getPageCount();
-    
+
     const [fileChooser] = await Promise.all([
       this.page.waitForEvent('filechooser'),
       this.page.click('.app-header button:has-text("Import Files")')
     ]);
-    
+
     await fileChooser.setFiles(paths);
-    
+
     // 等待页面数量增加（至少增加1个）
     await this.page.waitForFunction(
       (expectedIncrease) => {
@@ -258,7 +258,7 @@ export class PageListPage {
       beforeCount + 1,
       { timeout: 30000 }
     );
-    
+
     // 如果是已知数量的上传，建议在测试中显式调用 waitForPagesLoaded
     await this.waitForThumbnailsReady();
   }
@@ -287,5 +287,13 @@ export class PageListPage {
   async isPageVisible(index: number): Promise<boolean> {
     const item = this.pageItems.nth(index);
     return await item.isVisible().catch(() => false);
+  }
+
+  /**
+   * 打开 OCR Queue Popover
+   * @returns 返回 OCRQueuePopoverPage 实例用于链式调用
+   */
+  async openOCRQueue(): Promise<void> {
+    await this.page.getByTestId('ocr-queue-badge').click();
   }
 }

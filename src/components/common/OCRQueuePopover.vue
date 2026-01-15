@@ -1,5 +1,8 @@
 <template>
-  <div class="ocr-queue-container">
+  <div 
+    class="ocr-queue-container"
+    data-testid="ocr-queue-popover"
+  >
     <!-- Header -->
     <div class="queue-header">
       <div class="header-title">
@@ -16,8 +19,10 @@
     <div
       v-if="store.ocrTaskCount > 0"
       class="list-toolbar"
+      data-testid="ocr-queue-toolbar"
     >
       <NCheckbox
+        data-testid="ocr-queue-select-all"
         :checked="isAllSelected"
         :indeterminate="isPartiallySelected"
         size="small"
@@ -27,6 +32,7 @@
       <!-- Remove Selected -->
       <NButton
         v-if="hasSelection"
+        data-testid="ocr-queue-batch-cancel-btn"
         size="medium"
         text
         :title="t('ocrQueuePopover.cancelSelected')"
@@ -65,8 +71,11 @@
           v-for="page in store.activeOCRTasks"
           :key="page.id"
           class="task-item processing"
+          :data-testid="`ocr-queue-item-${page.id}`"
+          data-status="processing"
         >
           <NCheckbox 
+            data-testid="ocr-queue-task-checkbox"
             size="small"
             :checked="selectedIds.has(page.id)"
             @update:checked="(v) => handleItemSelect(page.id, v)"
@@ -82,6 +91,7 @@
             size="medium"
             circle
             text
+            data-testid="ocr-queue-task-cancel-btn"
             class="cancel-btn"
             :title="t('ocrQueuePopover.cancelTask')"
             @click="handleStopSingle(page.id)"
@@ -102,8 +112,11 @@
           v-for="page in store.queuedOCRTasks"
           :key="page.id"
           class="task-item queued"
+          :data-testid="`ocr-queue-item-${page.id}`"
+          data-status="queued"
         >
           <NCheckbox 
+            data-testid="ocr-queue-task-checkbox"
             :checked="selectedIds.has(page.id)"
             @update:checked="(v) => handleItemSelect(page.id, v)"
           />
@@ -123,6 +136,7 @@
             size="medium"
             circle
             text
+            data-testid="ocr-queue-task-cancel-btn"
             class="cancel-btn"
             :title="t('ocrQueuePopover.cancelTask')"
             @click="handleStopSingle(page.id)"
@@ -143,6 +157,7 @@
     <!-- Footer -->
     <div class="queue-footer">
       <NButton
+        data-testid="ocr-queue-close-btn"
         type="primary"
         size="medium"
         block
