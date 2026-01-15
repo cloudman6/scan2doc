@@ -11,7 +11,7 @@
         <span class="panel-title">{{ t('ocrRawTextPanel.title') }}</span>
       </div>
       <NButton
-        size="tiny"
+        size="small"
         text
         circle
         :title="t('ocrRawTextPanel.copy')"
@@ -20,10 +20,7 @@
         @mouseleave="isCopyHovered = false"
       >
         <template #icon>
-          <NIcon
-            size="16"
-            :color="PRIMARY_COLOR"
-          >
+          <NIcon :color="PRIMARY_COLOR">
             <Checkmark v-if="isCopied" />
             <template v-else>
               <Copy v-if="isCopyHovered" />

@@ -54,7 +54,7 @@
       >
         <!-- Copy Source Button -->
         <NButton
-          size="large"
+          size="small"
           text
           :disabled="!mdContent || isLoadingMd"
           :title="t('preview.copy')"
