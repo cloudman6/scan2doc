@@ -204,6 +204,25 @@ const hasSelection = computed(() => selectedIds.value.size > 0)
 const isAllSelected = computed(() => allTaskIds.value.length > 0 && selectedIds.value.size === allTaskIds.value.length)
 const isPartiallySelected = computed(() => selectedIds.value.size > 0 && selectedIds.value.size < allTaskIds.value.length)
 
+// Watcher to prune selectedIds when tasks are removed (e.g. completed)
+import { watch } from 'vue'
+watch(allTaskIds, (newIds) => {
+  const newIdSet = new Set(newIds)
+  const idsToRemove: string[] = []
+  
+  // Find IDs that are no longer in the list
+  selectedIds.value.forEach(id => {
+    if (!newIdSet.has(id)) {
+      idsToRemove.push(id)
+    }
+  })
+  
+  // Remove them
+  if (idsToRemove.length > 0) {
+    idsToRemove.forEach(id => selectedIds.value.delete(id))
+  }
+}, { deep: true })
+
 // Actions
 function handleItemSelect(id: string, checked: boolean) {
   if (checked) {

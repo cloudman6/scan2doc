@@ -63,6 +63,15 @@ export class OCRQueuePopoverPage {
         await this.toolbarCheckbox.click();
     }
 
+    async toggleSelectAll(): Promise<void> {
+        await this.toolbarCheckbox.click();
+    }
+
+    async isAllSelected(): Promise<boolean> {
+        // NCheckbox uses aria-checked
+        return await this.toolbarCheckbox.getAttribute('aria-checked') === 'true';
+    }
+
     /**
      * 点击 toolbar 的批量取消按钮
      */

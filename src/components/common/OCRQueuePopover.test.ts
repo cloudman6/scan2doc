@@ -265,4 +265,92 @@ describe('OCRQueuePopover', () => {
         await wrapper.vm.$nextTick()
         expect(wrapper.text()).toContain('No active OCR tasks')
     })
+
+    it('updates selection when tasks are removed from store (watch logic)', async () => {
+        const s = usePagesStore(pinia)
+        const p1 = { id: 'p1', fileName: '1.png', status: 'recognizing', updatedAt: new Date(), progress: 0 }
+        const p2 = { id: 'p2', fileName: '2.png', status: 'recognizing', updatedAt: new Date(), progress: 0 }
+        // @ts-expect-error - testing-pinia stubs
+        s.pages = [p1, p2]
+        // @ts-expect-error - testing-pinia stubs
+        s.activeOCRTasks = [p1, p2]
+        // @ts-expect-error - testing-pinia stubs
+        s.queuedOCRTasks = []
+        // @ts-expect-error - testing-pinia stubs
+        s.ocrTaskCount = 2
+
+        const wrapper = mountComponent()
+        const vm = wrapper.vm as unknown as PopoverVM
+        await vm.$nextTick()
+
+        // Select both
+        await vm.handleSelectAll(true)
+        expect(vm.selectedIds.size).toBe(2)
+
+        // Remove p1 from store
+        // @ts-expect-error - testing-pinia stubs
+        s.activeOCRTasks = [p2]
+        // @ts-expect-error - testing-pinia stubs
+        s.ocrTaskCount = 1
+
+        await vm.$nextTick()
+        expect(vm.selectedIds.has('p1')).toBe(false)
+        expect(vm.selectedIds.has('p2')).toBe(true)
+    })
+
+    it('handles hover states for buttons', async () => {
+        const s = usePagesStore(pinia)
+        // @ts-expect-error - testing-pinia stubs
+        s.activeOCRTasks = [activeTask]
+        // @ts-expect-error - testing-pinia stubs
+        s.ocrTaskCount = 1
+
+        const wrapper = mountComponent()
+        const vm = wrapper.vm as unknown as PopoverVM
+        await vm.$nextTick()
+
+        // 1. Hover Batch Cancel Button
+        // First, ensure it exists by selecting sth
+        await vm.handleItemSelect('p1', true)
+        await vm.$nextTick()
+
+        const batchBtn = wrapper.find('.list-toolbar .action-btn')
+        expect(batchBtn.exists()).toBe(true)
+        await batchBtn.trigger('mouseenter')
+        // @ts-expect-error - private access
+        expect(vm.hoveredBtnId).toBe('batch')
+        await batchBtn.trigger('mouseleave')
+        // @ts-expect-error - private access
+        expect(vm.hoveredBtnId).toBe(null)
+
+        // 2. Hover Task Cancel Button
+        const taskBtn = wrapper.find('.task-item .cancel-btn')
+        expect(taskBtn.exists()).toBe(true)
+        await taskBtn.trigger('mouseenter')
+        // @ts-expect-error - private access
+        expect(vm.hoveredBtnId).toBe('p1')
+        await taskBtn.trigger('mouseleave')
+        // @ts-expect-error - private access
+        expect(vm.hoveredBtnId).toBe(null)
+    })
+
+    it('handles active task checkbox update trigger', async () => {
+        const s = usePagesStore(pinia)
+        // @ts-expect-error - testing-pinia stubs
+        s.activeOCRTasks = [activeTask]
+        // @ts-expect-error - testing-pinia stubs
+        s.ocrTaskCount = 1
+
+        const wrapper = mountComponent()
+        await wrapper.vm.$nextTick()
+
+        const checkbox = wrapper.find('.task-item.processing').findComponent(NCheckbox)
+        expect(checkbox.exists()).toBe(true)
+
+        // Directly trigger update event bound in template
+        await checkbox.vm.$emit('update:checked', true)
+
+        const vm = wrapper.vm as unknown as PopoverVM
+        expect(vm.selectedIds.has('p1')).toBe(true)
+    })
 })
