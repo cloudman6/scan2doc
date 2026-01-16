@@ -37,7 +37,7 @@
           style="max-height: 200px"
           trigger="hover"
         >
-          <pre class="raw-text">{{ text || t('ocrRawTextPanel.noText') }}</pre>
+          <pre class="raw-text-content">{{ text || t('ocrRawTextPanel.noText') }}</pre>
         </NScrollbar>
       </div>
     </NCollapseTransition>
@@ -142,7 +142,7 @@ async function handleCopy() {
 
 .raw-text-content {
   margin: 0;
-  padding: 12px;
+  padding: 20px;
   white-space: pre-wrap;
   word-wrap: break-word;
   font-family: v-mono, SF Mono, Menlo, Consolas, Courier, monospace;

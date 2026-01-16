@@ -34,8 +34,8 @@
                 :width="260"
                 :collapsed-width="0"
                 collapse-mode="width"
-                bordered
                 :show-trigger="false"
+                class="page-list-sider"
               >
                 <div
                   data-testid="page-list-container"
@@ -565,6 +565,11 @@ html, body {
   background-color: #f6f7f8 !important;
 }
 
+/* Page List Sider - custom border */
+.page-list-sider {
+  border-right: 1px solid #e0e0e0 !important;
+}
+
 /* Page List Collapse Trigger - positioned at sider edge */
 .sider-trigger-container {
   display: flex;
@@ -572,6 +577,8 @@ html, body {
   justify-content: center;
   height: 100%;
   flex-shrink: 0;
+  background: #f6f7f8;
+  border-right: 1px solid #e0e0e0;
 }
 
 .sider-trigger-btn {
@@ -655,15 +662,6 @@ html, body {
   flex-shrink: 0; /* Prevent shrinking below specified width */
 }
 
-.page-viewer-panel {
-  border-right: 1px solid #e0e0e0;
-  border-left: 1px solid #e0e0e0;
-}
-
-.preview-panel {
-  border-left: 1px solid #e0e0e0;
-}
-
 /* Panel divider with collapse/expand controls */
 .panel-divider {
   display: flex;
@@ -673,7 +671,7 @@ html, body {
   width: 32px;
   min-width: 32px;
   height: 100%;
-  background: #f0f0f0;
+  background: #f6f7f8;
   border-left: 1px solid #e0e0e0;
   border-right: 1px solid #e0e0e0;
   gap: 12px;
@@ -703,9 +701,8 @@ html, body {
   width: 32px;
   min-width: 32px; /* Prevent shrinking */
   flex-shrink: 0;
-  background: #f0f0f0;
+  background: #f6f7f8;
   border-left: 1px solid #e0e0e0;
-  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .right-edge-trigger .n-button {

@@ -7,7 +7,7 @@
         :type="buttonType"
         :loading="loading"
         :disabled="disabled"
-        class="trigger-btn"
+        class="trigger-btn keep-queue-open"
         @click="handleMainClick"
       >
         <template #icon>
@@ -27,7 +27,7 @@
           role="button"
           :type="buttonType"
           :disabled="disabled"
-          class="dropdown-trigger"
+          class="dropdown-trigger keep-queue-open"
         >
           <template #icon>
             <NIcon>
@@ -94,7 +94,10 @@ const menuOptions = computed<DropdownOption[]>(() => {
   return (Object.keys(MODE_CONFIG) as OCRPromptType[]).map(key => ({
     label: t(MODE_CONFIG[key].key),
     key: key,
-    icon: () => h(NIcon, null, { default: () => h(MODE_CONFIG[key].icon) })
+    icon: () => h(NIcon, null, { default: () => h(MODE_CONFIG[key].icon) }),
+    props: {
+      class: 'keep-queue-open'
+    }
   }))
 })
 

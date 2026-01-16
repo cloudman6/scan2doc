@@ -35,7 +35,7 @@
         text
         size="tiny"
         circle
-        class="action-btn"
+        class="action-btn keep-queue-open"
         :title="t('pageItem.scanToDocument')"
         :disabled="isScanning"
         @click.stop="handleScan"

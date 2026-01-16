@@ -5,6 +5,16 @@ import AppHeader from './AppHeader.vue'
 import { NLayoutHeader, NButton, NTag, NSpin, NIcon } from 'naive-ui'
 import { i18n } from '../../../tests/setup'
 
+// Capture the onClickOutside callback for testing
+let onClickOutsideCallback: (() => void) | null = null
+
+vi.mock('@vueuse/core', () => ({
+    onClickOutside: vi.fn((_target, callback) => {
+        onClickOutsideCallback = callback
+        return vi.fn() // Return a stop function
+    })
+}))
+
 // Mock child component
 vi.mock('@/components/common/OCRQueuePopover.vue', () => ({
     default: {
@@ -164,5 +174,54 @@ describe('AppHeader', () => {
         const wrapper = mount(AppHeader, createMountOptions())
         await wrapper.vm.$nextTick()
         expect(wrapper.find('.status-pill').exists()).toBe(false)
+    })
+
+    it('toggles showQueue when status-pill is clicked', async () => {
+        // Set store state to show the status pill
+        mockStore.activeOCRTasks = [{ id: '1', status: 'recognizing' }]
+        mockStore.ocrTaskCount = 1
+
+        const wrapper = mount(AppHeader, createMountOptions())
+        const vm = wrapper.vm as unknown as HeaderVM
+        await vm.$nextTick()
+
+        // Initially showQueue should be false
+        expect(vm.showQueue).toBe(false)
+
+        // Find the status pill and click it
+        const statusPill = wrapper.find('.status-pill')
+        expect(statusPill.exists()).toBe(true)
+
+        await statusPill.trigger('click')
+
+        // showQueue should now be true
+        expect(vm.showQueue).toBe(true)
+
+        // Click again to toggle off
+        await statusPill.trigger('click')
+        expect(vm.showQueue).toBe(false)
+    })
+
+    it('closes showQueue via onClickOutside callback', async () => {
+        // Set store state to enable popover display
+        mockStore.ocrTaskCount = 1
+
+        const wrapper = mount(AppHeader, createMountOptions())
+        const vm = wrapper.vm as unknown as HeaderVM
+        await vm.$nextTick()
+
+        // Set showQueue to true to simulate open state
+        vm.showQueue = true
+        await vm.$nextTick()
+        expect(vm.showQueue).toBe(true)
+
+        // Trigger onClickOutside callback captured by the mock
+        // This tests line 129: showQueue.value = false
+        expect(onClickOutsideCallback).not.toBeNull()
+        if (onClickOutsideCallback) {
+            onClickOutsideCallback()
+        }
+        await vm.$nextTick()
+        expect(vm.showQueue).toBe(false)
     })
 })

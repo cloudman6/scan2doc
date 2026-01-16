@@ -23,7 +23,7 @@
         >
           <div 
             data-testid="ocr-actions-container"
-            class="ocr-actions"
+            class="ocr-actions keep-queue-open"
           >
             <OCRModeSelector 
               :loading="status === 'recognizing'"
