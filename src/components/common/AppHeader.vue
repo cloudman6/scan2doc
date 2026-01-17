@@ -59,6 +59,65 @@
 
     <!-- Right: Actions -->
     <div class="header-actions">
+      <!-- GitHub Links -->
+      <div class="github-links">
+        <NTooltip trigger="hover">
+          <template #trigger>
+            <NButton
+              text
+              tag="a"
+              href="https://github.com/neosun100/DeepSeek-OCR-WebUI"
+              target="_blank"
+              class="github-btn"
+            >
+              <template #icon>
+                <NIcon size="20"><LogoGithub /></NIcon>
+              </template>
+              <span class="github-text">Star</span>
+            </NButton>
+          </template>
+          ⭐ {{ $t('header.starProject') }}
+        </NTooltip>
+
+        <NTooltip trigger="hover">
+          <template #trigger>
+            <NButton
+              text
+              tag="a"
+              href="https://github.com/neosun100/DeepSeek-OCR-WebUI/issues"
+              target="_blank"
+              class="github-btn"
+            >
+              <template #icon>
+                <NIcon size="18"><ChatboxEllipsesOutline /></NIcon>
+              </template>
+              <span class="github-text">Issue</span>
+            </NButton>
+          </template>
+          🐛 {{ $t('header.reportIssue') }}
+        </NTooltip>
+
+        <NTooltip trigger="hover">
+          <template #trigger>
+            <NButton
+              text
+              tag="a"
+              href="https://github.com/neosun100/DeepSeek-OCR-WebUI#readme"
+              target="_blank"
+              class="github-btn"
+            >
+              <template #icon>
+                <NIcon size="18"><BookOutline /></NIcon>
+              </template>
+              <span class="github-text">Docs</span>
+            </NButton>
+          </template>
+          📖 {{ $t('header.readDocs') }}
+        </NTooltip>
+      </div>
+
+      <NDivider vertical />
+
       <!-- Language Selector -->
       <LanguageSelector />
 
@@ -97,8 +156,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NLayoutHeader, NButton, NIcon, NTag, NPopover, NSpin, NDivider } from 'naive-ui'
-import { DocumentText, CloudUpload } from '@vicons/ionicons5'
+import { NLayoutHeader, NButton, NIcon, NTag, NPopover, NSpin, NDivider, NTooltip } from 'naive-ui'
+import { DocumentText, CloudUpload, LogoGithub, ChatboxEllipsesOutline, BookOutline } from '@vicons/ionicons5'
 import { usePagesStore } from '@/stores/pages'
 import OCRQueuePopover from '@/components/common/OCRQueuePopover.vue'
 import OCRHealthIndicator from '@/components/common/OCRHealthIndicator.vue'
@@ -206,5 +265,41 @@ defineExpose({
 
 .page-count-badge {
   font-weight: 600;
+}
+
+.github-links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.github-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  color: #555;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+
+.github-btn:hover {
+  background: rgba(24, 160, 88, 0.08);
+  color: var(--primary-color);
+}
+
+.github-text {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+@media (max-width: 768px) {
+  .github-text {
+    display: none;
+  }
+  .github-links {
+    gap: 0;
+  }
 }
 </style>
