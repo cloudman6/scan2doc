@@ -54,7 +54,7 @@
         size="tiny"
         circle
         :title="$t('pageList.scanSelected')"
-        class="batch-ocr-btn"
+        class="batch-ocr-btn keep-queue-open"
         @click="handleBatchOCR"
         @mouseenter="isScanHovered = true"
         @mouseleave="isScanHovered = false"

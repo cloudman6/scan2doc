@@ -283,6 +283,10 @@ defineExpose({
   background: white;
   display: flex;
   flex-direction: column;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 6px 16px -4px rgba(0, 0, 0, 0.12), 0 12px 32px 0 rgba(0, 0, 0, 0.08), 0 16px 48px 16px rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(239, 239, 245, 1);
 }
 
 .queue-header {

@@ -30,7 +30,7 @@
       <NPopover
         v-if="store.ocrTaskCount > 0 || showQueue"
         v-model:show="showQueue"
-        trigger="click"
+        trigger="manual"
         placement="bottom"
         :show-arrow="false"
         raw
@@ -40,6 +40,7 @@
             v-show="store.ocrTaskCount > 0"
             class="status-pill"
             data-testid="ocr-queue-badge"
+            @click.stop="showQueue = !showQueue"
           >
             <NSpin
               size="small"
@@ -53,7 +54,9 @@
             <OCRHealthIndicator compact />
           </div>
         </template>
-        <OCRQueuePopover @close="showQueue = false" />
+        <div ref="popoverContentRef">
+          <OCRQueuePopover @close="showQueue = false" />
+        </div>
       </NPopover>
     </div>
 
@@ -156,6 +159,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { onClickOutside } from '@vueuse/core'
 import { NLayoutHeader, NButton, NIcon, NTag, NPopover, NSpin, NDivider, NTooltip } from 'naive-ui'
 import { DocumentText, CloudUpload, LogoGithub, ChatboxEllipsesOutline, BookOutline } from '@vicons/ionicons5'
 import { usePagesStore } from '@/stores/pages'
@@ -175,6 +179,24 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const store = usePagesStore()
 const showQueue = ref(false)
+const popoverContentRef = ref<HTMLElement | null>(null)
+
+// Intelligent Dismissal: Close queue when clicking outside, but ignore:
+// 1. The trigger badge itself (handled by its own click)
+// 2. Elements with .keep-queue-open class (Scan buttons, Quick Actions)
+onClickOutside(popoverContentRef, () => {
+  showQueue.value = false
+}, {
+  ignore: [
+    '.keep-queue-open', 
+    '[data-testid="ocr-queue-badge"]',
+    '[data-testid="ocr-trigger-btn"]',
+    '[data-testid="ocr-mode-dropdown"]',
+    '[data-testid="ocr-actions-container"]',
+    '.ocr-actions',
+    '.ocr-mode-selector'
+  ]
+})
 
 const pageCountText = computed(() => {
   return props.pageCount > 1
