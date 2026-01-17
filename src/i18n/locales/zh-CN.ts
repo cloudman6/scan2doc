@@ -47,7 +47,10 @@ export default {
     pagesLoaded: '已加载 {0} 个页面',
     pageLoaded: '已加载 {0} 个页面',
     importFiles: '导入文件',
-    scan2Doc: 'DeepSeek-OCR-WebUI'
+    scan2Doc: 'DeepSeek-OCR-WebUI',
+    starProject: '在 GitHub 上给项目点 Star',
+    reportIssue: '报告问题或提出建议',
+    readDocs: '阅读项目文档'
   },
 
   // Page List

@@ -62,6 +62,65 @@
 
     <!-- Right: Actions -->
     <div class="header-actions">
+      <!-- GitHub Links -->
+      <div class="github-links">
+        <NTooltip trigger="hover">
+          <template #trigger>
+            <NButton
+              text
+              tag="a"
+              href="https://github.com/neosun100/DeepSeek-OCR-WebUI"
+              target="_blank"
+              class="github-btn"
+            >
+              <template #icon>
+                <NIcon size="20"><LogoGithub /></NIcon>
+              </template>
+              <span class="github-text">Star</span>
+            </NButton>
+          </template>
+          ⭐ {{ $t('header.starProject') }}
+        </NTooltip>
+
+        <NTooltip trigger="hover">
+          <template #trigger>
+            <NButton
+              text
+              tag="a"
+              href="https://github.com/neosun100/DeepSeek-OCR-WebUI/issues"
+              target="_blank"
+              class="github-btn"
+            >
+              <template #icon>
+                <NIcon size="18"><ChatboxEllipsesOutline /></NIcon>
+              </template>
+              <span class="github-text">Issue</span>
+            </NButton>
+          </template>
+          🐛 {{ $t('header.reportIssue') }}
+        </NTooltip>
+
+        <NTooltip trigger="hover">
+          <template #trigger>
+            <NButton
+              text
+              tag="a"
+              href="https://github.com/neosun100/DeepSeek-OCR-WebUI#readme"
+              target="_blank"
+              class="github-btn"
+            >
+              <template #icon>
+                <NIcon size="18"><BookOutline /></NIcon>
+              </template>
+              <span class="github-text">Docs</span>
+            </NButton>
+          </template>
+          📖 {{ $t('header.readDocs') }}
+        </NTooltip>
+      </div>
+
+      <NDivider vertical />
+
       <!-- Language Selector -->
       <LanguageSelector />
 
@@ -101,8 +160,8 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onClickOutside } from '@vueuse/core'
-import { NLayoutHeader, NButton, NIcon, NTag, NPopover, NSpin, NDivider } from 'naive-ui'
-import { DocumentText, CloudUpload } from '@vicons/ionicons5'
+import { NLayoutHeader, NButton, NIcon, NTag, NPopover, NSpin, NDivider, NTooltip } from 'naive-ui'
+import { DocumentText, CloudUpload, LogoGithub, ChatboxEllipsesOutline, BookOutline } from '@vicons/ionicons5'
 import { usePagesStore } from '@/stores/pages'
 import OCRQueuePopover from '@/components/common/OCRQueuePopover.vue'
 import OCRHealthIndicator from '@/components/common/OCRHealthIndicator.vue'
@@ -228,5 +287,91 @@ defineExpose({
 
 .page-count-badge {
   font-weight: 600;
+}
+
+.github-links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.github-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  color: #555;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+
+.github-btn:hover {
+  background: rgba(24, 160, 88, 0.08);
+  color: var(--primary-color);
+}
+
+.github-text {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+@media (max-width: 768px) {
+  .app-header {
+    padding: 0 12px;
+    height: 56px;
+  }
+
+  .app-title {
+    font-size: 14px;
+    white-space: nowrap;
+  }
+
+  .header-center {
+    display: none;
+  }
+
+  .github-links {
+    display: none;
+  }
+
+  .header-actions {
+    gap: 8px;
+  }
+
+  .header-actions .n-divider {
+    display: none;
+  }
+
+  .page-count-badge {
+    display: none;
+  }
+
+  .add-btn {
+    padding: 0 12px;
+    font-size: 13px;
+  }
+
+  .add-btn .n-button__content {
+    gap: 4px;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-header {
+    padding: 0 8px;
+  }
+
+  .header-brand {
+    gap: 8px;
+  }
+
+  .app-title {
+    font-size: 13px;
+  }
+
+  .add-btn span {
+    display: none;
+  }
 }
 </style>

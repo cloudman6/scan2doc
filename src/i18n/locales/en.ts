@@ -47,7 +47,10 @@ export default {
     pagesLoaded: '{0} Pages Loaded',
     pageLoaded: '{0} Page Loaded',
     importFiles: 'Import Files',
-    scan2Doc: 'DeepSeek-OCR-WebUI'
+    scan2Doc: 'DeepSeek-OCR-WebUI',
+    starProject: 'Star this project on GitHub',
+    reportIssue: 'Report a bug or request a feature',
+    readDocs: 'Read the documentation'
   },
 
   // Page List
