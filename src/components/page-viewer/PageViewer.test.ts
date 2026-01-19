@@ -5,6 +5,7 @@ import { db } from '@/db'
 import { uiLogger } from '@/utils/logger'
 import { i18n } from '../../../tests/setup'
 import { ocrService } from '@/services/ocr'
+import { useHealthStore } from '@/stores/health'
 
 import { createTestingPinia } from '@pinia/testing'
 
@@ -396,12 +397,13 @@ describe('PageViewer.vue', () => {
 
   it('handles submitOCR with queue full error', async () => {
     vi.mocked(db.getPageImage).mockResolvedValue(new Blob(['img'], { type: 'image/jpeg' }))
-    const error = new Error('OCR queue is full')
-    vi.mocked(ocrService.queueOCR).mockRejectedValue(error)
 
     const wrapper = mountPageViewer({
       currentPage: mockPage
     })
+
+    const healthStore = useHealthStore()
+    healthStore.healthInfo = { status: 'full' } as any
 
     await (wrapper.vm as any).submitOCR('document')
 
@@ -409,6 +411,7 @@ describe('PageViewer.vue', () => {
       title: 'Queue Full',
       content: 'OCR queue is full. Please try again later.',
     }))
+    expect(ocrService.queueOCR).not.toHaveBeenCalled()
   })
 
   it('handles handleOCRRun branches', async () => {

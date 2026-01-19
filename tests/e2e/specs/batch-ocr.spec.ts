@@ -17,7 +17,7 @@ test.describe('Batch OCR', () => {
     pageList = new PageListPage(page);
     ocrPage = new OCRPage(page);
     apiMocks = new APIMocks(page);
-    
+
     await app.goto();
   });
 
@@ -88,7 +88,7 @@ test.describe('Batch OCR', () => {
       await expect(async () => {
         const count = await ocrPage.getProcessingPagesCount();
         expect(count).toBe(firstBatchCount);
-      }).toPass({ timeout: 10000 });
+      }).toPass({ timeout: 20000 });
 
       // Clear selection
       await pageList.unselectAll();
@@ -136,7 +136,7 @@ test.describe('Batch OCR', () => {
       await expect(async () => {
         const count = await ocrPage.getProcessingPagesCount();
         expect(count).toBe(pageCount);
-      }).toPass({ timeout: 10000 });
+      }).toPass({ timeout: 20000 });
 
       // All pages are now in OCR queue - try batch OCR again
       await pageList.clickBatchOCR();

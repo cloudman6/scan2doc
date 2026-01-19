@@ -211,7 +211,6 @@ function handleDelete() {
   emit('delete', props.page)
 }
 
-// eslint-disable-next-line complexity
 async function handleScan() {
   if (isScanning.value) return
   
@@ -220,6 +219,21 @@ async function handleScan() {
     
     if (!imageBlob) {
       message.error('Could not retrieve image data')
+      return
+    }
+
+    const healthStore = useHealthStore()
+    
+    // Pre-check for Unavailable or Full status
+    const isUnavailable = !healthStore.isHealthy
+    const isQueueFull = healthStore.isFull
+
+    if (isUnavailable || isQueueFull) {
+      dialog.error({
+        title: isQueueFull ? t('errors.ocrQueueFullTitle') : t('errors.ocrServiceUnavailableTitle'),
+        content: isQueueFull ? t('errors.ocrQueueFull') : t('errors.ocrServiceUnavailable'),
+        positiveText: t('common.ok')
+      })
       return
     }
 
@@ -235,22 +249,9 @@ async function handleScan() {
   } catch (error) {
     console.error('OCR Error:', error)
     const errorMsg = error instanceof Error ? error.message : String(error)
-    const healthStore = useHealthStore()
     
-    // Check for Unavailable or Full status
-    const isUnavailable = errorMsg.toLowerCase().includes('unavailable') || !healthStore.isHealthy
-    const isQueueFull = errorMsg.toLowerCase().includes('queue is full') || healthStore.isFull
-
-    if (isUnavailable || isQueueFull) {
-      dialog.error({
-        title: isQueueFull ? t('errors.ocrQueueFullTitle') : t('errors.ocrServiceUnavailableTitle'),
-        content: isQueueFull ? t('errors.ocrQueueFull') : t('errors.ocrServiceUnavailable'),
-        positiveText: t('common.ok')
-      })
-    } else {
-      // 注意: Naive UI 的 message API 不支持 class 选项
-      message.error(t('ocr.ocrFailed', [errorMsg]))
-    }
+    // 注意: Naive UI 的 message API 不支持 class 选项
+    message.error(t('ocr.ocrFailed', [errorMsg]))
   }
 }
 

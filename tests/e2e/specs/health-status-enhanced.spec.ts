@@ -120,7 +120,8 @@ test.describe('Enhanced Health Status Display', () => {
         await expect(page.locator('.n-dialog').filter({ hasText: /Queue Full|Full/i })).toBeVisible();
 
         // Optionally close the modal
-        // await page.locator('.n-dialog__action button').click();
+        // Close the modal
+        await page.locator('.n-dialog__action button').click();
     });
 
     test('should show queue position when user has tasks in queue', async ({ page }) => {

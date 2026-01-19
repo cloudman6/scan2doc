@@ -1,7 +1,8 @@
 import { config } from '@/config'
 import { getClientId } from '@/services/clientId'
 import { ocrLogger } from '@/utils/logger'
-import type { OCRProvider, OCRResult, OCROptions } from './index'
+import { QueueFullError } from './types'
+import type { OCRProvider, OCRResult, OCROptions } from './types'
 
 export class DeepSeekOCRProvider implements OCRProvider {
     name = 'deepseek'
@@ -44,7 +45,7 @@ export class DeepSeekOCRProvider implements OCRProvider {
         const detailMsg = errorDetail.detail || ''
 
         if (detailMsg.includes('queue full')) {
-            throw new Error('Queue Full: Server queue just filled up, please try again later.')
+            throw new QueueFullError('Queue Full: Server queue just filled up, please try again later.')
         } else if (detailMsg.includes('Client at max')) {
             throw new Error('Client Limit: You already have a task in progress.')
         } else if (detailMsg.includes('IP at max')) {
@@ -55,8 +56,12 @@ export class DeepSeekOCRProvider implements OCRProvider {
     }
 
     private handleProcessError(error: unknown, endpoint: string, options?: OCROptions): never {
-        // Don't log AbortError as it's an expected cancellation signal
         if (error instanceof Error && error.name === 'AbortError') {
+            throw error
+        }
+
+        // Don't log QueueFullError as it will be handled by the service retry logic
+        if (error instanceof QueueFullError) {
             throw error
         }
 

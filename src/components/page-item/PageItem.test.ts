@@ -5,6 +5,7 @@ import { createTestingPinia } from '@pinia/testing'
 import PageItem from './PageItem.vue'
 import type { Page } from '@/stores/pages'
 import { usePagesStore } from '@/stores/pages'
+import { useHealthStore } from '@/stores/health'
 import { ocrService } from '@/services/ocr'
 import { db } from '@/db'
 import { i18n } from '@/i18n'
@@ -210,9 +211,10 @@ describe('PageItem.vue', () => {
             global: { plugins: [pinia, i18n] }
         })
 
+        const healthStore = useHealthStore()
+        healthStore.healthInfo = { status: 'full' } as any
+
         vi.mocked(db.getPageImage).mockResolvedValue(new Blob(['img'], { type: 'image/jpeg' }))
-        const error = new Error('OCR queue is full')
-        vi.mocked(ocrService.queueOCR).mockRejectedValue(error)
 
         const scanBtn = wrapper.findAllComponents(NButton).find(c => c.attributes('title') === 'Scan to Document')
         await scanBtn!.trigger('click')
@@ -222,6 +224,7 @@ describe('PageItem.vue', () => {
             title: 'Queue Full',
             content: 'OCR queue is full. Please try again later.', // using EN key value for test
         }))
+        expect(ocrService.queueOCR).not.toHaveBeenCalled()
     })
 
     it('handles checkbox change', async () => {

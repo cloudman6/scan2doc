@@ -265,8 +265,8 @@ async function handleBatchOCR() {
   const selectedPages = pagesStore.selectedPages
   if (selectedPages.length === 0) return
 
-  // Check health before queuing
-  // Check health before queuing
+
+
   const healthStore = useHealthStore()
   
   // Check for Unavailable or Full status

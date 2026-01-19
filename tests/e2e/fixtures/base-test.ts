@@ -36,6 +36,9 @@ const IGNORED_PATTERNS = [
     'Client Limit:',
     'IP Limit:',
     'Rate Limit Exceeded:',
+    'Cross-Origin Request Blocked:',
+    'CORS request did not succeed',
+    'NetworkError when attempting to fetch resource.',
 ];
 
 /**

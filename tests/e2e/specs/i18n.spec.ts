@@ -7,6 +7,7 @@ import { test, expect } from '../fixtures/base-test';
 import { AppPage } from '../pages/AppPage';
 import { TestData } from '../data/TestData';
 import { uploadFiles } from '../utils/file-upload';
+import type { SupportedLocale } from '../pages/AppPage';
 
 test.describe('Internationalization (i18n) - Refactored', () => {
   let app: AppPage;
@@ -35,7 +36,7 @@ test.describe('Internationalization (i18n) - Refactored', () => {
     // 参数化测试：验证两种语言的切换
     for (const [lang, texts] of Object.entries(TestData.translations)) {
       test(`should display correct ${lang} translations`, async ({ page }) => {
-        await app.switchLanguage(lang as any);
+        await app.switchLanguage(lang as SupportedLocale);
 
         // 验证空状态标题和描述
         await expect(page.getByTestId('welcome-title')).toHaveText(texts.welcomeTitle);
@@ -70,7 +71,7 @@ test.describe('Internationalization (i18n) - Refactored', () => {
     for (const [lang, texts] of Object.entries(TestData.translations)) {
       test(`should persist ${lang} after page reload`, async ({ page }) => {
         // 切换语言
-        await app.switchLanguage(lang as any);
+        await app.switchLanguage(lang as SupportedLocale);
         await expect(page.getByTestId('welcome-description')).toHaveText(texts.welcomeDescription);
 
         // 重载页面
@@ -113,7 +114,7 @@ test.describe('Internationalization (i18n) - Refactored', () => {
     // 参数化测试：验证文件上传后的UI翻译
     for (const [lang, texts] of Object.entries(TestData.translations)) {
       test(`should translate UI elements to ${lang}`, async ({ page }) => {
-        await app.switchLanguage(lang as any);
+        await app.switchLanguage(lang as SupportedLocale);
 
         // 验证页面计数器
         await expect(page.getByTestId('page-count-badge')).toBeVisible();
@@ -167,7 +168,7 @@ test.describe('Internationalization (i18n) - Refactored', () => {
     // 参数化测试：验证两种语言下的功能
     for (const [lang, texts] of Object.entries(TestData.translations)) {
       test(`should work correctly in ${lang}`, async ({ page }) => {
-        await app.switchLanguage(lang as any);
+        await app.switchLanguage(lang as SupportedLocale);
 
         // 验证导入按钮存在
         await expect(page.getByTestId('import-files-button')).toBeVisible();

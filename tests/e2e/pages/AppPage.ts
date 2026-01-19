@@ -24,9 +24,15 @@ export class AppPage {
       await db.clearAllData();
     });
 
-    // 清空 Pinia store
+    // Clear Pinia store
     await this.page.evaluate(() => {
-      const win = window as any;
+      interface WindowWithStore extends Window {
+        pagesStore?: {
+          pages: unknown[];
+          selectedPageIds: Set<string>;
+        };
+      }
+      const win = window as WindowWithStore;
       if (win.pagesStore) {
         win.pagesStore.pages = [];
         win.pagesStore.selectedPageIds = new Set();
@@ -40,7 +46,10 @@ export class AppPage {
   async waitForAppReady() {
     await this.page.waitForSelector('.app-container', { state: 'visible' });
     await this.page.waitForFunction(() => {
-      return (window as any).pagesStore !== undefined;
+      interface WindowWithStore extends Window {
+        pagesStore?: unknown;
+      }
+      return (window as WindowWithStore).pagesStore !== undefined;
     }, { timeout: 10000 });
   }
 
