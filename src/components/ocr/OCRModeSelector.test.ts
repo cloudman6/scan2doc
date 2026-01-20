@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import OCRModeSelector from './OCRModeSelector.vue'
 import { h } from 'vue'
@@ -23,7 +23,13 @@ vi.mock('naive-ui', () => ({
     NIcon: {
         name: 'NIcon',
         template: '<i class="n-icon"><slot></slot></i>'
-    }
+    },
+    useDialog: () => ({
+        error: vi.fn(),
+        warning: vi.fn(),
+        info: vi.fn(),
+        success: vi.fn()
+    })
 }))
 
 // Mock Icons
@@ -39,15 +45,29 @@ vi.mock('@vicons/ionicons5', () => ({
 }))
 
 // Mock health store
+const { mockHealthStore } = vi.hoisted(() => {
+    return {
+        mockHealthStore: {
+            isHealthy: true,
+            isFull: false,
+            isBusy: false
+        }
+    }
+})
+
 vi.mock('@/stores/health', () => ({
-    useHealthStore: () => ({
-        isHealthy: true,
-        isFull: false,
-        isBusy: false
-    })
+    useHealthStore: () => mockHealthStore
 }))
 
 describe('OCRModeSelector.vue', () => {
+    // Reset mock before each test
+    beforeEach(() => {
+        mockHealthStore.isHealthy = true
+        mockHealthStore.isFull = false
+        mockHealthStore.isBusy = false
+        vi.clearAllMocks()
+    })
+
     it('renders default mode correctly', () => {
         const wrapper = mount(OCRModeSelector, {
             global: {
@@ -122,5 +142,42 @@ describe('OCRModeSelector.vue', () => {
         // Test icon rendering function
         const iconVNode = (options[0].icon as () => import('vue').VNode)()
         expect((iconVNode.type as any).name).toBe('NIcon')
+    })
+
+    it('shows error dialog when service is unavailable on main click', async () => {
+        mockHealthStore.isHealthy = false
+        const wrapper = mount(OCRModeSelector, {
+            global: {
+                plugins: [i18n]
+            }
+        })
+
+        await wrapper.find('.trigger-btn').trigger('click')
+
+        // Should NOT emit run
+        expect(wrapper.emitted('run')).toBeFalsy()
+
+        // Should show error dialog (mocked useDialog)
+        const dialog = (wrapper.vm as any).dialog
+        expect(dialog.error).toHaveBeenCalled()
+        expect(dialog.error.mock.calls[0][0].title).toBe('Service Unavailable')
+    })
+
+    it('shows error dialog when queue is full on select', async () => {
+        mockHealthStore.isFull = true
+        const wrapper = mount(OCRModeSelector, {
+            global: {
+                plugins: [i18n]
+            }
+        })
+
+        await (wrapper.vm as any).handleSelect('ocr')
+
+        // Should NOT emit run
+        expect(wrapper.emitted('run')).toBeFalsy()
+
+        const dialog = (wrapper.vm as any).dialog
+        expect(dialog.error).toHaveBeenCalled()
+        expect(dialog.error.mock.calls[0][0].title).toBe('Queue Full')
     })
 })

@@ -26,8 +26,9 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NModal, NInput } from 'naive-ui'
+import { NModal, NInput, useDialog } from 'naive-ui'
 import type { OCRPromptType } from '@/services/ocr'
+import { useHealthStore } from '@/stores/health'
 
 interface Props {
   show: boolean
@@ -39,18 +40,17 @@ interface Emits {
   (e: 'submit', value: string): void
 }
 
-import { useHealthStore } from '@/stores/health'
+
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
 const { t } = useI18n()
 const healthStore = useHealthStore()
+const dialog = useDialog()
 const inputValue = ref('')
 
 const isFind = computed(() => props.mode === 'find')
-const isQueueFull = computed(() => healthStore.isFull)
-
 const title = computed(() => isFind.value ? t('ocrInputModal.locateObject') : t('ocrInputModal.customPrompt'))
 const placeholder = computed(() => isFind.value
   ? t('ocrInputModal.locatePlaceholder')
@@ -58,8 +58,9 @@ const placeholder = computed(() => isFind.value
 )
 const confirmText = computed(() => isFind.value ? t('ocrInputModal.locate') : t('ocrInputModal.runOCR'))
 
+// Disable submit button only when input is empty
 const confirmButtonProps = computed(() => ({
-  disabled: isQueueFull.value
+  disabled: !inputValue.value.trim()
 }))
 
 // Reset input when opening
@@ -69,10 +70,30 @@ watch(() => props.show, (val) => {
   }
 })
 
+/**
+ * Handle form submission with health check
+ * @returns false to prevent modal from auto-closing, undefined to allow closing
+ */
 function handleSubmit() {
-  if (!inputValue.value.trim() || isQueueFull.value) return
+  if (!inputValue.value.trim()) return false
+  
+  // Second layer defense: check health status before submitting
+  const isUnavailable = !healthStore.isHealthy
+  const isQueueFull = healthStore.isFull
+  
+  if (isUnavailable || isQueueFull) {
+    // Show error dialog and return false to keep input modal open
+    dialog.error({
+      title: isQueueFull ? t('errors.ocrQueueFullTitle') : t('errors.ocrServiceUnavailableTitle'),
+      content: isQueueFull ? t('errors.ocrQueueFull') : t('errors.ocrServiceUnavailable'),
+      positiveText: t('common.ok')
+    })
+    return false  // Critical: prevent NModal from auto-closing
+  }
+  
   emit('submit', inputValue.value)
   emit('update:show', false)
+  // Return undefined to allow default closing behavior (though we manually closed it)
 }
 </script>
 

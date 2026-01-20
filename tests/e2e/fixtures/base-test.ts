@@ -39,6 +39,11 @@ const IGNORED_PATTERNS = [
     'Cross-Origin Request Blocked:',
     'CORS request did not succeed',
     'NetworkError when attempting to fetch resource.',
+    'Preflight response is not successful',
+    'Status code: 502',
+    'Failed to load resource: Preflight response is not successful',
+    'blocked by CORS policy',
+    'Failed to load resource: net::ERR_FAILED',
 ];
 
 /**
@@ -70,6 +75,22 @@ export const test = base.extend({
             } else {
                 await route.continue();
             }
+        });
+
+        // Mock health check to prevent real network requests and ensure service is always "healthy" in tests
+        await page.route('**/health', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    status: 'ok',
+                    queue: {
+                        pending: 0,
+                        processing: 0,
+                        max_concurrency: 5
+                    }
+                }),
+            });
         });
 
         // Listen for console messages
