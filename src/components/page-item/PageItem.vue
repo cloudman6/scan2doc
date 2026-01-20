@@ -35,7 +35,7 @@
         text
         size="tiny"
         circle
-        class="action-btn"
+        class="action-btn keep-queue-open"
         :title="t('pageItem.scanToDocument')"
         :disabled="isScanning"
         @click.stop="handleScan"
@@ -222,6 +222,21 @@ async function handleScan() {
       return
     }
 
+    const healthStore = useHealthStore()
+    
+    // Pre-check for Unavailable or Full status
+    const isUnavailable = !healthStore.isHealthy
+    const isQueueFull = healthStore.isFull
+
+    if (isUnavailable || isQueueFull) {
+      dialog.error({
+        title: isQueueFull ? t('errors.ocrQueueFullTitle') : t('errors.ocrServiceUnavailableTitle'),
+        content: isQueueFull ? t('errors.ocrQueueFull') : t('errors.ocrServiceUnavailable'),
+        positiveText: t('common.ok')
+      })
+      return
+    }
+
     await ocrService.queueOCR(props.page.id, imageBlob)
     
     // 注意: Naive UI 的 notification API 不支持 class 选项
@@ -234,18 +249,9 @@ async function handleScan() {
   } catch (error) {
     console.error('OCR Error:', error)
     const errorMsg = error instanceof Error ? error.message : String(error)
-    const healthStore = useHealthStore()
     
-    if (errorMsg.toLowerCase().includes('unavailable') || !healthStore.isHealthy) {
-      dialog.error({
-        title: t('errors.ocrServiceUnavailableTitle'),
-        content: t('errors.ocrServiceUnavailable'),
-        positiveText: t('common.ok')
-      })
-    } else {
-      // 注意: Naive UI 的 message API 不支持 class 选项
-      message.error(t('ocr.ocrFailed', [errorMsg]))
-    }
+    // 注意: Naive UI 的 message API 不支持 class 选项
+    message.error(t('ocr.ocrFailed', [errorMsg]))
   }
 }
 

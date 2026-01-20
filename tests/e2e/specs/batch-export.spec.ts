@@ -21,6 +21,11 @@ test.describe('Batch Export (Refactored)', () => {
 
     // 设置 Mock（必须在 goto 之前）
     await apiMocks.mockOCR();
+    // Explicitly set health to healthy to avoid "Queue Full" errors during batch operations
+    await apiMocks.mockHealth({
+      status: 'healthy',
+      queueInfo: { depth: 0, max_size: 10, is_full: false }
+    });
 
     // 导航到应用
     await page.goto('/');

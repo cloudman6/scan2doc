@@ -63,6 +63,21 @@ export class OCRQueuePopoverPage {
         await this.toolbarCheckbox.click();
     }
 
+    /**
+     * 等待指定数量的任务被选中
+     */
+    async waitForSelectedCount(expectedCount: number): Promise<void> {
+        await this.page.waitForFunction(
+            (expected) => {
+                // Check aria-checked of all item checkboxes
+                const checkboxes = document.querySelectorAll('[data-testid="ocr-queue-task-checkbox"]');
+                const checked = Array.from(checkboxes).filter(cb => cb.getAttribute('aria-checked') === 'true');
+                return checked.length === expected;
+            },
+            expectedCount
+        );
+    }
+
     async toggleSelectAll(): Promise<void> {
         await this.toolbarCheckbox.click();
     }

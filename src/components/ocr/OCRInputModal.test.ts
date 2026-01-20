@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import OCRInputModal from './OCRInputModal.vue'
 import { i18n } from '@/i18n'
@@ -14,10 +14,38 @@ vi.mock('naive-ui', () => ({
         name: 'NInput',
         props: ['value', 'type', 'placeholder', 'rows'],
         template: '<textarea :value="value" :placeholder="placeholder" @input="$emit(\'update:value\', $event.target.value)" @keydown.enter="$emit(\'keydown\', $event)" />'
+    },
+    useDialog: () => ({
+        error: vi.fn(),
+        warning: vi.fn(),
+        info: vi.fn(),
+        success: vi.fn()
+    })
+}))
+
+// Mock health store
+const { mockHealthStore } = vi.hoisted(() => {
+    return {
+        mockHealthStore: {
+            isHealthy: true,
+            isFull: false,
+            isBusy: false
+        }
     }
+})
+
+vi.mock('@/stores/health', () => ({
+    useHealthStore: () => mockHealthStore
 }))
 
 describe('OCRInputModal.vue', () => {
+    beforeEach(() => {
+        mockHealthStore.isHealthy = true
+        mockHealthStore.isFull = false
+        mockHealthStore.isBusy = false
+        vi.clearAllMocks()
+    })
+
     it('renders correctly when show is true', () => {
         const wrapper = mount(OCRInputModal, {
             props: {
@@ -138,5 +166,49 @@ describe('OCRInputModal.vue', () => {
 
         expect(wrapper.emitted('submit')).toBeTruthy()
         expect(wrapper.emitted('submit')![0]).toEqual(['test item'])
+    })
+
+    it('shows error and blocks submit when service unavailable', async () => {
+        mockHealthStore.isHealthy = false
+        const wrapper = mount(OCRInputModal, {
+            props: {
+                show: true,
+                mode: 'find'
+            },
+            global: { plugins: [i18n] }
+        })
+
+        const input = wrapper.find('textarea')
+        await input.setValue('test')
+
+        await wrapper.find('.btn-positive').trigger('click')
+
+        expect(wrapper.emitted('submit')).toBeFalsy()
+
+        const dialog = (wrapper.vm as any).dialog
+        expect(dialog.error).toHaveBeenCalled()
+        expect(dialog.error.mock.calls[0][0].title).toBe('Service Unavailable')
+    })
+
+    it('shows error and blocks submit when queue full', async () => {
+        mockHealthStore.isFull = true
+        const wrapper = mount(OCRInputModal, {
+            props: {
+                show: true,
+                mode: 'find'
+            },
+            global: { plugins: [i18n] }
+        })
+
+        const input = wrapper.find('textarea')
+        await input.setValue('test')
+
+        await wrapper.find('.btn-positive').trigger('click')
+
+        expect(wrapper.emitted('submit')).toBeFalsy()
+
+        const dialog = (wrapper.vm as any).dialog
+        expect(dialog.error).toHaveBeenCalled()
+        expect(dialog.error.mock.calls[0][0].title).toBe('Queue Full')
     })
 })

@@ -62,6 +62,7 @@ test.describe('OCR Queue Cancellation via Toolbar', () => {
 
       // Select all tasks in queue
       await queuePopover.selectAllTasks();
+      await queuePopover.waitForSelectedCount(2);
 
       // Click batch cancel
       await queuePopover.clickBatchCancel();

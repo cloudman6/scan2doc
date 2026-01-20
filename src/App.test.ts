@@ -144,6 +144,7 @@ import { reactive } from 'vue'
 // Mock Store Instance
 const mockStore: MockStore = reactive({
   pages: [],
+  isInitialized: true,
   selectedPageIds: [],
   loadPagesFromDB: vi.fn(),
   deletePages: vi.fn(),
@@ -597,6 +598,22 @@ describe('App.vue', () => {
       handler({ pageId: 'unknown-page', error: new Error('OCR failed') })
 
       expect(mockMessage.error).toHaveBeenCalledWith(expect.stringContaining('unknown-page'))
+    })
+
+    it('ignores ocr:error event when queue is full', async () => {
+      const { ocrEvents } = await import('./services/ocr/events')
+
+      mockStore.pages = [{ id: 'p1', fileName: 'test.png' }]
+
+      mountApp()
+      await flushPromises()
+
+      const ocrErrorCall = vi.mocked(ocrEvents.on).mock.calls.find(call => (call[0] as any) === 'ocr:error')
+      const handler = ocrErrorCall![1] as any
+
+      handler({ pageId: 'p1', error: new Error('OCR queue is full. Please try again later.') })
+
+      expect(mockMessage.error).not.toHaveBeenCalled()
     })
 
     it('handles doc:gen:error event', async () => {

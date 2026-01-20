@@ -3,6 +3,8 @@ export interface AppConfig {
 }
 
 const DEV_API_BASE_URL = 'https://ocr.cloudmantools.top'
+// const DEV_API_BASE_URL = 'http://192.168.1.14:8001'
+
 const PROD_API_BASE_URL = ''
 
 export const config: AppConfig = {

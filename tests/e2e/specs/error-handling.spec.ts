@@ -19,7 +19,7 @@ test.describe('Error Handling', () => {
     ocrPage = new OCRPage(page);
     exportPage = new ExportPage(page);
     apiMocks = new APIMocks(page);
-    
+
     await app.goto();
     await app.waitForAppReady();
   });
@@ -34,8 +34,8 @@ test.describe('Error Handling', () => {
 
     // 验证状态变为失败 (Store updates this)
     await page.waitForFunction(() => {
-        const pages = window.pagesStore?.pages || [];
-        return pages[0]?.status === 'error';
+      const pages = window.pagesStore?.pages || [];
+      return pages[0]?.status === 'error';
     }, { timeout: 15000 });
 
     // 验证 OCR 按钮重新变为可用 (即"重试"机制)
@@ -43,7 +43,7 @@ test.describe('Error Handling', () => {
     const pageItem = page.locator('[data-testid^="page-item-"]').first();
     const ocrBtn = pageItem.getByTestId('scan-page-btn');
     await expect(ocrBtn).toBeEnabled();
-    
+
     // 验证错误消息出现
     // 注意: Naive UI 的 message API 不支持 class 选项，通过通用的 .n-message 验证
     // 我们已经通过按钮状态和页面状态验证了错误处理逻辑，消息出现作为额外验证
@@ -52,14 +52,14 @@ test.describe('Error Handling', () => {
 
   test('should handle network timeout during OCR', async () => {
     // Mock 较大的延迟以测试前端处理
-    await apiMocks.mockOCR({ delay: 35000 });
+    await apiMocks.mockOCR({ delay: 15000 });
 
     await pageList.uploadAndWaitReady([TestData.files.samplePNG()]);
     await ocrPage.triggerOCR(0);
 
     // 验证系统在长时间处理时仍然稳定 (处于 recognizing 状态)
     await expect.poll(async () => await ocrPage.getPageStatus(0), {
-      timeout: 10000
+      timeout: 5000
     }).toBe('recognizing');
   });
 
@@ -72,10 +72,10 @@ test.describe('Error Handling', () => {
 
     // 选中页面
     await pageList.selectAll();
-    
+
     // 模拟导出失败
     await apiMocks.mockExport({ shouldFail: true, statusCode: 500 });
-    
+
     // 尝试导出
     await exportPage.clickExportButton();
     await exportPage.selectExportFormat('Markdown');
@@ -93,10 +93,10 @@ test.describe('Error Handling', () => {
     await ocrPage.waitForOCRSuccess(0);
 
     await pageList.selectAll();
-    
+
     // 模拟断网
     await context.setOffline(true);
-    
+
     // 尝试导出
     await exportPage.clickExportButton();
     await exportPage.selectExportFormat('Markdown');

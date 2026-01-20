@@ -23,12 +23,27 @@ const IGNORED_PATTERNS = [
     '[DeepSeekOCRProvider] Process failed', // OCR error handling tests intentionally trigger this
     '[HealthCheckService] OCR service is unavailable',
     '[HealthCheckService] OCR service is unhealthy',
+    '[HealthCheckService] OCR service status', // busy/full status warnings are expected
     '[QueueManager] OCR service unavailable', // 模糊匹配，忽略变量
     '[QueueManager] OCR service recovered',
     'OCR service is currently unavailable. Please try again later.',
     'Uncaught (in promise) Error: OCR service is currently unavailable. Please try again later.',
     '[QueueManager] OCR service recovered',
     'OCR Error:',
+    // Rate limiting errors (429) are expected in rate-limiting tests
+    'Failed to load resource: the server responded with a status of 429',
+    'Queue Full:',
+    'Client Limit:',
+    'IP Limit:',
+    'Rate Limit Exceeded:',
+    'Cross-Origin Request Blocked:',
+    'CORS request did not succeed',
+    'NetworkError when attempting to fetch resource.',
+    'Preflight response is not successful',
+    'Status code: 502',
+    'Failed to load resource: Preflight response is not successful',
+    'blocked by CORS policy',
+    'Failed to load resource: net::ERR_FAILED',
 ];
 
 /**
@@ -60,6 +75,22 @@ export const test = base.extend({
             } else {
                 await route.continue();
             }
+        });
+
+        // Mock health check to prevent real network requests and ensure service is always "healthy" in tests
+        await page.route('**/health', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    status: 'ok',
+                    queue: {
+                        pending: 0,
+                        processing: 0,
+                        max_concurrency: 5
+                    }
+                }),
+            });
         });
 
         // Listen for console messages

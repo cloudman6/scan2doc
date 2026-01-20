@@ -10,7 +10,6 @@
         >
           <!-- Header -->
           <AppHeader
-            :page-count="pagesStore.pages.length"
             @add-files="handleFileAdd"
           />
 
@@ -20,7 +19,17 @@
             class="app-main"
           >
             <div
-              v-if="pagesStore.pages.length === 0"
+              v-if="!pagesStore.isInitialized"
+              class="app-loading-container"
+            >
+              <div class="app-loading-spinner" />
+              <div class="app-loading-text">
+                Loading...
+              </div>
+            </div>
+
+            <div
+              v-else-if="pagesStore.pages.length === 0"
               style="width: 100%; height: 100%"
             >
               <EmptyState @add-files="handleFileAdd" />
@@ -34,8 +43,8 @@
                 :width="260"
                 :collapsed-width="0"
                 collapse-mode="width"
-                bordered
                 :show-trigger="false"
+                class="page-list-sider"
               >
                 <div
                   data-testid="page-list-container"
@@ -484,7 +493,7 @@ onMounted(async () => {
   ocrEvents.on('ocr:error', ({ pageId, error }) => {
     // Skip toast if it is a service unavailable error, as components will handle this with dialogs
     const errorMsg = error?.message || 'Unknown error'
-    if (errorMsg.toLowerCase().includes('unavailable')) {
+    if (errorMsg.toLowerCase().includes('unavailable') || errorMsg.toLowerCase().includes('queue is full')) {
       return
     }
 
@@ -565,6 +574,11 @@ html, body {
   background-color: #f6f7f8 !important;
 }
 
+/* Page List Sider - custom border */
+.page-list-sider {
+  border-right: 1px solid #e0e0e0 !important;
+}
+
 /* Page List Collapse Trigger - positioned at sider edge */
 .sider-trigger-container {
   display: flex;
@@ -572,6 +586,8 @@ html, body {
   justify-content: center;
   height: 100%;
   flex-shrink: 0;
+  background: #f6f7f8;
+  border-right: 1px solid #e0e0e0;
 }
 
 .sider-trigger-btn {
@@ -655,15 +671,6 @@ html, body {
   flex-shrink: 0; /* Prevent shrinking below specified width */
 }
 
-.page-viewer-panel {
-  border-right: 1px solid #e0e0e0;
-  border-left: 1px solid #e0e0e0;
-}
-
-.preview-panel {
-  border-left: 1px solid #e0e0e0;
-}
-
 /* Panel divider with collapse/expand controls */
 .panel-divider {
   display: flex;
@@ -673,7 +680,7 @@ html, body {
   width: 32px;
   min-width: 32px;
   height: 100%;
-  background: #f0f0f0;
+  background: #f6f7f8;
   border-left: 1px solid #e0e0e0;
   border-right: 1px solid #e0e0e0;
   gap: 12px;
@@ -703,9 +710,8 @@ html, body {
   width: 32px;
   min-width: 32px; /* Prevent shrinking */
   flex-shrink: 0;
-  background: #f0f0f0;
+  background: #f6f7f8;
   border-left: 1px solid #e0e0e0;
-  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .right-edge-trigger .n-button {
@@ -714,6 +720,37 @@ html, body {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   opacity: 0.8;
   transition: all 0.2s;
+}
+
+/* ====== Loading State (Matches index.html) ====== */
+.app-loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background-color: #f6f7f8;
+}
+
+.app-loading-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid rgba(24, 160, 88, 0.2);
+  border-left-color: #18a058;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+.app-loading-text {
+  color: #666;
+  font-size: 14px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 .right-edge-trigger .n-button:hover {

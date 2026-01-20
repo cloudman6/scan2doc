@@ -1,6 +1,8 @@
 import { config } from '@/config'
+import { getClientId } from '@/services/clientId'
 import { ocrLogger } from '@/utils/logger'
-import type { OCRProvider, OCRResult, OCROptions } from './index'
+import { QueueFullError } from './types'
+import type { OCRProvider, OCRResult, OCROptions } from './types'
 
 export class DeepSeekOCRProvider implements OCRProvider {
     name = 'deepseek'
@@ -38,6 +40,43 @@ export class DeepSeekOCRProvider implements OCRProvider {
         return ['document', 'ocr', 'find'].includes(promptType)
     }
 
+    private async handleRateLimitError(response: Response): Promise<never> {
+        const errorDetail = await response.json().catch(() => ({}))
+        const detailMsg = errorDetail.detail || ''
+
+        if (detailMsg.includes('queue full')) {
+            throw new QueueFullError('Queue Full: Server queue just filled up, please try again later.')
+        } else if (detailMsg.includes('Client at max')) {
+            throw new Error('Client Limit: You already have a task in progress.')
+        } else if (detailMsg.includes('IP at max')) {
+            throw new Error('IP Limit: Too many requests from your network.')
+        } else {
+            throw new Error(`Rate Limit Exceeded: ${detailMsg}`)
+        }
+    }
+
+    private handleProcessError(error: unknown, endpoint: string, options?: OCROptions): never {
+        if (error instanceof Error && error.name === 'AbortError') {
+            throw error
+        }
+
+        // Don't log QueueFullError as it will be handled by the service retry logic
+        if (error instanceof QueueFullError) {
+            throw error
+        }
+
+        ocrLogger.error('[DeepSeekOCRProvider] Process failed:', {
+            endpoint,
+            error,
+            options
+        })
+
+        if (error instanceof Error) {
+            throw error
+        }
+        throw new Error('Unknown error during OCR processing')
+    }
+
     async process(imageData: Blob | string, options?: OCROptions): Promise<OCRResult> {
         const formData = await this.createFormData(imageData, options)
 
@@ -47,10 +86,16 @@ export class DeepSeekOCRProvider implements OCRProvider {
             const response = await fetch(url, {
                 method: 'POST',
                 body: formData,
-                signal: options?.signal
+                signal: options?.signal,
+                headers: {
+                    'X-Client-ID': getClientId()
+                }
             })
 
             if (!response.ok) {
+                if (response.status === 429) {
+                    await this.handleRateLimitError(response)
+                }
                 throw new Error(`OCR API Error: ${response.status} ${response.statusText}`)
             }
 
@@ -67,20 +112,7 @@ export class DeepSeekOCRProvider implements OCRProvider {
                 prompt_type: result.prompt_type
             }
         } catch (error) {
-            // Don't log AbortError as it's an expected cancellation signal
-            if (error instanceof Error && error.name === 'AbortError') {
-                throw error;
-            }
-
-            ocrLogger.error('[DeepSeekOCRProvider] Process failed:', {
-                endpoint: `${config.apiBaseUrl}/ocr`,
-                error,
-                options
-            })
-            if (error instanceof Error) {
-                throw error;
-            }
-            throw new Error('Unknown error during OCR processing');
+            return this.handleProcessError(error, `${config.apiBaseUrl}/ocr`, options)
         }
     }
 }

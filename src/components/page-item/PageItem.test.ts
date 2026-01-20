@@ -5,6 +5,7 @@ import { createTestingPinia } from '@pinia/testing'
 import PageItem from './PageItem.vue'
 import type { Page } from '@/stores/pages'
 import { usePagesStore } from '@/stores/pages'
+import { useHealthStore } from '@/stores/health'
 import { ocrService } from '@/services/ocr'
 import { db } from '@/db'
 import { i18n } from '@/i18n'
@@ -20,6 +21,30 @@ vi.mock('@/services/ocr', () => ({
 vi.mock('@/db', () => ({
     db: {
         getPageImage: vi.fn()
+    }
+}))
+
+// Mock Naive UI components to simplify testing
+// Hoist mocks for spying
+const mocks = vi.hoisted(() => ({
+    dialog: {
+        success: vi.fn(),
+        error: vi.fn(),
+        warning: vi.fn(),
+        info: vi.fn(),
+        create: vi.fn()
+    },
+    message: {
+        success: vi.fn(),
+        error: vi.fn(),
+        warning: vi.fn(),
+        info: vi.fn()
+    },
+    notification: {
+        success: vi.fn(),
+        error: vi.fn(),
+        warning: vi.fn(),
+        info: vi.fn()
     }
 }))
 
@@ -49,25 +74,9 @@ vi.mock('naive-ui', () => ({
         props: ['size', 'color'],
         template: '<span><slot></slot></span>'
     },
-    useMessage: () => ({
-        success: vi.fn(),
-        error: vi.fn(),
-        warning: vi.fn(),
-        info: vi.fn()
-    }),
-    useNotification: () => ({
-        success: vi.fn(),
-        error: vi.fn(),
-        warning: vi.fn(),
-        info: vi.fn()
-    }),
-    useDialog: () => ({
-        success: vi.fn(),
-        error: vi.fn(),
-        warning: vi.fn(),
-        info: vi.fn(),
-        create: vi.fn()
-    })
+    useMessage: () => mocks.message,
+    useNotification: () => mocks.notification,
+    useDialog: () => mocks.dialog
 }))
 
 describe('PageItem.vue', () => {
@@ -194,6 +203,28 @@ describe('PageItem.vue', () => {
 
         expect(consoleSpy).toHaveBeenCalled()
         consoleSpy.mockRestore()
+    })
+
+    it('handles Scan button error with queue full', async () => {
+        const wrapper = mount(PageItem, {
+            props: { page: mockPage },
+            global: { plugins: [pinia, i18n] }
+        })
+
+        const healthStore = useHealthStore()
+        healthStore.healthInfo = { status: 'full' } as any
+
+        vi.mocked(db.getPageImage).mockResolvedValue(new Blob(['img'], { type: 'image/jpeg' }))
+
+        const scanBtn = wrapper.findAllComponents(NButton).find(c => c.attributes('title') === 'Scan to Document')
+        await scanBtn!.trigger('click')
+        await flushPromises()
+
+        expect(mocks.dialog.error).toHaveBeenCalledWith(expect.objectContaining({
+            title: 'Queue Full',
+            content: 'OCR queue is full. Please try again later.', // using EN key value for test
+        }))
+        expect(ocrService.queueOCR).not.toHaveBeenCalled()
     })
 
     it('handles checkbox change', async () => {

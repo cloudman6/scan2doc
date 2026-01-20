@@ -13,6 +13,18 @@
         data-testid="select-all-checkbox"
         @update:checked="handleSelectAll"
       />
+
+      <!-- Page Count -->
+      <span
+        class="page-count-text"
+        data-testid="page-count-badge"
+      >
+        {{ 
+          hasSelection 
+            ? $t(props.pages.length > 1 ? 'pageList.selectedCount_plural' : 'pageList.selectedCount', [pagesStore.selectedPageIds.length, props.pages.length])
+            : $t('pageList.pageCount', props.pages.length) 
+        }}
+      </span>
       
       <!-- Export dropdown button -->
       <NDropdown
@@ -54,7 +66,7 @@
         size="tiny"
         circle
         :title="$t('pageList.scanSelected')"
-        class="batch-ocr-btn"
+        class="batch-ocr-btn keep-queue-open"
         @click="handleBatchOCR"
         @mouseenter="isScanHovered = true"
         @mouseleave="isScanHovered = false"
@@ -62,7 +74,7 @@
         <template #icon>
           <NIcon
             size="18"
-            color="#18a058"
+            :color="PRIMARY_COLOR"
           >
             <DocumentText v-if="isScanHovered" />
             <DocumentTextOutline v-else />
@@ -253,12 +265,16 @@ async function handleBatchOCR() {
   const selectedPages = pagesStore.selectedPages
   if (selectedPages.length === 0) return
 
-  // Check health before queuing
+
+
   const healthStore = useHealthStore()
-  if (!healthStore.isHealthy) {
+  
+  // Check for Unavailable or Full status
+  if (!healthStore.isHealthy || healthStore.isFull) {
+    const isFull = healthStore.isFull
     dialog.error({
-      title: t('errors.ocrServiceUnavailableTitle'),
-      content: t('errors.ocrServiceUnavailable'),
+      title: isFull ? t('errors.ocrQueueFullTitle') : t('errors.ocrServiceUnavailableTitle'),
+      content: isFull ? t('errors.ocrQueueFull') : t('errors.ocrServiceUnavailable'),
       positiveText: t('common.ok')
     })
     return
@@ -524,6 +540,13 @@ defineExpose({})
   border-bottom: 1px solid #f0f0f0;
   min-height: 40px;
 }
+
+.page-count-text {
+  font-size: 13px;
+  color: #666;
+  margin-left: 4px;
+}
+
 
 .export-selected-btn {
   margin-left: auto;

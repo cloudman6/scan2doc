@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { HealthCheckService } from '@/services/health'
 import type { HealthResponse } from '@/services/health'
 import { config } from '@/config'
@@ -63,12 +63,51 @@ export const useHealthStore = defineStore('health', () => {
         lastCheckTime.value = healthService.getLastCheckTime()
     }
 
+    // Computed properties for easy access
+    const queueStatus = computed(() => healthInfo.value?.ocr_queue)
+    const rateLimits = computed(() => healthInfo.value?.rate_limits)
+    const yourQueueStatus = computed(() => healthInfo.value?.your_queue_status)
+
+    // Status helpers
+    const isBusy = computed(() => {
+        if (!healthInfo.value) return false
+        return healthInfo.value.status === 'busy'
+    })
+
+    const isFull = computed(() => {
+        if (!healthInfo.value) return false
+        return healthInfo.value.status === 'full'
+    })
+
+    // Queue position helpers
+    const queuePosition = computed(() => {
+        return healthInfo.value?.your_queue_status?.position ?? null
+    })
+
+    const isProcessing = computed(() => {
+        return queuePosition.value === 1
+    })
+
+    const isQueued = computed(() => {
+        return (queuePosition.value ?? 0) > 1
+    })
+
     return {
         // State
         isHealthy,
         healthInfo,
         lastCheckTime,
         error,
+
+        // Computed
+        queueStatus,
+        rateLimits,
+        yourQueueStatus,
+        isBusy,
+        isFull,
+        queuePosition,
+        isProcessing,
+        isQueued,
 
         // Actions
         startHealthCheck,

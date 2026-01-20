@@ -23,7 +23,7 @@
         >
           <div 
             data-testid="ocr-actions-container"
-            class="ocr-actions"
+            class="ocr-actions keep-queue-open"
           >
             <OCRModeSelector 
               :loading="status === 'recognizing'"
@@ -559,6 +559,7 @@ function handleInputSubmit(value: string) {
   submitOCR(targetInputMode.value, options)
 }
 
+// eslint-disable-next-line complexity
 async function submitOCR(mode: OCRPromptType, extraOptions: { custom_prompt?: string; find_term?: string } = {}) {
   if (!props.currentPage || isPageProcessing.value) return
   
@@ -567,6 +568,20 @@ async function submitOCR(mode: OCRPromptType, extraOptions: { custom_prompt?: st
 
     if (!imageBlob) {
       message.error(t('ocr.couldNotRetrieveImage'))
+      return
+    }
+
+
+    // Pre-check for Unavailable or Full status
+    const isUnavailable = !healthStore.isHealthy
+    const isQueueFull = healthStore.isFull
+
+    if (isUnavailable || isQueueFull) {
+      dialog.error({
+        title: isQueueFull ? t('errors.ocrQueueFullTitle') : t('errors.ocrServiceUnavailableTitle'),
+        content: isQueueFull ? t('errors.ocrQueueFull') : t('errors.ocrServiceUnavailable'),
+        positiveText: t('common.ok')
+      })
       return
     }
 
@@ -588,16 +603,8 @@ async function submitOCR(mode: OCRPromptType, extraOptions: { custom_prompt?: st
     uiLogger.error('OCR Error:', error)
     const errorMsg = error instanceof Error ? error.message : String(error)
     
-    if (errorMsg.toLowerCase().includes('unavailable') || !healthStore.isHealthy) {
-      dialog.error({
-        title: t('errors.ocrServiceUnavailableTitle'),
-        content: t('errors.ocrServiceUnavailable'),
-        positiveText: t('common.ok')
-      })
-    } else {
-      // 注意: Naive UI 的 message API 不支持 class 选项
-      message.error(t('ocr.ocrFailed', [errorMsg]))
-    }
+    // 注意: Naive UI 的 message API 不支持 class 选项
+    message.error(t('ocr.ocrFailed', [errorMsg]))
   }
 }
 // Removed old runOCR function in place of new handlers

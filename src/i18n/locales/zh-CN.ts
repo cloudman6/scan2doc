@@ -37,7 +37,12 @@ export default {
     unavailable: '不可用',
     justNow: '刚刚',
     ago: '{0}秒前',
-    minutesAgo: '{0}分钟前'
+    minutesAgo: '{0}分钟前',
+    busyTooltip: '系统繁忙 (排队中)',
+    fullTooltip: '队列已满 (无法提交)',
+    queue: '排队',
+    busy: '繁忙',
+    full: '已满'
   },
 
   // Header
@@ -56,6 +61,9 @@ export default {
   // Page List
   pageList: {
     noPages: '未添加页面',
+    pageCount: '共 {n} 页',
+    selectedCount: '{0} / {1} 页',
+    selectedCount_plural: '{0} / {1} 页',
     exportAs: '导出为 {0}',
     scanSelected: '扫描选中页面为文档',
     deleteSelected: '删除选中页面',
@@ -168,7 +176,10 @@ export default {
     activeTasks: '进行中',
     queuedTasks: '队列中',
     noActiveTasks: '无活跃 OCR 任务',
-    noQueuedTasks: '无排队 OCR 任务'
+    noQueuedTasks: '无排队 OCR 任务',
+    queuePosition: '排队中 (第 {0} 位)',
+    processing: '处理中 (第 {0} 位)',
+    submitting: '提交中...'
   },
 
   // Raw Text Panel
@@ -194,7 +205,9 @@ export default {
     close: '关闭',
     language: '语言',
     english: 'English',
-    chinese: '中文'
+    chinese: '简体中文',
+    traditionalChinese: '繁体中文',
+    japanese: '日本语'
   },
 
   // Page Item
@@ -244,6 +257,8 @@ export default {
     failedToLoadMarkdown: '加载 Markdown 失败',
     failedToExportMarkdown: '导出 Markdown 失败',
     ocrServiceUnavailable: 'OCR 服务目前不可用，请稍后再试。',
-    ocrServiceUnavailableTitle: '服务不可用'
+    ocrServiceUnavailableTitle: '服务不可用',
+    ocrQueueFull: 'OCR 队列已满，请稍后再试。',
+    ocrQueueFullTitle: '队列已满'
   }
 } as const

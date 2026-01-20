@@ -6,8 +6,8 @@
         role="button"
         :type="buttonType"
         :loading="loading"
-        :disabled="disabled"
-        class="trigger-btn"
+        :disabled="isDisabled"
+        class="trigger-btn keep-queue-open"
         @click="handleMainClick"
       >
         <template #icon>
@@ -26,8 +26,8 @@
           data-testid="ocr-mode-dropdown"
           role="button"
           :type="buttonType"
-          :disabled="disabled"
-          class="dropdown-trigger"
+          :disabled="isDisabled"
+          class="dropdown-trigger keep-queue-open"
         >
           <template #icon>
             <NIcon>
@@ -43,7 +43,7 @@
 <script setup lang="ts">
 import { ref, computed, h } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NButton, NButtonGroup, NDropdown, NIcon } from 'naive-ui'
+import { NButton, NButtonGroup, NDropdown, NIcon, useDialog } from 'naive-ui'
 import type { DropdownOption } from 'naive-ui'
 import {
   DocumentTextOutline,
@@ -56,6 +56,7 @@ import {
   ChevronDownOutline
 } from '@vicons/ionicons5'
 import type { OCRPromptType } from '@/services/ocr'
+import { useHealthStore } from '@/stores/health'
 
 interface Props {
   loading?: boolean
@@ -73,6 +74,8 @@ const props = withDefaults(defineProps<Props>(), {
 
 const { t } = useI18n()
 const emit = defineEmits<Emits>()
+const healthStore = useHealthStore()
+const dialog = useDialog()
 
 const selectedMode = ref<OCRPromptType>('document')
 
@@ -90,21 +93,48 @@ const currentLabel = computed(() => t(MODE_CONFIG[selectedMode.value].key))
 const currentIcon = computed(() => MODE_CONFIG[selectedMode.value].icon)
 const buttonType = computed(() => props.loading ? 'info' : 'primary')
 
+// const isQueueFull = computed(() => healthStore.isFull) // Removed unused
+const isDisabled = computed(() => props.disabled) // Allow clicking even if full to show Modal
+
 const menuOptions = computed<DropdownOption[]>(() => {
   return (Object.keys(MODE_CONFIG) as OCRPromptType[]).map(key => ({
     label: t(MODE_CONFIG[key].key),
     key: key,
-    icon: () => h(NIcon, null, { default: () => h(MODE_CONFIG[key].icon) })
+    icon: () => h(NIcon, null, { default: () => h(MODE_CONFIG[key].icon) }),
+    props: {
+      class: 'keep-queue-open'
+    }
   }))
 })
 
 function handleMainClick() {
+  if (!checkHealth()) return
   emit('run', selectedMode.value)
 }
 
 function handleSelect(key: OCRPromptType) {
+  if (!checkHealth()) return
   selectedMode.value = key
   emit('run', key)
+}
+
+/**
+ * Check OCR service health status and show error dialog if unavailable
+ * @returns true if healthy, false otherwise
+ */
+function checkHealth(): boolean {
+  const isUnavailable = !healthStore.isHealthy
+  const isQueueFull = healthStore.isFull
+  
+  if (isUnavailable || isQueueFull) {
+    dialog.error({
+      title: isQueueFull ? t('errors.ocrQueueFullTitle') : t('errors.ocrServiceUnavailableTitle'),
+      content: isQueueFull ? t('errors.ocrQueueFull') : t('errors.ocrServiceUnavailable'),
+      positiveText: t('common.ok')
+    })
+    return false
+  }
+  return true
 }
 </script>
 

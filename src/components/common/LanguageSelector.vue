@@ -29,18 +29,28 @@ import { LanguageOutline } from '@vicons/ionicons5'
 import { useI18n } from 'vue-i18n'
 import { setLocale, type SupportedLocale } from '@/i18n'
 
-const { t, locale } = useI18n()
+const { locale } = useI18n()
 
 const languageOptions = computed(() => [
   {
-    label: t('common.english'),
+    label: 'English',
     key: 'en',
     disabled: locale.value === 'en'
   },
   {
-    label: t('common.chinese'),
+    label: '简体中文',
     key: 'zh-CN',
     disabled: locale.value === 'zh-CN'
+  },
+  {
+    label: '繁體中文',
+    key: 'zh-TW',
+    disabled: locale.value === 'zh-TW'
+  },
+  {
+    label: '日本語',
+    key: 'ja-JP',
+    disabled: locale.value === 'ja-JP'
   }
 ])
 

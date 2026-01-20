@@ -41,7 +41,7 @@
           @mouseleave="isHeaderDownloadHovered = false"
         >
           <template #icon>
-            <NIcon color="#18a058">
+            <NIcon :color="PRIMARY_COLOR">
               <Download v-if="isHeaderDownloadHovered" />
               <DownloadOutline v-else />
             </NIcon>

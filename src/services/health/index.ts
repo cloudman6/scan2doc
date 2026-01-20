@@ -1,4 +1,5 @@
 import { consola } from 'consola'
+import { getClientId } from '@/services/clientId'
 import type { HealthResponse } from './types'
 
 const healthLogger = consola.withTag('Health')
@@ -98,7 +99,10 @@ export class HealthCheckService {
             const timeoutId = setTimeout(() => controller.abort(), this.timeout)
 
             const response = await fetch(`${this.apiBaseUrl}/health`, {
-                signal: controller.signal
+                signal: controller.signal,
+                headers: {
+                    'X-Client-ID': getClientId()
+                }
             })
 
             clearTimeout(timeoutId)
@@ -112,20 +116,17 @@ export class HealthCheckService {
             // Update state
             this.lastCheckTime = new Date()
 
-            if (data.status === 'healthy') {
-                // Healthy state
-                if (!this.isHealthy) {
-                    healthLogger.success('[HealthCheckService] OCR service recovered')
-                }
-                this.isHealthy = true
-                this.healthInfo = data
-            } else {
-                // Unhealthy state
-                if (this.isHealthy) {
-                    healthLogger.warn('[HealthCheckService] OCR service is unhealthy', { status: data.status })
-                }
-                this.isHealthy = false
-                this.healthInfo = data
+            // Service is healthy if it responds successfully
+            // Even 'busy' and 'full' states mean the service is operational
+            if (!this.isHealthy) {
+                healthLogger.success('[HealthCheckService] OCR service recovered')
+            }
+            this.isHealthy = true
+            this.healthInfo = data
+
+            // Log status changes for monitoring
+            if (data.status !== 'healthy') {
+                healthLogger.warn('[HealthCheckService] OCR service status', { status: data.status })
             }
         } catch (error) {
             // Update state

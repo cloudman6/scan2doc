@@ -49,7 +49,9 @@
         target="_blank"
         rel="noopener"
       >cloudman6</a>
-      <div class="footer-version">DeepSeek-OCR-WebUI v3.5 | © 2026</div>
+      <div class="footer-version">
+        DeepSeek-OCR-WebUI v3.5 | © 2026
+      </div>
     </div>
   </div>
 </template>
@@ -130,7 +132,7 @@ defineEmits<{
 }
 
 .empty-state-footer a {
-  color: #18a058;
+  color: v-bind(PRIMARY_COLOR);
   text-decoration: none;
   font-weight: 500;
 }

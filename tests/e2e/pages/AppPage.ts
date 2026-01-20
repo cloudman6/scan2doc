@@ -1,6 +1,8 @@
 import { Page, expect } from '@playwright/test';
 import { TestData } from '../data/TestData';
 
+export type SupportedLocale = 'en' | 'zh-CN' | 'zh-TW' | 'ja-JP';
+
 export class AppPage {
   constructor(private page: Page) { }
 
@@ -17,15 +19,23 @@ export class AppPage {
    */
   async clearDatabase() {
     await this.page.evaluate(async () => {
+      // @ts-expect-error - Dynamic import path resolution in Playwright evaluate context
       const { db } = await import('/src/db/index.ts');
       await db.clearAllData();
     });
 
-    // 清空 Pinia store
+    // Clear Pinia store
     await this.page.evaluate(() => {
-      if (window.pagesStore) {
-        window.pagesStore.pages = [];
-        window.pagesStore.selectedPageIds = new Set();
+      interface WindowWithStore extends Window {
+        pagesStore?: {
+          pages: unknown[];
+          selectedPageIds: Set<string>;
+        };
+      }
+      const win = window as WindowWithStore;
+      if (win.pagesStore) {
+        win.pagesStore.pages = [];
+        win.pagesStore.selectedPageIds = new Set();
       }
     });
   }
@@ -36,35 +46,44 @@ export class AppPage {
   async waitForAppReady() {
     await this.page.waitForSelector('.app-container', { state: 'visible' });
     await this.page.waitForFunction(() => {
-      return window.pagesStore !== undefined;
+      interface WindowWithStore extends Window {
+        pagesStore?: unknown;
+      }
+      return (window as WindowWithStore).pagesStore !== undefined;
     }, { timeout: 10000 });
   }
 
   /**
    * 获取当前语言
    */
-  async getCurrentLanguage(): Promise<'en' | 'zh-CN'> {
+  async getCurrentLanguage(): Promise<SupportedLocale> {
     await this.page
       .locator('[data-testid="language-selector-button"]')
       .getAttribute('title'); // 可选检查，用于验证 UI 状态
 
     // 如果无法通过 title 获取，我们可以检查 dropdown 的状态或 store
-    return await this.page.evaluate(() => window.localStorage.getItem('locale') as 'en' | 'zh-CN' || 'en');
+    return await this.page.evaluate(() => window.localStorage.getItem('locale') as SupportedLocale || 'en');
   }
 
   /**
    * 切换语言
    */
-  async switchLanguage(language: 'en' | 'zh-CN') {
+  async switchLanguage(language: SupportedLocale) {
     // 检查当前语言，如果是目标语言则直接跳过
     const currentLang = await this.getCurrentLanguage();
     if (currentLang === language) {
       return;
     }
 
-    const expectedLabel = language === 'en' ? 'English' : '中文';
-    const appTitleText = language === 'en' ? TestData.translations.en.welcomeTitle : TestData.translations['zh-CN'].welcomeTitle;
-    const welcomeText = language === 'en' ? TestData.translations.en.welcomeDescription : TestData.translations['zh-CN'].welcomeDescription;
+    const labelMap: Record<string, string> = {
+      'en': 'English',
+      'zh-CN': '简体中文',
+      'zh-TW': '繁體中文',
+      'ja-JP': '日本語'
+    };
+    const expectedLabel = labelMap[language];
+    const appTitleText = TestData.translations[language].welcomeTitle;
+    const welcomeText = TestData.translations[language].welcomeDescription;
 
     // 点击语言切换按钮
     await this.page.locator('[data-testid="language-selector-button"]').click();
@@ -126,12 +145,13 @@ export class AppPage {
   }
 
   /**
-   * 获取健康指示器的颜色类型 (success/error)
+   * 获取健康指示器的颜色类型 (success/warning/error)
    */
-  async getHealthStatusType(): Promise<'success' | 'error'> {
+  async getHealthStatusType(): Promise<'success' | 'warning' | 'error'> {
     const button = this.page.locator('button').filter({ hasText: 'OCR Service' });
     const classList = await button.getAttribute('class') || '';
     if (classList.includes('n-button--success-type')) return 'success';
+    if (classList.includes('n-button--warning-type')) return 'warning';
     if (classList.includes('n-button--error-type')) return 'error';
     return 'success'; // 默认
   }

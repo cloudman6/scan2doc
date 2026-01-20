@@ -27,7 +27,6 @@ describe('HealthCheckService', () => {
                 status: 'healthy',
                 backend: 'cuda',
                 platform: 'Linux',
-                machine: 'x86_64',
                 model_loaded: true
             }
 
@@ -57,7 +56,7 @@ describe('HealthCheckService', () => {
 
             fetchMock.mockResolvedValue({
                 ok: true,
-                json: async () => ({ status: 'healthy', backend: 'cuda', platform: 'Linux', machine: 'x86_64', model_loaded: true })
+                json: async () => ({ status: 'healthy', backend: 'cuda', platform: 'Linux', model_loaded: true })
             })
 
             service.start()
@@ -78,7 +77,7 @@ describe('HealthCheckService', () => {
 
             fetchMock.mockResolvedValue({
                 ok: true,
-                json: async () => ({ status: 'healthy', backend: 'cuda', platform: 'Linux', machine: 'x86_64', model_loaded: true })
+                json: async () => ({ status: 'healthy', backend: 'cuda', platform: 'Linux', model_loaded: true })
             })
 
             service.start()
@@ -116,7 +115,7 @@ describe('HealthCheckService', () => {
 
             fetchMock.mockResolvedValue({
                 ok: true,
-                json: async () => ({ status: 'healthy', backend: 'cuda', platform: 'Linux', machine: 'x86_64', model_loaded: true })
+                json: async () => ({ status: 'healthy', backend: 'cuda', platform: 'Linux', model_loaded: true })
             })
 
             service.start()
@@ -142,7 +141,7 @@ describe('HealthCheckService', () => {
 
             fetchMock.mockResolvedValueOnce({
                 ok: true,
-                json: async () => ({ status: 'healthy', backend: 'cuda', platform: 'Linux', machine: 'x86_64', model_loaded: true })
+                json: async () => ({ status: 'healthy', backend: 'cuda', platform: 'Linux', model_loaded: true })
             })
 
             service.start()
@@ -156,7 +155,7 @@ describe('HealthCheckService', () => {
 
             fetchMock.mockResolvedValueOnce({
                 ok: true,
-                json: async () => ({ status: 'unhealthy', backend: 'cuda', platform: 'Linux', machine: 'x86_64', model_loaded: false })
+                json: async () => ({ status: 'unhealthy', backend: 'cuda', platform: 'Linux', model_loaded: false })
             })
 
             service.start()
@@ -237,7 +236,7 @@ describe('HealthCheckService', () => {
             // Second call succeeds
             fetchMock.mockResolvedValueOnce({
                 ok: true,
-                json: async () => ({ status: 'healthy', backend: 'cuda', platform: 'Linux', machine: 'x86_64', model_loaded: true })
+                json: async () => ({ status: 'healthy', backend: 'cuda', platform: 'Linux', model_loaded: true })
             })
 
             // Wait for the next check (5 seconds interval)
@@ -259,7 +258,6 @@ describe('HealthCheckService', () => {
                 status: 'healthy',
                 backend: 'cuda',
                 platform: 'Linux',
-                machine: 'x86_64',
                 model_loaded: true
             }
 
@@ -292,7 +290,7 @@ describe('HealthCheckService', () => {
 
             fetchMock.mockResolvedValue({
                 ok: true,
-                json: async () => ({ status: 'healthy', backend: 'cuda', platform: 'Linux', machine: 'x86_64', model_loaded: true })
+                json: async () => ({ status: 'healthy', backend: 'cuda', platform: 'Linux', model_loaded: true })
             })
 
             const initialTime = service.getLastCheckTime()

@@ -80,6 +80,7 @@ export const usePagesStore = defineStore('pages', () => {
     currentFile: undefined as string | undefined
   })
   const showOverlay = ref(localStorage.getItem('scan2doc_show_overlay') !== 'false')
+  const isInitialized = ref(false)
 
   // Queue to serialize file addition operations (prevents order race conditions)
   let fileAdditionQueue = Promise.resolve()
@@ -353,6 +354,8 @@ export const usePagesStore = defineStore('pages', () => {
       pages.value = dbPages.map(dbPage => dbPageToPage(dbPage))
     } catch (error) {
       storeLogger.error('[Pages Store] Failed to load pages from DB:', error)
+    } finally {
+      isInitialized.value = true
     }
   }
 
@@ -757,6 +760,7 @@ export const usePagesStore = defineStore('pages', () => {
     activeOCRTasks,
     queuedOCRTasks,
     ocrTaskCount,
-    cancelOCRTasks
+    cancelOCRTasks,
+    isInitialized
   }
 })

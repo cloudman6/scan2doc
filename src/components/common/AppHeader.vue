@@ -30,7 +30,7 @@
       <NPopover
         v-if="store.ocrTaskCount > 0 || showQueue"
         v-model:show="showQueue"
-        trigger="click"
+        trigger="manual"
         placement="bottom"
         :show-arrow="false"
         raw
@@ -40,6 +40,7 @@
             v-show="store.ocrTaskCount > 0"
             class="status-pill"
             data-testid="ocr-queue-badge"
+            @click.stop="showQueue = !showQueue"
           >
             <NSpin
               size="small"
@@ -53,7 +54,9 @@
             <OCRHealthIndicator compact />
           </div>
         </template>
-        <OCRQueuePopover @close="showQueue = false" />
+        <div ref="popoverContentRef">
+          <OCRQueuePopover @close="showQueue = false" />
+        </div>
       </NPopover>
     </div>
 
@@ -61,58 +64,79 @@
     <div class="header-actions">
       <!-- GitHub Links -->
       <div class="github-links">
-        <NTooltip trigger="hover">
+        <NTooltip
+          trigger="hover"
+          :theme-overrides="{ color: PRIMARY_COLOR, textColor: '#fff' }"
+        >
           <template #trigger>
-            <NButton
-              text
-              tag="a"
+            <a
               href="https://github.com/neosun100/DeepSeek-OCR-WebUI"
               target="_blank"
               class="github-btn"
             >
-              <template #icon>
-                <NIcon size="20"><LogoGithub /></NIcon>
-              </template>
-              <span class="github-text">Star</span>
-            </NButton>
+              <NButton
+                quaternary
+                circle
+                size="small"
+              >
+                <template #icon>
+                  <NIcon><LogoGithub /></NIcon>
+                </template>
+              </NButton>
+              <span class="btn-text">Star</span>
+            </a>
           </template>
-          ⭐ {{ $t('header.starProject') }}
+          {{ $t('header.starProject') }}
         </NTooltip>
 
-        <NTooltip trigger="hover">
+        <NTooltip
+          trigger="hover"
+          :theme-overrides="{ color: PRIMARY_COLOR, textColor: '#fff' }"
+        >
           <template #trigger>
-            <NButton
-              text
-              tag="a"
+            <a
               href="https://github.com/neosun100/DeepSeek-OCR-WebUI/issues"
               target="_blank"
               class="github-btn"
             >
-              <template #icon>
-                <NIcon size="18"><ChatboxEllipsesOutline /></NIcon>
-              </template>
-              <span class="github-text">Issue</span>
-            </NButton>
+              <NButton
+                quaternary
+                circle
+                size="small"
+              >
+                <template #icon>
+                  <NIcon><ChatboxEllipsesOutline /></NIcon>
+                </template>
+              </NButton>
+              <span class="btn-text">Issue</span>
+            </a>
           </template>
-          🐛 {{ $t('header.reportIssue') }}
+          {{ $t('header.reportIssue') }}
         </NTooltip>
 
-        <NTooltip trigger="hover">
+        <NTooltip
+          trigger="hover"
+          :theme-overrides="{ color: PRIMARY_COLOR, textColor: '#fff' }"
+        >
           <template #trigger>
-            <NButton
-              text
-              tag="a"
+            <a
               href="https://github.com/neosun100/DeepSeek-OCR-WebUI#readme"
               target="_blank"
               class="github-btn"
             >
-              <template #icon>
-                <NIcon size="18"><BookOutline /></NIcon>
-              </template>
-              <span class="github-text">Docs</span>
-            </NButton>
+              <NButton
+                quaternary
+                circle
+                size="small"
+              >
+                <template #icon>
+                  <NIcon><BookOutline /></NIcon>
+                </template>
+              </NButton>
+              <span class="btn-text">Docs</span>
+            </a>
           </template>
-          📖 {{ $t('header.readDocs') }}
+          {{ $t('header.readDocs') }}
         </NTooltip>
       </div>
 
@@ -120,19 +144,6 @@
 
       <!-- Language Selector -->
       <LanguageSelector />
-
-      <!-- Page Count Badge -->
-      <NTag
-        v-if="pageCount > 0"
-        round
-        :bordered="false"
-        type="info"
-        size="small"
-        class="page-count-badge"
-        data-testid="page-count-badge"
-      >
-        {{ pageCountText }}
-      </NTag>
 
       <!-- Primary CTA -->
       <NButton
@@ -154,9 +165,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NLayoutHeader, NButton, NIcon, NTag, NPopover, NSpin, NDivider, NTooltip } from 'naive-ui'
+import { onClickOutside } from '@vueuse/core'
+import { NLayoutHeader, NButton, NIcon, NPopover, NSpin, NDivider, NTooltip } from 'naive-ui'
 import { DocumentText, CloudUpload, LogoGithub, ChatboxEllipsesOutline, BookOutline } from '@vicons/ionicons5'
 import { usePagesStore } from '@/stores/pages'
 import OCRQueuePopover from '@/components/common/OCRQueuePopover.vue'
@@ -164,22 +176,33 @@ import OCRHealthIndicator from '@/components/common/OCRHealthIndicator.vue'
 import LanguageSelector from '@/components/common/LanguageSelector.vue'
 import { PRIMARY_COLOR } from '@/theme/vars'
 
-const props = defineProps<{
-  pageCount: number
-}>()
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+defineProps<{}>()
 
 const emit = defineEmits<{
   (e: 'add-files'): void
 }>()
 
-const { t } = useI18n()
+useI18n()
 const store = usePagesStore()
 const showQueue = ref(false)
+const popoverContentRef = ref<HTMLElement | null>(null)
 
-const pageCountText = computed(() => {
-  return props.pageCount > 1
-    ? t('header.pagesLoaded', [props.pageCount])
-    : t('header.pageLoaded', [props.pageCount])
+// Intelligent Dismissal: Close queue when clicking outside, but ignore:
+// 1. The trigger badge itself (handled by its own click)
+// 2. Elements with .keep-queue-open class (Scan buttons, Quick Actions)
+onClickOutside(popoverContentRef, () => {
+  showQueue.value = false
+}, {
+  ignore: [
+    '.keep-queue-open', 
+    '[data-testid="ocr-queue-badge"]',
+    '[data-testid="ocr-trigger-btn"]',
+    '[data-testid="ocr-mode-dropdown"]',
+    '[data-testid="ocr-actions-container"]',
+    '.ocr-actions',
+    '.ocr-mode-selector'
+  ]
 })
 
 const handleAddFiles = () => {
@@ -263,9 +286,7 @@ defineExpose({
   z-index: 1;
 }
 
-.page-count-badge {
-  font-weight: 600;
-}
+
 
 .github-links {
   display: flex;
@@ -318,10 +339,6 @@ defineExpose({
   }
 
   .header-actions .n-divider {
-    display: none;
-  }
-
-  .page-count-badge {
     display: none;
   }
 

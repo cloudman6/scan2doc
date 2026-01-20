@@ -13,6 +13,10 @@ vi.mock('@/config', () => ({
 const fetchMock = vi.fn()
 global.fetch = fetchMock
 
+vi.mock('@/services/clientId', () => ({
+    getClientId: vi.fn().mockReturnValue('mock-client-id')
+}))
+
 describe('DeepSeekOCRProvider', () => {
     beforeEach(() => {
         vi.clearAllMocks()
@@ -51,6 +55,9 @@ describe('DeepSeekOCRProvider', () => {
         // eslint-disable-next-line sonarjs/no-clear-text-protocols
         expect(url).toBe('http://mock-api/ocr')
         expect(options.method).toBe('POST')
+        expect(options.headers).toEqual({
+            'X-Client-ID': 'mock-client-id'
+        })
         expect(options.body).toBeInstanceOf(FormData)
 
         // Check FormData contents
@@ -99,6 +106,45 @@ describe('DeepSeekOCRProvider', () => {
         const blob = new Blob([''], { type: 'image/jpeg' })
 
         await expect(provider.process(blob)).rejects.toThrow('OCR API Error: 500 Server Error')
+    })
+
+    it('should handle 429 Queue Full error', async () => {
+        fetchMock.mockResolvedValue({
+            ok: false,
+            status: 429,
+            json: async () => ({ detail: 'queue full' })
+        })
+
+        const provider = new DeepSeekOCRProvider()
+        const blob = new Blob([''], { type: 'image/jpeg' })
+
+        await expect(provider.process(blob)).rejects.toThrow('Queue Full: Server queue just filled up, please try again later.')
+    })
+
+    it('should handle 429 Client Limit error', async () => {
+        fetchMock.mockResolvedValue({
+            ok: false,
+            status: 429,
+            json: async () => ({ detail: 'Client at max' })
+        })
+
+        const provider = new DeepSeekOCRProvider()
+        const blob = new Blob([''], { type: 'image/jpeg' })
+
+        await expect(provider.process(blob)).rejects.toThrow('Client Limit: You already have a task in progress.')
+    })
+
+    it('should handle 429 IP Limit error', async () => {
+        fetchMock.mockResolvedValue({
+            ok: false,
+            status: 429,
+            json: async () => ({ detail: 'IP at max' })
+        })
+
+        const provider = new DeepSeekOCRProvider()
+        const blob = new Blob([''], { type: 'image/jpeg' })
+
+        await expect(provider.process(blob)).rejects.toThrow('IP Limit: Too many requests from your network.')
     })
 
     it('should handle network errors', async () => {
@@ -178,4 +224,31 @@ describe('DeepSeekOCRProvider', () => {
 
         await expect(provider.process(new Blob([''], { type: 'image/jpeg' }))).rejects.toThrow('Unknown error during OCR processing')
     })
+
+    it('should handle 429 with generic message when detail does not match known patterns', async () => {
+        fetchMock.mockResolvedValue({
+            ok: false,
+            status: 429,
+            json: async () => ({ detail: 'some other rate limit reason' })
+        })
+
+        const provider = new DeepSeekOCRProvider()
+        const blob = new Blob([''], { type: 'image/jpeg' })
+
+        await expect(provider.process(blob)).rejects.toThrow('Rate Limit Exceeded: some other rate limit reason')
+    })
+
+    it('should handle 429 with json parsing failure', async () => {
+        fetchMock.mockResolvedValue({
+            ok: false,
+            status: 429,
+            json: () => Promise.reject(new Error('Invalid JSON'))
+        })
+
+        const provider = new DeepSeekOCRProvider()
+        const blob = new Blob([''], { type: 'image/jpeg' })
+
+        await expect(provider.process(blob)).rejects.toThrow('Rate Limit Exceeded')
+    })
 })
+

@@ -27,11 +27,11 @@ test.describe('OCR Health Check & Queue Recovery', () => {
         // 1. 验证初始状态为健康 (success)
         expect(await app.getHealthStatusType()).toBe('success');
 
-        // 2. Mock 变为不健康
-        await apiMocks.mockHealth({ status: 'unhealthy' });
+        // 2. Mock 服务不可用 (网络错误或 HTTP 错误，导致 isHealthy = false)
+        await apiMocks.mockHealth({ status: 'healthy', shouldFail: true });
 
         // 3. 等待轮询周期 (5s) 并验证 UI 变化
-        // 我们在页面上等待指示器变为 error 类型
+        // 我们在页面上等待指示器变为 error  类型
         await expect.poll(async () => await app.getHealthStatusType(), {
             timeout: 10000,
             intervals: [1000]
@@ -42,9 +42,9 @@ test.describe('OCR Health Check & Queue Recovery', () => {
         expect(statusText).toContain('Unavailable');
     });
 
-    test('should block OCR requests when service is unhealthy', async ({ page }) => {
-        // 1. 设置服务不健康
-        await apiMocks.mockHealth({ status: 'unhealthy' });
+    test('should block OCR requests when service is unavailable', async ({ page }) => {
+        // 1. 设置服务不可用
+        await apiMocks.mockHealth({ status: 'healthy', shouldFail: true });
 
         // 等待轮询生效，使 Store 更新
         await expect.poll(async () => await app.getHealthStatusType(), { timeout: 10000 }).toBe('error');
@@ -62,39 +62,44 @@ test.describe('OCR Health Check & Queue Recovery', () => {
         // Naive UI 的 notification 容器通常是 .n-notification-container
         await expect(page.locator('.n-notification')).not.toBeVisible();
 
-        // 5. 验证页面状态变为 error
-        expect(await ocrPage.getPageStatus(0)).toBe('error');
+        // 5. 验证页面状态保持为 ready (因为被 UI 拦截，未真正提交)
+        expect(await ocrPage.getPageStatus(0)).toBe('ready');
     });
 
-    test('should auto-resume queued tasks when service recovers', async ({ page }) => {
+    test('should auto-resume queued tasks when service recovers', async ({ page: _page }) => {
         // 1. 初始健康
         await apiMocks.mockHealth({ status: 'healthy' });
-        await apiMocks.mockOCR({ delay: 1000 }); // 让 OCR 慢一点
+        await apiMocks.mockOCR({ delay: 5000 }); // 让 OCR 慢一点
 
-        // 2. 上传并触发第一个任务
-        await pageList.uploadAndWaitReady([TestData.files.samplePNG()]);
+        // 2. 上传两个文件
+        await pageList.uploadAndWaitReady([TestData.files.samplePNG(), TestData.files.sampleJPG()]);
+
+        // 3. 触发第一个任务 (开始执行)
         await ocrPage.triggerOCR(0);
-        // 等待状态变为 Recognizing 或 Scanning (取决于具体的 I18N 文本)
-        await page.waitForTimeout(500); // 极短缓冲
-        await expect(page.getByTestId('ocr-status-tag').first()).toBeVisible();
+        // 等待状态变为 Recognizing 或 Scanning
+        await expect.poll(async () => await ocrPage.getPageStatus(0)).toMatch(/recognizing|pending_ocr/);
 
-        // 3. 在任务执行期间，服务变为不健康
-        await apiMocks.mockHealth({ status: 'unhealthy' });
-
-        // 4. 上传第二个文件并尝试触发 (此时应该会因为健康检查失败而无法【开始执行】)
-        // 注意：addOCRTask 内部会先等待健康检查。
-        await pageList.uploadAndWaitReady([TestData.files.samplePNG()]);
+        // 4. 触发第二个任务 (加入队列, Pending)
+        // 此时服务健康，可以正常加入队列
         await ocrPage.triggerOCR(1);
+        await expect.poll(async () => await ocrPage.getPageStatus(1)).toBe('pending_ocr');
 
-        // 验证第二个页面处于 pending 状态 (因为队列并发为1，第一个在执行，第二个在排队)
-        // 且因为服务已不健康，即便第一个完成，第二个也应该卡在 waitForHealthyService
+        // 5. 在任务执行期间，服务变为不可用
+        // 这将模拟"已在队列中的任务遇到 429 或服务不可用"的情况 (由后端重试逻辑或 processQueue 处理)
+        await apiMocks.mockHealth({ status: 'healthy', shouldFail: true });
+
+        // 6. 验证第二个页面保持 pending 状态 (或变为 waiting_retry，取决于具体实现，这里假设 pending_ocr)
+        // 验证它不会失败进入 error
         await expect.poll(async () => await ocrPage.getPageStatus(1), { timeout: 5000 }).toBe('pending_ocr');
 
-        // 5. 恢复服务健康
+        // 7. 恢复服务健康
         await apiMocks.mockHealth({ status: 'healthy' });
 
-        // 6. 验证第二个任务最终成功
-        await ocrPage.waitForOCRSuccess(1, 15000);
-        expect(await ocrPage.getPageStatus(1)).toBe('ocr_success');
+        // 8. 验证任务最终成功
+        await ocrPage.waitForOCRSuccess(0, 20000);
+        await ocrPage.waitForOCRSuccess(1, 20000);
+
+        expect(await ocrPage.isOCRCompleted(0)).toBeTruthy();
+        expect(await ocrPage.isOCRCompleted(1)).toBeTruthy();
     });
 });

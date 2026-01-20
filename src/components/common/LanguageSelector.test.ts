@@ -4,6 +4,8 @@ import LanguageSelector from './LanguageSelector.vue'
 import { createI18n } from 'vue-i18n'
 import en from '@/i18n/locales/en'
 import zhCN from '@/i18n/locales/zh-CN'
+import zhTW from '@/i18n/locales/zh-TW'
+import jaJP from '@/i18n/locales/ja-JP'
 import { setLocale } from '@/i18n'
 
 // Mock i18n setLocale
@@ -20,7 +22,7 @@ describe('LanguageSelector.vue', () => {
         legacy: false,
         locale,
         fallbackLocale: 'en',
-        messages: { en, 'zh-CN': zhCN },
+        messages: { en, 'zh-CN': zhCN, 'zh-TW': zhTW, 'ja-JP': jaJP },
         globalInjection: true
     })
 
@@ -61,7 +63,8 @@ describe('LanguageSelector.vue', () => {
 
         await wrapper.vm.$nextTick()
         const options = (wrapper.vm as any).languageOptions
-        expect(options[1].disabled).toBe(true) // zh-CN should be disabled when it is current locale
+        // zh-CN is at index 1
+        expect(options[1].disabled).toBe(true)
     })
 
     it('correctly calculates language options', async () => {
@@ -74,13 +77,17 @@ describe('LanguageSelector.vue', () => {
 
         // Initial locale is 'en'
         let options = (wrapper.vm as any).languageOptions
-        expect(options).toHaveLength(2)
+        expect(options).toHaveLength(4)
         expect(options[0].key).toBe('en')
         expect(options[1].key).toBe('zh-CN')
+        expect(options[2].key).toBe('zh-TW')
+        expect(options[3].key).toBe('ja-JP')
 
         // English should be disabled because current locale is 'en'
         expect(options[0].disabled).toBe(true)
         expect(options[1].disabled).toBe(false)
+        expect(options[2].disabled).toBe(false)
+        expect(options[3].disabled).toBe(false)
 
         // Change locale to zh-CN and check options again
         i18n.global.locale.value = 'zh-CN'
@@ -89,5 +96,7 @@ describe('LanguageSelector.vue', () => {
         options = (wrapper.vm as any).languageOptions
         expect(options[0].disabled).toBe(false)
         expect(options[1].disabled).toBe(true)
+        expect(options[2].disabled).toBe(false)
+        expect(options[3].disabled).toBe(false)
     })
 })

@@ -16,6 +16,7 @@ test-stability-logs/
 
 # docs
 docs/
+E2E_DESIGN.md
 
 # Dependency directories
 node_modules/

@@ -432,9 +432,14 @@ export class Scan2DocDB extends Dexie {
 export const db = new Scan2DocDB()
 
 function getSecureRandomPart(): string {
-  const array = new Uint32Array(1)
-  crypto.getRandomValues(array)
-  return array[0]!.toString(36)
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    const array = new Uint32Array(1)
+    crypto.getRandomValues(array)
+    return array[0]!.toString(36)
+  }
+  // Fallback for insecure contexts
+  // eslint-disable-next-line sonarjs/pseudo-random
+  return Math.random().toString(36).substring(2, 10)
 }
 
 export function generatePageId(): string {

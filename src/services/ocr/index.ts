@@ -2,39 +2,17 @@
 // This service will handle text extraction from images using various OCR providers
 
 import { DeepSeekOCRProvider } from './providers'
-export interface OCRBox {
-  label: 'title' | 'image' | 'table' | 'text' | string
-  box: [number, number, number, number] // [x1, y1, x2, y2]
-}
-
-export interface OCRResult {
-  success: boolean
-  text: string
-  raw_text: string
-  boxes: OCRBox[]
-  image_dims: { w: number; h: number }
-  prompt_type: string
-}
-
-export type OCRPromptType = 'document' | 'ocr' | 'free' | 'figure' | 'describe' | 'find' | 'freeform'
-
-export interface OCROptions {
-  prompt_type?: OCRPromptType
-  custom_prompt?: string // used for freeform
-  find_term?: string     // used for find
-  grounding?: boolean    // required for all
-  signal?: AbortSignal
-}
-
-export interface OCRProvider {
-  name: string
-  process(imageData: Blob | string, options?: OCROptions): Promise<OCRResult>
-}
+export * from './types'
+import type { OCRProvider, OCRResult, OCROptions } from './types'
+import { QueueFullError } from './types'
 
 import { db } from '@/db'
 import { ocrEvents } from './events'
 import { queueManager } from '@/services/queue'
 import { useHealthStore } from '@/stores/health'
+import { consola } from 'consola'
+
+const ocrLogger = consola.withTag('OCR')
 
 export class OCRService {
   private providers: Map<string, OCRProvider> = new Map()
@@ -55,8 +33,10 @@ export class OCRService {
     imageData: Blob | string,
     options?: OCROptions
   ): Promise<void> {
-    // Check if OCR service is healthy before queuing
+    // Check OCR service availability before queuing
     const healthStore = useHealthStore()
+
+    // Reject if service is unavailable (network error, API down)
     if (!healthStore.isHealthy) {
       const error = new Error('OCR service is currently unavailable. Please try again later.')
       ocrEvents.emit('ocr:error', { pageId, error })
@@ -67,36 +47,104 @@ export class OCRService {
 
     // Fire and forget - processing happens in queue
     queueManager.addOCRTask(pageId, async (signal) => {
-      // Check for abort before starting (QueueManager also checks, but good practice)
+      await this.processOCRWithRetry(pageId, imageData, options, signal)
+    }).catch(err => {
+      ocrLogger.error(`[OCRService] Task error for ${pageId}:`, err)
+    })
+  }
+
+  /**
+   * Process OCR with automatic retry on queue full
+   */
+  private async processOCRWithRetry(
+    pageId: string,
+    imageData: Blob | string,
+    options: OCROptions | undefined,
+    signal: AbortSignal
+  ): Promise<void> {
+    if (signal.aborted) return
+
+    ocrEvents.emit('ocr:start', { pageId })
+
+    await this.executeWithRetry(pageId, imageData, options, signal)
+  }
+
+  /**
+   * Execute OCR with retry logic
+   */
+  private async executeWithRetry(
+    pageId: string,
+    imageData: Blob | string,
+    options: OCROptions | undefined,
+    signal: AbortSignal
+  ): Promise<void> {
+    const retryInterval = 5000
+    const healthStore = useHealthStore()
+
+    while (true) {
       if (signal.aborted) return
 
-      ocrEvents.emit('ocr:start', { pageId })
-
-      try {
-        // Run OCR
-        // Note: We now pass the signal to processImage -> provider -> fetch for native cancellation.
-        const result = await this.processImage(imageData, 'deepseek', { ...options, signal })
-
-        if (signal.aborted) return // Check again after result
-
-        // Save to DB
-        await db.savePageOCR({
-          pageId,
-          data: result,
-          createdAt: new Date()
-        })
-
-        ocrEvents.emit('ocr:success', { pageId, result })
-      } catch (error) {
-        if (signal.aborted) return // Ignore error if aborted
-
-        const err = error instanceof Error ? error : new Error(String(error))
-        ocrEvents.emit('ocr:error', { pageId, error: err })
-        throw err
+      if (healthStore.isFull) {
+        ocrLogger.info(`[OCRService] Server queue is full, waiting ${retryInterval}ms for page ${pageId}`)
+        await this.delayWithSignal(retryInterval, signal)
+        continue
       }
-    }).catch(err => {
-      // Log errors that happened in adding to queue or unhandled rejections
-      console.error(`[OCRService] Task error for ${pageId}:`, err)
+
+      const shouldContinue = await this.tryProcessOCR(pageId, imageData, options, signal, retryInterval)
+      if (!shouldContinue) return
+    }
+  }
+
+  /**
+   * Try to process OCR, returns true if should retry
+   */
+  private async tryProcessOCR(
+    pageId: string,
+    imageData: Blob | string,
+    options: OCROptions | undefined,
+    signal: AbortSignal,
+    retryInterval: number
+  ): Promise<boolean> {
+    try {
+      const result = await this.processImage(imageData, 'deepseek', { ...options, signal })
+      if (signal.aborted) return false
+
+      await db.savePageOCR({ pageId, data: result, createdAt: new Date() })
+      ocrEvents.emit('ocr:success', { pageId, result })
+      return false
+    } catch (error) {
+      if (signal.aborted) return false
+
+      if (error instanceof QueueFullError) {
+        ocrLogger.warn(`[OCRService] OCR task for page ${pageId} failed with 429, retrying in ${retryInterval}ms...`)
+        await this.delayWithSignal(retryInterval, signal)
+        return true
+      }
+
+      const err = error instanceof Error ? error : new Error(String(error))
+      ocrEvents.emit('ocr:error', { pageId, error: err })
+      throw err
+    }
+  }
+
+  /**
+   * Helper to wait for a specific duration while respecting an AbortSignal
+   */
+  private delayWithSignal(ms: number, signal: AbortSignal): Promise<void> {
+    return new Promise((resolve) => {
+      if (signal.aborted) {
+        resolve()
+        return
+      }
+
+      const timer = setTimeout(resolve, ms)
+
+      const onAbort = () => {
+        clearTimeout(timer)
+        resolve()
+      }
+
+      signal.addEventListener('abort', onAbort, { once: true })
     })
   }
 

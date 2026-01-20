@@ -37,7 +37,12 @@ export default {
     unavailable: 'Unavailable',
     justNow: 'just now',
     ago: '{0}s ago',
-    minutesAgo: '{0}m ago'
+    minutesAgo: '{0}m ago',
+    busyTooltip: 'System Busy (Queued)',
+    fullTooltip: 'Queue Full (Cannot Submit)',
+    queue: 'Queue',
+    busy: 'Busy',
+    full: 'Full'
   },
 
   // Header
@@ -56,6 +61,9 @@ export default {
   // Page List
   pageList: {
     noPages: 'No pages added',
+    pageCount: '{n} page | {n} pages',
+    selectedCount: '{0} / {1} page',
+    selectedCount_plural: '{0} / {1} pages',
     exportAs: 'Export as {0}',
     scanSelected: 'Scan selected pages to document',
     deleteSelected: 'Delete selected pages',
@@ -168,7 +176,10 @@ export default {
     activeTasks: 'Active',
     queuedTasks: 'Queued',
     noActiveTasks: 'No active OCR tasks',
-    noQueuedTasks: 'No queued OCR tasks'
+    noQueuedTasks: 'No queued OCR tasks',
+    queuePosition: 'Queued (#{0})',
+    processing: 'Processing (#1)',
+    submitting: 'Submitting...'
   },
 
   // Raw Text Panel
@@ -194,7 +205,9 @@ export default {
     close: 'Close',
     language: 'Language',
     english: 'English',
-    chinese: '中文'
+    chinese: '中文',
+    traditionalChinese: 'Traditional Chinese',
+    japanese: 'Japanese'
   },
 
   // Page Item
@@ -244,6 +257,8 @@ export default {
     failedToLoadMarkdown: 'Failed to load markdown',
     failedToExportMarkdown: 'Failed to export markdown',
     ocrServiceUnavailable: 'OCR service is currently unavailable. Please try again later.',
-    ocrServiceUnavailableTitle: 'Service Unavailable'
+    ocrServiceUnavailableTitle: 'Service Unavailable',
+    ocrQueueFull: 'OCR queue is full. Please try again later.',
+    ocrQueueFullTitle: 'Queue Full'
   }
 } as const
