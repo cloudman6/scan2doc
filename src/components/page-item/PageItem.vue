@@ -139,7 +139,7 @@
       <div class="status-row">
         <NTag
           :type="getStatusType(page.status)"
-          size="small"
+          size="small" 
           data-testid="ocr-status-tag"
         >
           OCR
