@@ -238,6 +238,21 @@ async function handleScan() {
       return
     }
 
+    const healthStore = useHealthStore()
+    
+    // Pre-check for Unavailable or Full status
+    const isUnavailable = !healthStore.isHealthy
+    const isQueueFull = healthStore.isFull
+
+    if (isUnavailable || isQueueFull) {
+      dialog.error({
+        title: isQueueFull ? t('errors.ocrQueueFullTitle') : t('errors.ocrServiceUnavailableTitle'),
+        content: isQueueFull ? t('errors.ocrQueueFull') : t('errors.ocrServiceUnavailable'),
+        positiveText: t('common.ok')
+      })
+      return
+    }
+
     await ocrService.queueOCR(props.page.id, imageBlob)
     
     // 注意: Naive UI 的 notification API 不支持 class 选项

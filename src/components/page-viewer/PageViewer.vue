@@ -587,6 +587,20 @@ async function submitOCR(mode: OCRPromptType, extraOptions: { custom_prompt?: st
       return
     }
 
+
+    // Pre-check for Unavailable or Full status
+    const isUnavailable = !healthStore.isHealthy
+    const isQueueFull = healthStore.isFull
+
+    if (isUnavailable || isQueueFull) {
+      dialog.error({
+        title: isQueueFull ? t('errors.ocrQueueFullTitle') : t('errors.ocrServiceUnavailableTitle'),
+        content: isQueueFull ? t('errors.ocrQueueFull') : t('errors.ocrServiceUnavailable'),
+        positiveText: t('common.ok')
+      })
+      return
+    }
+
     uiLogger.info(`Adding page to OCR Queue (${mode}):`, props.currentPage.id)
     
     await ocrService.queueOCR(props.currentPage.id, imageBlob, {
