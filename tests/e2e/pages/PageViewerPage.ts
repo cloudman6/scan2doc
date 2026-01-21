@@ -144,8 +144,7 @@ export class PageViewerPage {
     try {
       // Wait for dropdown to be visible
       await this.page.waitForSelector(dropdownMenuSelector, { state: 'visible', timeout: 5000 });
-      // eslint-disable-next-line sonarjs/no-ignored-exceptions
-    } catch (_e) {
+    } catch {
       // Retry opening if it failed (sometimes click might be swallowed)
       // Ignoring error as we are explicitly retrying
       console.log('Dropdown not visible, retrying click...');

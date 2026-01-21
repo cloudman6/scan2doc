@@ -120,7 +120,7 @@ test.describe('OCR Mode Selector - Direct Modes', () => {
 
             // Wait for health check to update
             await page.waitForFunction(() => {
-                const hs = (window as any).healthStore;
+                const hs = window.healthStore;
                 return hs && hs.isAvailable === false;
             }, { timeout: 10000 });
 

@@ -337,7 +337,7 @@ test.describe('OCR Input Modal - Input Modes', () => {
 
             // Wait for health store update
             await page.waitForFunction(() => {
-                const hs = (window as any).healthStore;
+                const hs = window.healthStore;
                 return hs && hs.isAvailable === false;
             }, { timeout: 10000 });
 

@@ -172,7 +172,7 @@ test.describe('Batch OCR', () => {
       // 3. Click batch OCR
       // Wait for health store to be in sync (though click logic does force refresh)
       await page.waitForFunction(() => {
-        const hs = (window as any).healthStore;
+        const hs = window.healthStore;
         return hs && hs.isFull === true;
       });
 
@@ -203,7 +203,7 @@ test.describe('Batch OCR', () => {
       // 3. Click batch OCR
       // Wait for health store to be in sync
       await page.waitForFunction(() => {
-        const hs = (window as any).healthStore;
+        const hs = window.healthStore;
         return hs && hs.isAvailable === false;
       }, { timeout: 10000 });
 

@@ -53,7 +53,7 @@ test.describe('OCR Health Check & Queue Recovery', () => {
         // 等待内存中的 isAvailable 状态真正变为 false
         // 这规避了 UI 虽然变色但内存状态因轮询时差还没刷新的问题
         await page.waitForFunction(() => {
-            const hs = (window as any).healthStore;
+            const hs = window.healthStore;
             return hs && hs.isAvailable === false;
         }, { timeout: 15000 });
 
@@ -94,7 +94,7 @@ test.describe('OCR Health Check & Queue Recovery', () => {
 
         // Wait for sync
         await page.waitForFunction(() => {
-            const hs = (window as any).healthStore;
+            const hs = window.healthStore;
             return hs && hs.isFull === true;
         }, { timeout: 15000 });
 
@@ -118,7 +118,7 @@ test.describe('OCR Health Check & Queue Recovery', () => {
         expect(finalStatus).toBe('ready');
     });
 
-    test('should auto-recover health indicator from unavailable to healthy', async ({ page }) => {
+    test('should auto-recover health indicator from unavailable to healthy', async ({ page: _page }) => {
         // 1. Start Unavailable
         await apiMocks.mockHealth({ status: 'healthy', shouldFail: true });
 

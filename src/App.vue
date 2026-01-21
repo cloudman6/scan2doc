@@ -520,7 +520,7 @@ onMounted(async () => {
 
   // Expose stores for E2E testing observability
   if (typeof window !== 'undefined') {
-    const win = window as any
+    const win = window
     win.pagesStore = pagesStore
     win.healthStore = healthStore
     

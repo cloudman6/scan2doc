@@ -38,7 +38,7 @@ test.describe('PageList Scan Button Interception', () => {
 
         // Wait for health store sync
         await page.waitForFunction(() => {
-            const hs = (window as any).healthStore;
+            const hs = window.healthStore;
             return hs && hs.isFull === true;
         });
 
@@ -76,7 +76,7 @@ test.describe('PageList Scan Button Interception', () => {
 
         // Wait for health store sync
         await page.waitForFunction(() => {
-            const hs = (window as any).healthStore;
+            const hs = window.healthStore;
             return hs && hs.isAvailable === false;
         }, { timeout: 10000 });
 
